@@ -1,7 +1,7 @@
 from memory import MutUnsafePointer
 from slight.c.api import sqlite_ffi
 from slight.c.types import MutExternalPointer
-from slight.bindings import sqlite3_connection
+from slight.c.bindings import sqlite3_connection
 from slight.result import SQLite3Result
 
 
@@ -37,7 +37,7 @@ fn raise_if_error(db: MutExternalPointer[sqlite3_connection], code: SQLite3Resul
     Raises:
         Error: If the SQLite error code is not `SQLITE_OK`.
     """
-    if SQLite3Result.SQLITE_OK == code:
+    if SQLite3Result.OK == code:
         return
 
     raise Error(error_from_sqlite_code(code, error_msg(db, code)))

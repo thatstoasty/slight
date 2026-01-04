@@ -1,14 +1,10 @@
-from memory import Pointer
+from sys import stderr
 from slight.result import SQLite3Result
 from slight.c.raw_bindings import sqlite3_stmt
 from slight.c.sqlite_string import SQLiteMallocString
 from slight.c.types import (
-    SQLITE_BLOB,
-    SQLITE_FLOAT,
-    SQLITE_INTEGER,
-    SQLITE_NULL,
-    SQLITE_TEXT,
-    SQLITE_TRANSIENT,
+    DataType,
+    DestructorHint,
     ResultDestructorFn,
     MutExternalPointer,
 )
@@ -19,7 +15,7 @@ from slight.row import MappedRows, Row, Rows
 from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
 from slight.types.from_sql import FromSQL
 
-alias InvalidColumnIndexError = Error("InvalidColumnIndex: Index provided is greater than the number of columns.")
+comptime InvalidColumnIndexError = "InvalidColumnIndex: Index provided is greater than the number of columns."
 
 
 fn eq_ignore_ascii_case(a: Span[Byte], b: Span[Byte]) -> Bool:
@@ -59,22 +55,22 @@ struct Statement[conn: ImmutOrigin](Movable):
     underlying SQLite statement.
     """
 
-    var connection: Pointer[Connection, conn]
+    var connection: Pointer[Connection, Self.conn]
     """A pointer to the SQLite connection that created this statement."""
     var stmt: RawStatement
     """The raw SQLite statement wrapper."""
 
-    fn __init__(out self, connection: Pointer[Connection, conn], var stmt: RawStatement):
+    fn __init__(out self, connection: Pointer[Connection, Self.conn], var stmt: RawStatement):
         """Initializes a new Statement with the given connection and raw statement pointer.
 
         Args:
             connection: A pointer to the SQLite connection.
-            stmt: A pointer to the prepared SQLite statement.
+            stmt: The prepared SQLite statement.
         """
         self.connection = connection
         self.stmt = stmt^
 
-    fn __init__(out self, connection: Pointer[Connection, conn], stmt: MutExternalPointer[sqlite3_stmt]):
+    fn __init__(out self, connection: Pointer[Connection, Self.conn], stmt: MutExternalPointer[sqlite3_stmt]):
         """Initializes a new Statement with the given connection and raw statement pointer.
 
         Args:
@@ -91,9 +87,9 @@ struct Statement[conn: ImmutOrigin](Movable):
         Note: This currently absorbs any errors that occur during finalization.
         """
         try:
-            self.finalize()
+            self^.finalize()
         except e:
-            print("Error finalizing statement:", e)
+            print("Error finalizing statement:", e, file=stderr)
 
     fn __repr__(self) -> String:
         """Returns a string representation of the statement for debugging purposes."""
@@ -121,20 +117,20 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If the column type is unknown or unsupported.
         """
         var column_type = self.stmt.column_type(col)
-        if column_type == SQLITE_NULL:
+        if DataType.NULL == column_type:
             return ValueRef[origin_of(self)](SQLite3Null())
-        elif column_type == SQLITE_INTEGER:
+        elif DataType.INTEGER == column_type:
             return ValueRef[origin_of(self)](SQLite3Integer(self.stmt.column_int64(col)))
-        elif column_type == SQLITE_FLOAT:
+        elif DataType.FLOAT == column_type:
             return ValueRef[origin_of(self)](SQLite3Real(self.stmt.column_double(col)))
-        elif column_type == SQLITE_TEXT:
+        elif DataType.TEXT == column_type:
             return ValueRef[origin_of(self)](SQLite3Text(self.stmt.column_text(col)))
-        elif column_type == SQLITE_BLOB:
+        elif DataType.BLOB == column_type:
             return ValueRef[origin_of(self)](SQLite3Blob(self.stmt.column_blob(col)))
         else:
             raise Error("Unknown column type: ", column_type)
 
-    fn finalize(mut self) raises -> None:
+    fn finalize(deinit self) raises -> None:
         """Finalizes the statement and releases its resources.
 
         After calling this method, the statement should not be used again.
@@ -142,7 +138,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If the finalization fails.
         """
-        self.connection[].raise_if_error(self.stmt.finalize())
+        self.connection[].raise_if_error(self.stmt^.finalize())
 
     fn step(self) raises -> Bool:
         """Executes the statement and advances to the next row.
@@ -154,9 +150,9 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If an error occurs during statement execution.
         """
         var r = self.stmt.step()
-        if r == SQLite3Result.SQLITE_ROW:
+        if r == SQLite3Result.ROW:
             return True
-        elif r == SQLite3Result.SQLITE_DONE:
+        elif r == SQLite3Result.DONE:
             return False
         else:
             var error = self.connection[].error_msg(r)
@@ -194,10 +190,10 @@ struct Statement[conn: ImmutOrigin](Movable):
         var r = self.stmt.step()
         var rr = self.stmt.reset()
 
-        if r == SQLite3Result.SQLITE_DONE:
+        if r == SQLite3Result.DONE:
             self.connection[].raise_if_error(rr)
             return self.connection[].changes()
-        elif r == SQLite3Result.SQLITE_ROW:
+        elif r == SQLite3Result.ROW:
             raise Error("Query returned rows.")
         else:
             var error = self.connection[].error_msg(r)
@@ -224,7 +220,6 @@ struct Statement[conn: ImmutOrigin](Movable):
         """
         if params:
             self.bind_parameters(params)
-
         return self._execute()
 
     fn execute(mut self, params: Dict[String, Parameter]) raises -> Int64:
@@ -339,8 +334,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         if parameter.isa[NoneType]():
             self.bind_null(index)
         elif parameter.isa[String]():
-            var des = UnsafePointer(to=SQLITE_TRANSIENT).bitcast[ResultDestructorFn]()
-            self.bind_text(index, parameter[String], des[])
+            self.bind_text(index, parameter[String], DestructorHint.transient_destructor())
         elif parameter.isa[Int]():
             self.bind_int64(index, Int64(parameter[Int]))
         elif parameter.isa[Int8]():
@@ -426,7 +420,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
             self.bind_parameter(kv[1], i[])
 
-    fn query(mut self, params: List[Parameter] = []) raises -> Rows[conn, origin_of(self)]:
+    fn query(mut self, params: List[Parameter] = []) raises -> Rows[Self.conn, origin_of(self)]:
         """Executes the statement as a query and returns an iterator over the result rows.
 
         This method is intended for SELECT statements that return data.
@@ -444,7 +438,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         self.bind_parameters(params)
         return Rows(Pointer(to=self))
 
-    fn query(mut self, params: Dict[String, Parameter]) raises -> Rows[conn, origin_of(self)]:
+    fn query(mut self, params: Dict[String, Parameter]) raises -> Rows[Self.conn, origin_of(self)]:
         """Executes the statement as a query and returns an iterator over the result rows.
 
         This method is intended for SELECT statements that return data.
@@ -462,7 +456,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         self.bind_parameters_named(params)
         return Rows(Pointer(to=self))
 
-    fn query(mut self, params: List[Tuple[String, Parameter]]) raises -> Rows[conn, origin_of(self)]:
+    fn query(mut self, params: List[Tuple[String, Parameter]]) raises -> Rows[Self.conn, origin_of(self)]:
         """Executes the statement as a query and returns an iterator over the result rows.
 
         This method is intended for SELECT statements that return data.
@@ -481,8 +475,8 @@ struct Statement[conn: ImmutOrigin](Movable):
         return Rows(Pointer(to=self))
 
     fn query_map[
-        T: Copyable & Movable, //, transform: fn (Row) -> T
-    ](mut self, params: List[Parameter] = []) raises -> MappedRows[conn, origin_of(self), transform]:
+        T: Copyable, //, transform: fn (Row) raises -> T
+    ](mut self, params: List[Parameter] = []) raises -> MappedRows[Self.conn, origin_of(self), transform]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
         This method applies a transformation function to each row returned by the query,
@@ -501,11 +495,11 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If parameter binding fails or the query execution fails.
         """
-        return MappedRows[conn, origin_of(self), transform](self.query(params))
+        return MappedRows[Self.conn, origin_of(self), transform](self.query(params))
 
     fn query_map[
-        T: Copyable & Movable, //, transform: fn (Row) -> T
-    ](mut self, params: Dict[String, Parameter]) raises -> MappedRows[conn, origin_of(self), transform]:
+        T: Copyable, //, transform: fn (Row) raises -> T
+    ](mut self, params: Dict[String, Parameter]) raises -> MappedRows[Self.conn, origin_of(self), transform]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
         This method applies a transformation function to each row returned by the query,
@@ -524,11 +518,11 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If parameter binding fails or the query execution fails.
         """
-        return MappedRows[conn, origin_of(self), transform](self.query(params))
+        return MappedRows[Self.conn, origin_of(self), transform](self.query(params))
 
     fn query_map[
-        T: Copyable & Movable, //, transform: fn (Row) -> T
-    ](mut self, params: List[Tuple[String, Parameter]]) raises -> MappedRows[conn, origin_of(self), transform]:
+        T: Movable, //, transform: fn (Row) raises -> T
+    ](mut self, params: List[Tuple[String, Parameter]]) raises -> MappedRows[Self.conn, origin_of(self), transform]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
         This method applies a transformation function to each row returned by the query,
@@ -547,10 +541,10 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If parameter binding fails or the query execution fails.
         """
-        return MappedRows[conn, origin_of(self), transform](self.query(params))
+        return MappedRows[Self.conn, origin_of(self), transform](self.query(params))
 
     fn query_row[
-        T: Copyable & Movable, //, transform: fn (Row) raises -> T
+        T: Movable, //, transform: fn (Row) raises -> T
     ](mut self, params: List[Parameter] = []) raises -> T:
         """Executes the query and returns a single row.
 
@@ -571,13 +565,16 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If parameter binding fails, no rows are returned, or more than one row is returned.
         """
         var rows = self.query(params)
-        if not rows.__has_next__():
+        var row: Row[Self.conn, origin_of(self)]
+        try:
+            row = rows.__next__()
+        except StopIteration:
             raise Error("No rows returned by query.")
-
-        return transform(rows.__next__())
+        
+        return transform(row)
 
     fn query_row[
-        T: Copyable & Movable, //, transform: fn (Row) raises -> T
+        T: Movable, //, transform: fn (Row) raises -> T
     ](mut self, params: Dict[String, Parameter]) raises -> T:
         """Executes the query and returns a single row.
 
@@ -598,13 +595,16 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If parameter binding fails, no rows are returned, or more than one row is returned.
         """
         var rows = self.query(params)
-        if not rows.__has_next__():
+        var row: Row[Self.conn, origin_of(self)]
+        try:
+            row = rows.__next__()
+        except StopIteration:
             raise Error("No rows returned by query.")
-
-        return transform(rows.__next__())
+        
+        return transform(row)
 
     fn query_row[
-        T: Copyable & Movable, //, transform: fn (Row) raises -> T
+        T: Movable, //, transform: fn (Row) raises -> T
     ](mut self, params: List[Tuple[String, Parameter]]) raises -> T:
         """Executes the query and returns a single row.
 
@@ -625,10 +625,13 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If parameter binding fails, no rows are returned, or more than one row is returned.
         """
         var rows = self.query(params)
-        if not rows.__has_next__():
+        var row: Row[Self.conn, origin_of(self)]
+        try:
+            row = rows.__next__()
+        except StopIteration:
             raise Error("No rows returned by query.")
-
-        return transform(rows.__next__())
+        
+        return transform(row)
 
     fn exists(mut self, params: List[Parameter] = []) raises -> Bool:
         """Checks if the query returns at least one row.
@@ -646,7 +649,12 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If parameter binding fails or the query execution fails.
         """
-        return self.query(params).__has_next__()
+        var rows = self.query(params)
+        try:
+            _ = rows.__next__()
+            return True
+        except StopIteration:
+            return False
 
     fn exists(mut self, params: Dict[String, Parameter]) raises -> Bool:
         """Checks if the query returns at least one row.
@@ -664,7 +672,12 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If parameter binding fails or the query execution fails.
         """
-        return self.query(params).__has_next__()
+        var rows = self.query(params)
+        try:
+            _ = rows.__next__()
+            return True
+        except StopIteration:
+            return False
 
     fn exists(mut self, params: List[Tuple[String, Parameter]]) raises -> Bool:
         """Checks if the query returns at least one row.
@@ -682,7 +695,12 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If parameter binding fails or the query execution fails.
         """
-        return self.query(params).__has_next__()
+        var rows = self.query(params)
+        try:
+            _ = rows.__next__()
+            return True
+        except StopIteration:
+            return False
 
     fn clear_bindings(self) raises -> None:
         """Clears all bound parameters from the statement.

@@ -1,11 +1,12 @@
 from slight.c.api import sqlite_ffi
 from slight.result import SQLite3Result
-from slight.c.types import sqlite3_stmt, ResultDestructorFn, SQLITE_UTF8, MutExternalPointer
+from slight.c.types import sqlite3_stmt, ResultDestructorFn, TextEncoding, MutExternalPointer
 from slight.c.sqlite_string import SQLiteMallocString
 
 
 @fieldwise_init
-struct RawStatement(Boolable, Movable):
+@explicit_destroy("RawStatement must be explicitly destroyed. Use self.finalize() to destroy.")
+struct RawStatement(Movable):
     """A raw SQL statement wrapper around a pointer to a `sqlite3_stmt`."""
 
     var stmt: MutExternalPointer[sqlite3_stmt]
@@ -22,11 +23,6 @@ struct RawStatement(Boolable, Movable):
     fn __bool__(self) -> Bool:
         """Returns True if the statement is valid (i.e., the stmt pointer is not null)."""
         return Bool(self.stmt)
-
-    fn __del__(deinit self):
-        """Finalizes the statement when it is deleted."""
-        if self.stmt:
-            _ = self.finalize()
 
     fn column_int64(self, idx: UInt) -> Int64:
         """Returns the value of the specified column as a 64-bit integer.
@@ -169,7 +165,7 @@ struct RawStatement(Boolable, Movable):
             destructor_callback: The destructor function to call when SQLite is done with the text.
         """
         return sqlite_ffi()[].bind_text64(
-            self.stmt, Int32(index), value, len(value), SQLITE_UTF8, destructor_callback
+            self.stmt, Int32(index), value, len(value), TextEncoding.UTF8, destructor_callback
         )
 
     fn sql(self) -> Optional[StringSlice[origin_of(self)]]:
@@ -200,8 +196,7 @@ struct RawStatement(Boolable, Movable):
         # But it should be valid as long as the statement is valid, so we use the same origin as the statement.
         return sqlite_ffi()[].expanded_sql(self.stmt)
 
-    # TODO: Change this to var when we can call deinit explicitly in deinit functions.
-    fn finalize(mut self) -> SQLite3Result:
+    fn finalize(deinit self) -> SQLite3Result:
         """Destroys the prepared statement and releases its resources.
 
         After calling this method, the statement should not be used again.
@@ -209,24 +204,18 @@ struct RawStatement(Boolable, Movable):
         Returns:
             The SQLite result code from finalizing the statement.
         """
-        var old_stmt = self.stmt
-        self.stmt = MutExternalPointer[sqlite3_stmt]()
+        return sqlite_ffi()[].finalize(self.stmt)
 
-        return sqlite_ffi()[].finalize(old_stmt)
-
-    fn step(self) raises -> SQLite3Result:
+    fn step(self) -> SQLite3Result:
         """Executes the prepared statement and advances to the next result row.
 
         Returns:
             SQLITE_ROW if a new row is available, SQLITE_DONE if execution is complete,
             or another SQLite result code.
-
-        Raises:
-            Error: If the step operation fails.
         """
         return sqlite_ffi()[].step(self.stmt)
 
-    fn reset(self) raises -> SQLite3Result:
+    fn reset(self) -> SQLite3Result:
         """Resets the prepared statement back to its initial state.
 
         This allows the statement to be re-executed with the same or different
@@ -234,22 +223,16 @@ struct RawStatement(Boolable, Movable):
 
         Returns:
             The SQLite result code.
-
-        Raises:
-            Error: If the reset operation fails.
         """
         return sqlite_ffi()[].reset(self.stmt)
 
-    fn clear_bindings(self) raises -> SQLite3Result:
+    fn clear_bindings(self) -> SQLite3Result:
         """Clears all bound parameter values from the prepared statement.
 
         This allows the statement to be re-executed with new parameter values.
 
         Returns:
             The SQLite result code.
-
-        Raises:
-            Error: If the clear bindings operation fails.
         """
         return sqlite_ffi()[].clear_bindings(self.stmt)
 

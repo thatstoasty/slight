@@ -2,10 +2,10 @@ from utils.variant import Variant
 
 
 @fieldwise_init
-struct Parameter(Copyable, Movable):
+struct Parameter(Copyable):
     """A parameter for a SQLite3 prepared statement."""
 
-    alias _type = Variant[
+    var value: Variant[
         String,
         Int,
         Int8,
@@ -23,8 +23,6 @@ struct Parameter(Copyable, Movable):
         Bool,
         NoneType,
     ]
-    """The type of value that can be held by a parameter."""
-    var value: Self._type
     """The actual value of the parameter."""
 
     @implicit

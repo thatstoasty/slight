@@ -101,14 +101,6 @@ struct Connection(Movable):
         """
         self = Connection.open(path)
 
-    fn __moveinit__(out self, deinit other: Self):
-        """Move-initializes a new connection from the given connection.
-
-        Args:
-            other: The connection to move from.
-        """
-        self.db = other^.take_connection()
-
     fn __del__(deinit self):
         """Closes the connection when it is deleted."""
         if self.db:
@@ -121,18 +113,6 @@ struct Connection(Movable):
             The connection itself.
         """
         return self^
-
-    fn take_connection(var self) -> InnerConnection:
-        """Consume the connection and return the inner connection.
-
-        Returns:
-            The inner connection.
-        """
-        var db = self.db^.take_connection()
-        self.db = InnerConnection()
-        self^.close()
-
-        return InnerConnection(db)
 
     fn raise_if_error(self, code: SQLite3Result) raises:
         """Raises if the SQLite error code is not `SQLITE_OK`.
@@ -219,7 +199,7 @@ struct Connection(Movable):
 
         # If there is trailing SQL after the first statement that contains a valid SQL statement, raise an error.
         if tail > 0:
-            var tail_stmt, _ = self.db.prepare(sql[Int(tail) :])
+            var tail_stmt, _ = self.db.prepare(String(sql[Int(tail) :]))
             if tail_stmt:
                 raise Error(
                     "MultipleStatementsError: Prepared statement contains multiple SQL statements. Should be one."
@@ -241,7 +221,7 @@ struct Connection(Movable):
         try:
             return stmt.execute(params)
         finally:
-            _ = stmt.finalize()
+            _ = stmt^.finalize()
 
     fn execute(self, var sql: String, params: Dict[String, Parameter]) raises -> Int64:
         """Executes a SQL statement with the given parameters.
@@ -257,7 +237,7 @@ struct Connection(Movable):
         try:
             return stmt.execute(params)
         finally:
-            _ = stmt.finalize()
+            _ = stmt^.finalize()
 
     fn execute(self, var sql: String, params: List[Tuple[String, Parameter]]) raises -> Int64:
         """Executes a SQL statement with the given parameters.
@@ -273,10 +253,10 @@ struct Connection(Movable):
         try:
             return stmt.execute(params)
         finally:
-            _ = stmt.finalize()
+            _ = stmt^.finalize()
 
     fn query_row[
-        T: Copyable & Movable, //, transform: fn (Row) raises -> T
+        T: Movable & ImplicitlyDestructible, //, transform: fn (Row) raises -> T
     ](mut self, var sql: String, params: List[Parameter] = []) raises -> T:
         """Executes the query and returns a single row.
 
@@ -301,10 +281,10 @@ struct Connection(Movable):
         try:
             return stmt.query_row[transform=transform](params)
         finally:
-            _ = stmt.finalize()
+            _ = stmt^.finalize()
 
     fn query_row[
-        T: Copyable & Movable, //, transform: fn (Row) raises -> T
+        T: Movable & ImplicitlyDestructible, //, transform: fn (Row) raises -> T
     ](mut self, var sql: String, params: Dict[String, Parameter]) raises -> T:
         """Executes the query and returns a single row.
 
@@ -329,10 +309,10 @@ struct Connection(Movable):
         try:
             return stmt.query_row[transform=transform](params)
         finally:
-            _ = stmt.finalize()
+            _ = stmt^.finalize()
 
     fn query_row[
-        T: Copyable & Movable, //, transform: fn (Row) raises -> T
+        T: Movable & ImplicitlyDestructible, //, transform: fn (Row) raises -> T
     ](mut self, var sql: String, params: List[Tuple[String, Parameter]]) raises -> T:
         """Executes the query and returns a single row.
 
@@ -357,7 +337,7 @@ struct Connection(Movable):
         try:
             return stmt.query_row[transform=transform](params)
         finally:
-            _ = stmt.finalize()
+            _ = stmt^.finalize()
 
     fn execute_batch(self, sql: String) raises:
         """Executes a batch of SQL statements.
@@ -375,7 +355,7 @@ struct Connection(Movable):
             if tail == 0 or Int(tail) >= len(current_sql):
                 break
 
-            current_sql = current_sql[Int(tail) :]
+            current_sql = String(current_sql[Int(tail) :])
 
     fn path(self) -> Optional[Path]:
         """Returns the file path of the database.
@@ -389,29 +369,29 @@ struct Connection(Movable):
         """Returns the row ID of the last inserted row."""
         return self.db.last_insert_row_id()
 
-    fn one_column[
-        T: FromSQL,
-    ](mut self, var sql: String, params: List[Parameter] = []) raises -> T:
-        fn get_item(row: Row) raises -> T:
-            return row.get[T](0)
+    # fn one_column[
+    #     T: FromSQL,
+    # ](mut self, var sql: String, params: List[Parameter] = []) raises -> T:
+    #     fn get_item(row: Row) -> T:
+    #         return row.get[T](0)
 
-        return self.query_row[get_item](sql, params)
+    #     return self.query_row[get_item](sql, params)
 
-    fn one_column[
-        T: FromSQL,
-    ](mut self, var sql: String, params: Dict[String, Parameter]) raises -> T:
-        fn get_item(row: Row) raises -> T:
-            return row.get[T](0)
+    # fn one_column[
+    #     T: FromSQL,
+    # ](mut self, var sql: String, params: Dict[String, Parameter]) raises -> T:
+    #     fn get_item(row: Row) raises -> T:
+    #         return row.get[T](0)
 
-        return self.query_row[get_item](sql, params)
+    #     return self.query_row[get_item](sql, params)
 
-    fn one_column[
-        T: FromSQL,
-    ](mut self, var sql: String, params: List[Tuple[String, Parameter]]) raises -> T:
-        fn get_item(row: Row) raises -> T:
-            return row.get[T](0)
+    # fn one_column[
+    #     T: FromSQL,
+    # ](mut self, var sql: String, params: List[Tuple[String, Parameter]]) raises -> T:
+    #     fn get_item(row: Row) raises -> T:
+    #         return row.get[T](0)
 
-        return self.query_row[get_item](sql, params)
+    #     return self.query_row[get_item](sql, params)
 
     fn column_exists(
         self,
@@ -536,9 +516,9 @@ struct Connection(Movable):
             None,
         )
 
-        if r == SQLite3Result.SQLITE_OK:
+        if r == SQLite3Result.OK:
             return True
-        elif r == SQLite3Result.SQLITE_ERROR:
+        elif r == SQLite3Result.ERROR:
             return False
         else:
             raise self.decode_error(r)

@@ -1,10 +1,8 @@
 from pathlib import Path
-from sys.ffi import c_char
+from sys.ffi import c_char, CStringSlice
 
-from memory import Pointer, MutUnsafePointer
 from slight.c.api import sqlite_ffi
 from slight.c.raw_bindings import (
-    RESULT_MESSAGES,
     sqlite3_connection,
     sqlite3_stmt,
 )
@@ -36,8 +34,8 @@ struct InnerConnection(Movable):
         """
         var ptr = MutExternalPointer[sqlite3_connection]()
         var result = sqlite_ffi()[].open_v2(path, UnsafePointer(to=ptr), flags.value, None)
-        if result != SQLite3Result.SQLITE_OK:
-            raise Error("Could not open database: ", materialize[RESULT_MESSAGES]()[result.value])
+        if result != SQLite3Result.OK:
+            raise Error("Could not open database: ", String(result))
         self.db = ptr
 
     @doc_private
@@ -60,18 +58,6 @@ struct InnerConnection(Movable):
         """
         self.db = db
 
-    fn __moveinit__(out self, deinit other: Self):
-        """Move-initializes a new connection from the given connection.
-
-        Args:
-            other: The connection to move from.
-
-        Returns:
-            A new `InnerConnection` instance.
-        """
-        self.db = other^.take_connection()
-        other = InnerConnection()
-
     fn __bool__(self) -> Bool:
         """Returns whether the connection is open.
 
@@ -79,16 +65,6 @@ struct InnerConnection(Movable):
             Whether the pointer to the sqlite3 connection is valid or not.
         """
         return Bool(self.db)
-
-    fn take_connection(deinit self) -> MutExternalPointer[sqlite3_connection]:
-        """Consume the connection and return the pointer to sqlite3.
-
-        Returns:
-            The pointer to the underlying sqlite3 connection.
-        """
-        return self.db
-        # self.db = MutExternalPointer[sqlite3_connection]()
-        # return db
 
     fn is_autocommit(self) -> Bool:
         """Returns whether the connection is in auto-commit mode.
@@ -118,7 +94,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the close operation.
         """
         if not self.db:
-            return SQLite3Result.SQLITE_OK
+            return SQLite3Result.OK
 
         return sqlite_ffi()[].close(self.db)
 
@@ -162,7 +138,7 @@ struct InnerConnection(Movable):
             Will return an `Error` if the underlying SQLite prepare call fails.
         """
         var stmt = MutExternalPointer[sqlite3_stmt]()
-        var str = sql.unsafe_cstr_ptr()
+        var str = sql.as_c_string_slice().unsafe_ptr()
         var c_tail = UnsafePointer(to=str)
 
         try:
@@ -172,7 +148,7 @@ struct InnerConnection(Movable):
         except e:
             if stmt:
                 _ = sqlite_ffi()[].finalize(stmt)
-            raise e
+            raise e^
 
         var tail: UInt = 0
         var tail_len = len(StringSlice(unsafe_from_utf8_ptr=c_tail[]))
@@ -209,14 +185,14 @@ struct InnerConnection(Movable):
             True if the database is read-only, False otherwise.
         """
         var result = sqlite_ffi()[].db_readonly(self.db, database)
-        if result == SQLite3Result.SQLITE_OK:
+        if result == SQLite3Result.OK:
             return True
-        elif result == SQLite3Result.SQLITE_ERROR:
+        elif result == SQLite3Result.ERROR:
             return False
         elif result.value == -1:
             raise Error("SQLITE_MISUSE: The given database name is not valid: ", database)
         else:
-            raise Error("Unexpected result from sqlite3_db_readonly: ", materialize[RESULT_MESSAGES]()[result.value])
+            raise Error("Unexpected result from sqlite3_db_readonly: ", String(result))
 
     fn raise_if_error(self, code: SQLite3Result) raises:
         """Raises if the SQLite error code is not `SQLITE_OK`.

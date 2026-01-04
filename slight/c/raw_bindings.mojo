@@ -1,7 +1,7 @@
 import os
 import pathlib
 from sys import ffi, env_get_string
-from sys.ffi import OwnedDLHandle, c_char, c_uchar, c_int, c_uint, c_ulong, CompilationTarget
+from sys.ffi import OwnedDLHandle, c_char, c_uchar, c_int, c_uint, CompilationTarget
 
 from slight.c.types import (
     sqlite3_backup,
@@ -22,95 +22,60 @@ from slight.c.types import (
 )
 
 
-alias SQLITE_OPEN_READONLY: Int32 = 0x00000001  # Ok for sqlite3_open_v2()
-alias SQLITE_OPEN_READWRITE: Int32 = 0x00000002  # Ok for sqlite3_open_v2()
-alias SQLITE_OPEN_CREATE: Int32 = 0x00000004  # Ok for sqlite3_open_v2()
-alias SQLITE_OPEN_DELETEONCLOSE: Int32 = 0x00000008  # VFS only
-alias SQLITE_OPEN_EXCLUSIVE: Int32 = 0x00000010  # VFS only
-alias SQLITE_OPEN_AUTOPROXY: Int32 = 0x00000020  # VFS only
-alias SQLITE_OPEN_URI: Int32 = 0x00000040  # Ok for sqlite3_open_v2()
-alias SQLITE_OPEN_MEMORY: Int32 = 0x00000080  # Ok for sqlite3_open_v2()
-alias SQLITE_OPEN_MAIN_DB: Int32 = 0x00000100  # VFS only
-alias SQLITE_OPEN_TEMP_DB: Int32 = 0x00000200  # VFS only
-alias SQLITE_OPEN_TRANSIENT_DB: Int32 = 0x00000400  # VFS only
-alias SQLITE_OPEN_MAIN_JOURNAL: Int32 = 0x00000800  # VFS only
-alias SQLITE_OPEN_TEMP_JOURNAL: Int32 = 0x00001000  # VFS only
-alias SQLITE_OPEN_SUBJOURNAL: Int32 = 0x00002000  # VFS only
-alias SQLITE_OPEN_SUPER_JOURNAL: Int32 = 0x00004000  # VFS only
-alias SQLITE_OPEN_NOMUTEX: Int32 = 0x00008000  # Ok for sqlite3_open_v2()
-alias SQLITE_OPEN_FULLMUTEX: Int32 = 0x00010000  # Ok for sqlite3_open_v2()
-alias SQLITE_OPEN_SHAREDCACHE: Int32 = 0x00020000  # Ok for sqlite3_open_v2()
-alias SQLITE_OPEN_PRIVATECACHE: Int32 = 0x00040000  # Ok for sqlite3_open_v2()
-alias SQLITE_OPEN_WAL: Int32 = 0x00080000  # VFS only
-alias SQLITE_OPEN_NOFOLLOW: Int32 = 0x01000000  # Ok for sqlite3_open_v2()
-alias SQLITE_OPEN_EXRESCODE: Int32 = 0x02000000  # Extended result codes
+comptime SQLITE_OPEN_READONLY: Int32 = 0x00000001  # Ok for sqlite3_open_v2()
+comptime SQLITE_OPEN_READWRITE: Int32 = 0x00000002  # Ok for sqlite3_open_v2()
+comptime SQLITE_OPEN_CREATE: Int32 = 0x00000004  # Ok for sqlite3_open_v2()
+comptime SQLITE_OPEN_DELETEONCLOSE: Int32 = 0x00000008  # VFS only
+comptime SQLITE_OPEN_EXCLUSIVE: Int32 = 0x00000010  # VFS only
+comptime SQLITE_OPEN_AUTOPROXY: Int32 = 0x00000020  # VFS only
+comptime SQLITE_OPEN_URI: Int32 = 0x00000040  # Ok for sqlite3_open_v2()
+comptime SQLITE_OPEN_MEMORY: Int32 = 0x00000080  # Ok for sqlite3_open_v2()
+comptime SQLITE_OPEN_MAIN_DB: Int32 = 0x00000100  # VFS only
+comptime SQLITE_OPEN_TEMP_DB: Int32 = 0x00000200  # VFS only
+comptime SQLITE_OPEN_TRANSIENT_DB: Int32 = 0x00000400  # VFS only
+comptime SQLITE_OPEN_MAIN_JOURNAL: Int32 = 0x00000800  # VFS only
+comptime SQLITE_OPEN_TEMP_JOURNAL: Int32 = 0x00001000  # VFS only
+comptime SQLITE_OPEN_SUBJOURNAL: Int32 = 0x00002000  # VFS only
+comptime SQLITE_OPEN_SUPER_JOURNAL: Int32 = 0x00004000  # VFS only
+comptime SQLITE_OPEN_NOMUTEX: Int32 = 0x00008000  # Ok for sqlite3_open_v2()
+comptime SQLITE_OPEN_FULLMUTEX: Int32 = 0x00010000  # Ok for sqlite3_open_v2()
+comptime SQLITE_OPEN_SHAREDCACHE: Int32 = 0x00020000  # Ok for sqlite3_open_v2()
+comptime SQLITE_OPEN_PRIVATECACHE: Int32 = 0x00040000  # Ok for sqlite3_open_v2()
+comptime SQLITE_OPEN_WAL: Int32 = 0x00080000  # VFS only
+comptime SQLITE_OPEN_NOFOLLOW: Int32 = 0x01000000  # Ok for sqlite3_open_v2()
+comptime SQLITE_OPEN_EXRESCODE: Int32 = 0x02000000  # Extended result codes
 
-alias SQLITE_OK: Int32 = 0
-alias SQLITE_ERROR: Int32 = 1
-alias SQLITE_INTERNAL: Int32 = 2
-alias SQLITE_PERM: Int32 = 3
-alias SQLITE_ABORT: Int32 = 4
-alias SQLITE_BUSY: Int32 = 5
-alias SQLITE_LOCKED: Int32 = 6
-alias SQLITE_NOMEM: Int32 = 7
-alias SQLITE_READONLY: Int32 = 8
-alias SQLITE_INTERRUPT: Int32 = 9
-alias SQLITE_IOERR: Int32 = 10
-alias SQLITE_CORRUPT: Int32 = 11
-alias SQLITE_NOTFOUND: Int32 = 12
-alias SQLITE_FULL: Int32 = 13
-alias SQLITE_CANTOPEN: Int32 = 14
-alias SQLITE_PROTOCOL: Int32 = 15
-alias SQLITE_EMPTY: Int32 = 16
-alias SQLITE_SCHEMA: Int32 = 17
-alias SQLITE_TOOBIG: Int32 = 18
-alias SQLITE_CONSTRAINT: Int32 = 19
-alias SQLITE_MISMATCH: Int32 = 20
-alias SQLITE_MISUSE: Int32 = 21
-alias SQLITE_NOLFS: Int32 = 22
-alias SQLITE_AUTH: Int32 = 23
-alias SQLITE_FORMAT: Int32 = 24
-alias SQLITE_RANGE: Int32 = 25
-alias SQLITE_NOTADB: Int32 = 26
-alias SQLITE_NOTICE: Int32 = 27
-alias SQLITE_WARNING: Int32 = 28
-alias SQLITE_ROW: Int32 = 100
-alias SQLITE_DONE: Int32 = 101
-
-
-alias RESULT_MESSAGES: Dict[Int32, StaticString] = {
-    SQLITE_OK: "Successful result",
-    SQLITE_ERROR: "Generic error",
-    SQLITE_INTERNAL: "Internal logic error in SQLite",
-    SQLITE_PERM: "Access permission denied",
-    SQLITE_ABORT: "Callback routine requested an abort",
-    SQLITE_BUSY: "The database file is locked",
-    SQLITE_LOCKED: "A table in the database is locked",
-    SQLITE_NOMEM: "A malloc() failed",
-    SQLITE_READONLY: "Attempt to write a readonly database",
-    SQLITE_INTERRUPT: "Operation terminated by sqlite3_interrupt()",
-    SQLITE_IOERR: "Some kind of disk I/O error occurred",
-    SQLITE_CORRUPT: "The database disk image is malformed",
-    SQLITE_NOTFOUND: "Unknown opcode in sqlite3_file_control()",
-    SQLITE_FULL: "Insertion failed because database is full",
-    SQLITE_CANTOPEN: "Unable to open the database file",
-    SQLITE_PROTOCOL: "Database lock protocol error",
-    SQLITE_EMPTY: "Internal use only",
-    SQLITE_SCHEMA: "The database schema changed",
-    SQLITE_TOOBIG: "String or BLOB exceeds size limit",
-    SQLITE_CONSTRAINT: "Abort due to constraint violation",
-    SQLITE_MISMATCH: "Data type mismatch",
-    SQLITE_MISUSE: "Library used incorrectly",
-    SQLITE_NOLFS: "Uses OS features not supported on host",
-    SQLITE_AUTH: "Authorization denied",
-    SQLITE_FORMAT: "Not used",
-    SQLITE_RANGE: "2nd parameter to sqlite3_bind out of range",
-    SQLITE_NOTADB: "File opened that is not a database file",
-    SQLITE_NOTICE: "Notifications from sqlite3_log()",
-    SQLITE_WARNING: "Warnings from sqlite3_log()",
-    SQLITE_ROW: "sqlite3_step() has another row ready",
-    SQLITE_DONE: "sqlite3_step() has finished executing",
-}
+comptime SQLITE_OK: Int32 = 0
+comptime SQLITE_ERROR: Int32 = 1
+comptime SQLITE_INTERNAL: Int32 = 2
+comptime SQLITE_PERM: Int32 = 3
+comptime SQLITE_ABORT: Int32 = 4
+comptime SQLITE_BUSY: Int32 = 5
+comptime SQLITE_LOCKED: Int32 = 6
+comptime SQLITE_NOMEM: Int32 = 7
+comptime SQLITE_READONLY: Int32 = 8
+comptime SQLITE_INTERRUPT: Int32 = 9
+comptime SQLITE_IOERR: Int32 = 10
+comptime SQLITE_CORRUPT: Int32 = 11
+comptime SQLITE_NOTFOUND: Int32 = 12
+comptime SQLITE_FULL: Int32 = 13
+comptime SQLITE_CANTOPEN: Int32 = 14
+comptime SQLITE_PROTOCOL: Int32 = 15
+comptime SQLITE_EMPTY: Int32 = 16
+comptime SQLITE_SCHEMA: Int32 = 17
+comptime SQLITE_TOOBIG: Int32 = 18
+comptime SQLITE_CONSTRAINT: Int32 = 19
+comptime SQLITE_MISMATCH: Int32 = 20
+comptime SQLITE_MISUSE: Int32 = 21
+comptime SQLITE_NOLFS: Int32 = 22
+comptime SQLITE_AUTH: Int32 = 23
+comptime SQLITE_FORMAT: Int32 = 24
+comptime SQLITE_RANGE: Int32 = 25
+comptime SQLITE_NOTADB: Int32 = 26
+comptime SQLITE_NOTICE: Int32 = 27
+comptime SQLITE_WARNING: Int32 = 28
+comptime SQLITE_ROW: Int32 = 100
+comptime SQLITE_DONE: Int32 = 101
 
 
 @fieldwise_init
@@ -160,7 +125,7 @@ struct _sqlite3(Movable):
                 )
             self.lib = ffi.OwnedDLHandle(path, ffi.RTLD.LAZY)
         except e:
-            self.lib = os.abort[ffi.OwnedDLHandle](String("Failed to load the SQLite library: ", e))
+            os.abort(String("Failed to load the SQLite library: ", e))
 
     fn sqlite3_libversion(self) -> ImmutExternalPointer[c_char]:
         """Get the SQLite library version string.
@@ -267,7 +232,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self.lib.get_function[fn (c_int) -> c_int]("sqlite3_config")(op)
+        return self.lib.get_function[fn (type_of(op)) -> c_int]("sqlite3_config")(op)
 
     fn sqlite3_db_config(self, db: MutExternalPointer[sqlite3_connection], op: c_int) -> c_int:
         """Configure Database Connection Options.

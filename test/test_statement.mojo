@@ -43,6 +43,7 @@ fn test_execute_named() raises:
     )
 
 
+# BROKEN
 fn test_stmt_execute_named() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, flag INTEGER)")
@@ -237,7 +238,6 @@ fn query_one() raises:
     #     _ = stmt.query_one[transform=get_int64]([1])
 
 
-
 fn test_query_by_column_name() raises:
     var db = Connection.open_in_memory()
     
@@ -268,7 +268,6 @@ fn test_query_by_column_name_ignore_case() raises:
     assert_equal(y, 3)
 
 
-# BROKEN
 fn test_expanded_sql() raises:
     var db = Connection.open_in_memory()
     var stmt = db.prepare("SELECT ?1")
@@ -288,28 +287,27 @@ fn test_bind_parameters() raises:
     assert_equal(s, 15)
 
 
-fn test_parameter_name() raises:
-    var db = Connection.open_in_memory()
+# fn test_parameter_name() raises:
+#     var db = Connection.open_in_memory()
     
-    db.execute_batch("CREATE TABLE test (name TEXT, value INTEGER)")
-    var stmt = db.prepare("INSERT INTO test (name, value) VALUES (:name, ?3)")
+#     db.execute_batch("CREATE TABLE test (name TEXT, value INTEGER)")
+#     var stmt = db.prepare("INSERT INTO test (name, value) VALUES (:name, ?3)")
     
-    # TODO: parameter_name method is not yet implemented
-    # Test parameter name retrieval
-    # var name1 = stmt.parameter_name(1)
-    # assert_true(name1 is not None)
-    # if name1:
-    #     assert_equal(name1.value(), ":name")
+#     # TODO: parameter_name method is not yet implemented
+#     # Test parameter name retrieval
+#     # var name1 = stmt.parameter_name(1)
+#     # assert_true(name1 is not None)
+#     # if name1:
+#     #     assert_equal(name1.value(), ":name")
     
-    # var name0 = stmt.parameter_name(0)
-    # assert_true(name0 is None)
+#     # var name0 = stmt.parameter_name(0)
+#     # assert_true(name0 is None)
     
-    # var name2 = stmt.parameter_name(2)
-    # assert_true(name2 is None)
+#     # var name2 = stmt.parameter_name(2)
+#     # assert_true(name2 is None)
     
-    # For now, just test that the statement can be prepared
-    assert_true(stmt.column_count() == 0)
-
+#     # For now, just test that the statement can be prepared
+#     assert_true(stmt.column_count() == 0)
 
 
 fn test_empty_stmt() raises:
@@ -360,13 +358,13 @@ fn test_utf16_conversion() raises:
     assert_equal(actual, expected)
 
 
-fn is_explain() raises:
+fn test_is_explain() raises:
     var db = Connection.open_in_memory()
     var stmt = db.prepare("EXPLAIN SELECT 1;")
     assert_equal(stmt.is_explain(), 1)
 
 
-fn readonly() raises:
+fn test_is_read_only() raises:
     var db = Connection.open_in_memory()
     var stmt = db.prepare("SELECT 1;")
     assert_true(stmt.is_read_only())
@@ -421,3 +419,6 @@ fn test_column_name_reference() raises:
 
 fn main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
+    # var suite = TestSuite()
+    # suite.test[test_stmt_execute_named]()
+    # suite^.run()

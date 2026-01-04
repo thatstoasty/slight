@@ -41,7 +41,7 @@ fn main() raises:
         (2, 'Alice', 30, '123 Main St', 50000.0, True);
         """), "row(s) affected.")
     except e:
-        if e.as_string_slice() == "not an error":
+        if String(e) == "not an error":
             print("No error, but no rows affected?")
             db^.close()
             return

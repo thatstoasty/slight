@@ -3,22 +3,56 @@ from utils import StaticTuple
 
 from sys.ffi import c_char, c_int
 
-alias ImmutExternalPointer = ImmutUnsafePointer[origin = ImmutOrigin.external]
-alias ImmutExternalOpaquePointer = ImmutExternalPointer[NoneType]
-alias MutExternalPointer = MutUnsafePointer[origin = MutOrigin.external]
-alias MutExternalOpaquePointer = MutExternalPointer[NoneType]
+comptime ImmutExternalPointer = ImmutUnsafePointer[origin = ImmutOrigin.external]
+comptime ImmutExternalOpaquePointer = ImmutExternalPointer[NoneType]
+comptime MutExternalPointer = MutUnsafePointer[origin = MutOrigin.external]
+comptime MutExternalOpaquePointer = MutExternalPointer[NoneType]
 
-alias SQLITE_INTEGER: Int32 = 1
-alias SQLITE_FLOAT: Int32 = 2
-alias SQLITE_BLOB: Int32 = 4
-alias SQLITE_NULL: Int32 = 5
-alias SQLITE_TEXT: Int32 = 3
-alias SQLITE3_TEXT: Int32 = 3
-alias SQLITE_UTF8: UInt8 = 1
-alias SQLITE_UTF16LE: UInt8 = 2
-alias SQLITE_UTF16BE: UInt8 = 3
-alias SQLITE_UTF16: UInt8 = 4
-alias SQLITE_ANY: UInt8 = 5
+
+@fieldwise_init
+@register_passable("trivial")
+struct DataType(Movable, Equatable):
+    """Fundamental Datatypes.
+    
+    Every value in SQLite has one of five fundamental datatypes:
+    * 64-bit signed integer
+    * 64-bit IEEE floating point number
+    * string
+    * BLOB
+    * NULL
+    
+    These constants are codes for each of those types.
+    """
+    var value: Int32
+    comptime INTEGER = Self(1)
+    """`SQLITE_INTEGER`: 64-bit signed integer."""
+    comptime FLOAT = Self(2)
+    """`SQLITE_FLOAT`: 64-bit IEEE floating point number."""
+    comptime TEXT = Self(3)
+    """`SQLITE_TEXT`: String."""
+    comptime BLOB = Self(4)
+    """`SQLITE_BLOB`: BLOB."""
+    comptime NULL = Self(5)
+    """`SQLITE_NULL`: NULL."""
+
+    fn __eq__(self, other: DataType) -> Bool:
+        return self.value == other.value
+    
+    fn __eq__(self, other: Int32) -> Bool:
+        return self.value == other
+
+
+@fieldwise_init
+@register_passable("trivial")
+struct TextEncoding(Movable):
+    """Text Encodings.
+    
+    These constant define integer codes that represent the various
+    text encodings supported by SQLite.
+    """
+    var value: UInt8
+    comptime UTF8 = Self(1)
+    """`SQLITE_UTF8`: UTF-8 encoding."""
 
 
 struct sqlite3_connection(Movable):
@@ -52,26 +86,58 @@ struct sqlite3_file(Movable):
     pass
 
 
-alias ResultDestructorFn = fn (MutExternalPointer[NoneType]) -> NoneType
-"""Constants Defining Special Destructor Behavior
-These are special values for the destructor that is passed in as the
-final argument to routines like [sqlite3_result_blob()].  ^If the destructor
-argument is SQLITE_STATIC, it means that the content pointer is constant
-and will never change.  It does not need to be destroyed.  ^The
-SQLITE_TRANSIENT value means that the content will likely change in
-the near future and that SQLite should make its own private copy of
-the content before returning.
-The typedef is necessary to work around problems in certain
-C++ compilers."""
+comptime ResultDestructorFn = fn (MutExternalPointer[NoneType]) -> NoneType
+"""Constants Defining Special Destructor Behavior.
 
-alias ExecCallbackFn = fn[argv_origin: MutOrigin, col_name_origin: MutOrigin] (
+These are special values for the destructor that is passed in as the
+final argument to routines like `sqlite3_result_blob()`.
+
+If the destructor argument is `SQLITE_STATIC`, it means that the content pointer is constant
+and will never change. It does not need to be destroyed. The
+`SQLITE_TRANSIENT` value means that the content will likely change in
+the near future and that SQLite should make its own private copy of
+the content before returning."""
+
+
+@fieldwise_init
+@register_passable("trivial")
+struct DestructorHint(Movable):
+    """If the destructor argument is `SQLITE_STATIC`, it means that the content pointer is constant
+    and will never change. It does not need to be destroyed. The
+    `SQLITE_TRANSIENT` value means that the content will likely change in
+    the near future and that SQLite should make its own private copy of
+    the content before returning.
+
+    To use these as destructors for libsqlite3, first create a pointer to the value.
+    Then bitcast it to `ResultDestructorFn`. Then when calling `sqlite3_bind_text` or
+    `sqlite3_result_blob`, pass the dereferenced pointer as the destructor argument."""
+
+    var value: Int
+    comptime STATIC = Self(0)
+    """`SQLITE_STATIC`: The content pointer is constant and will never change."""
+    comptime TRANSIENT = Self(-1)
+    """`SQLITE_TRANSIENT`: The content will likely change in the near future and SQLite should make its own private copy of the content before returning."""
+    
+    # Why do I have to do this cursed conversion?
+    @staticmethod
+    fn static_destructor() -> ResultDestructorFn:
+        """Returns a function pointer representing the `SQLITE_STATIC` destructor."""
+        return UnsafePointer(to=Self.STATIC.value).bitcast[ResultDestructorFn]()[]
+    
+    @staticmethod
+    fn transient_destructor() -> ResultDestructorFn:
+        """Returns a function pointer representing the `SQLITE_TRANSIENT` destructor."""
+        return UnsafePointer(to=Self.TRANSIENT.value).bitcast[ResultDestructorFn]()[]
+
+
+comptime ExecCallbackFn = fn[argv_origin: MutOrigin, col_name_origin: MutOrigin] (
     data: MutOpaquePointer,
     argc: Int32,
     argv: MutUnsafePointer[MutUnsafePointer[c_char, argv_origin]],
     azColName: MutUnsafePointer[MutUnsafePointer[c_char, col_name_origin]],
 ) -> c_int
 
-alias AuthCallbackFn = fn[
+comptime AuthCallbackFn = fn[
     origin: MutOrigin, origin2: ImmutOrigin, origin3: ImmutOrigin, origin4: ImmutOrigin, origin5: ImmutOrigin
 ] (
     MutOpaquePointer[origin],
@@ -83,22 +149,14 @@ alias AuthCallbackFn = fn[
 ) -> c_int
 
 
-# To use these as destructors for libsqlite3, first create a pointer to the value.
-# Then bitcast it to ResultDestructorFn. Then when calling sqlite3_bind_text or
-# sqlite3_result_blob, pass the dereferenced pointer as the destructor argument.
-alias SQLITE_STATIC = 0
-alias SQLITE_TRANSIENT = -1
-
-
 struct sqlite3_backup(Movable):
     """Online Backup Object.
 
     The sqlite3_backup object records state information about an ongoing
-    online backup operation.  ^The sqlite3_backup object is created by
-    a call to [sqlite3_backup_init()] and is destroyed by a call to
-    [sqlite3_backup_finish()].
-
-    See Also: [Using the SQLite Online Backup API]"""
+    online backup operation.
+    
+    The sqlite3_backup object is created by a call to `sqlite3_backup_init()` and is destroyed by a call to
+    `sqlite3_backup_finish()`."""
 
     pass
 
@@ -137,13 +195,12 @@ struct sqlite3_stmt(Movable):
     prepared statement before it can be run.
     The life-cycle of a prepared statement object usually goes like this:
 
-    Create the prepared statement object using [sqlite3_prepare_v2()].
-    Bind values to [parameters] using the sqlite3_bind_()
-        interfaces.
-    Run the SQL by calling [sqlite3_step()] one or more times.
-    Reset the prepared statement using [sqlite3_reset()] then go back
+    1. Create the prepared statement object using `sqlite3_prepare_v2()`.
+    2. Bind values to `parameters` using the `sqlite3_bind_()` interfaces.
+    3. Run the SQL by calling `sqlite3_step()` one or more times.
+    4. Reset the prepared statement using `sqlite3_reset()` then go back
         to step 2.  Do this zero or more times.
-    Destroy the object using [sqlite3_finalize()].
+    5. Destroy the object using `sqlite3_finalize()`.
     """
 
     pass
@@ -151,54 +208,62 @@ struct sqlite3_stmt(Movable):
 
 struct sqlite3_value(Movable):
     """Dynamically Typed Value Object.
-    SQLite uses the sqlite3_value object to represent all values
+
+    SQLite uses the `sqlite3_value` object to represent all values
     that can be stored in a database table. SQLite uses dynamic typing
-    for the values it stores.  ^Values stored in sqlite3_value objects
+    for the values it stores.
+    
+    Values stored in `sqlite3_value` objects
     can be integers, floating point values, strings, BLOBs, or NULL.
     An sqlite3_value object may be either "protected" or "unprotected".
-    Some interfaces require a protected sqlite3_value.  Other interfaces
-    will accept either a protected or an unprotected sqlite3_value.
-    Every interface that accepts sqlite3_value arguments specifies
-    whether or not it requires a protected sqlite3_value.  The
-    [sqlite3_value_dup()] interface can be used to construct a new
-    protected sqlite3_value from an unprotected sqlite3_value.
+    Some interfaces require a protected `sqlite3_value`. Other interfaces
+    will accept either a protected or an unprotected `sqlite3_value`.
+    Every interface that accepts `sqlite3_value` arguments specifies
+    whether or not it requires a protected `sqlite3_value`.  The
+    `sqlite3_value_dup()` interface can be used to construct a new
+    protected `sqlite3_value` from an unprotected `sqlite3_value`.
     The terms "protected" and "unprotected" refer to whether or not
     a mutex is held.  An internal mutex is held for a protected
-    sqlite3_value object but no mutex is held for an unprotected
-    sqlite3_value object.  If SQLite is compiled to be single-threaded
-    (with [SQLITE_THREADSAFE=0] and with [sqlite3_threadsafe()] returning 0)
+    `sqlite3_value` object but no mutex is held for an unprotected
+    `sqlite3_value` object. If SQLite is compiled to be single-threaded
+    (with `SQLITE_THREADSAFE=0` and with `sqlite3_threadsafe()` returning 0)
     or if SQLite is run in one of reduced mutex modes
-    [SQLITE_CONFIG_SINGLETHREAD] or [SQLITE_CONFIG_MULTITHREAD]
+    `SQLITE_CONFIG_SINGLETHREAD` or `SQLITE_CONFIG_MULTITHREAD`,
     then there is no distinction between protected and unprotected
-    sqlite3_value objects and they can be used interchangeably.  However,
+    `sqlite3_value` objects and they can be used interchangeably.  However,
     for maximum code portability it is recommended that applications
     still make the distinction between protected and unprotected
-    sqlite3_value objects even when not strictly required.
-    ^The sqlite3_value objects that are passed as parameters into the
-    implementation of [application-defined SQL functions] are protected.
-    ^The sqlite3_value objects returned by [sqlite3_vtab_rhs_value()]
+    `sqlite3_value` objects even when not strictly required.
+    
+    The `sqlite3_value` objects that are passed as parameters into the
+    implementation of `application-defined SQL functions` are protected.
+    
+    The `sqlite3_value` objects returned by `sqlite3_vtab_rhs_value()`
     are protected.
-    ^The sqlite3_value object returned by
-    [sqlite3_column_value()] is unprotected.
-    Unprotected sqlite3_value objects may only be used as arguments
-    to [sqlite3_result_value()], [sqlite3_bind_value()], and
-    [sqlite3_value_dup()].
-    The [sqlite3_value_blob | sqlite3_value_type()] family of
-    interfaces require protected sqlite3_value objects."""
+    
+    The `sqlite3_value` object returned by
+    `sqlite3_column_value()` is unprotected.
+    Unprotected `sqlite3_value` objects may only be used as arguments
+    to `sqlite3_result_value()`, `sqlite3_bind_value()`, and
+    `sqlite3_value_dup()`.
+    
+    The `sqlite3_value_blob | sqlite3_value_type()` family of
+    interfaces require protected `sqlite3_value` objects."""
 
     pass
 
 
 struct sqlite3_context(Movable):
     """SQL Function Context Object.
+    
     The context in which an SQL function executes is stored in an
     sqlite3_context object.  ^A pointer to an sqlite3_context object
-    is always first parameter to [application-defined SQL functions].
+    is always first parameter to `application-defined SQL functions`.
     The application-defined SQL function implementation will pass this
-    pointer through into calls to [sqlite3_result_int | sqlite3_result()],
-    [sqlite3_aggregate_context()], [sqlite3_user_data()],
-    [sqlite3_context_db_handle()], [sqlite3_get_auxdata()],
-    and/or [sqlite3_set_auxdata()]."""
+    pointer through into calls to `sqlite3_result_int | sqlite3_result()`,
+    `sqlite3_aggregate_context()`, `sqlite3_user_data()`,
+    `sqlite3_context_db_handle()`, `sqlite3_get_auxdata()`,
+    and/or `sqlite3_set_auxdata()`."""
 
     pass
 
@@ -212,7 +277,7 @@ struct sqlite3_module(Movable):
         MutExternalPointer[MutExternalPointer[Int8]],
         MutExternalPointer[MutExternalPointer[sqlite3_vtab]],
         MutExternalPointer[MutExternalPointer[Int8]],
-    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an alias since it doesn't have a value.
+    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an comptime since it doesn't have a value.
     var xConnect: fn (
         MutExternalPointer[sqlite3_connection],
         OpaquePointer,
@@ -220,7 +285,7 @@ struct sqlite3_module(Movable):
         MutExternalPointer[MutExternalPointer[Int8]],
         MutExternalPointer[MutExternalPointer[sqlite3_vtab]],
         MutExternalPointer[MutExternalPointer[Int8]],
-    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an alias since it doesn't have a value.
+    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an comptime since it doesn't have a value.
     var xBestIndex: fn (MutExternalPointer[sqlite3_vtab], MutExternalPointer[sqlite3_index_info]) -> Int32
     var xDisconnect: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
     var xDestroy: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
@@ -232,7 +297,7 @@ struct sqlite3_module(Movable):
         MutExternalPointer[Int8],
         Int32,
         MutExternalPointer[MutExternalPointer[sqlite3_value]],
-    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an alias since it doesn't have a value.
+    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an comptime since it doesn't have a value.
     var xNext: fn (MutExternalPointer[sqlite3_vtab_cursor]) -> Int32
     var xEof: fn (MutExternalPointer[sqlite3_vtab_cursor]) -> Int32
     var xColumn: fn (MutExternalPointer[sqlite3_vtab_cursor], MutExternalPointer[sqlite3_context], Int32) -> Int32
@@ -255,10 +320,10 @@ struct sqlite3_module(Movable):
             MutExternalPointer[sqlite3_context], Int32, MutExternalPointer[MutExternalPointer[sqlite3_value]]
         ) -> MutExternalPointer[MutExternalPointer[NoneType]],
         MutExternalPointer[MutExternalPointer[NoneType]],
-    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an alias since it doesn't have a value.
+    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an comptime since it doesn't have a value.
     var xRename: fn (
         MutExternalPointer[sqlite3_vtab], MutExternalPointer[Int8]
-    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an alias since it doesn't have a value.
+    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an comptime since it doesn't have a value.
     var xSavepoint: fn (MutExternalPointer[sqlite3_vtab], Int32) -> Int32
     var xRelease: fn (MutExternalPointer[sqlite3_vtab], Int32) -> Int32
     var xRollbackTo: fn (MutExternalPointer[sqlite3_vtab], Int32) -> Int32
@@ -269,7 +334,7 @@ struct sqlite3_module(Movable):
         MutExternalPointer[Int8],
         Int32,
         MutExternalPointer[MutExternalPointer[Int8]],
-    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an alias since it doesn't have a value.
+    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an comptime since it doesn't have a value.
 
 
 struct _sqlite3_index_info_sqlite3_index_constraint_usage(Movable):
@@ -310,7 +375,7 @@ struct sqlite3_vtab(Movable):
 
     var pModule: MutExternalPointer[
         sqlite3_module
-    ]  # FieldDeclNode: This is a const param, but shouldn't be assigned as an alias since it doesn't have a value.
+    ]  # FieldDeclNode: This is a const param, but shouldn't be assigned as an comptime since it doesn't have a value.
     var nRef: Int32
     var zErrMsg: MutExternalPointer[Int8]
 
@@ -323,11 +388,11 @@ struct sqlite3_blob(Movable):
     """A Handle To An Open BLOB.
 
     An instance of this object represents an open BLOB on which
-    [sqlite3_blob_open | incremental BLOB I/O] can be performed.
-    ^Objects of this type are created by [sqlite3_blob_open()]
-    and destroyed by [sqlite3_blob_close()].
-    ^The [sqlite3_blob_read()] and [sqlite3_blob_write()] interfaces
-    can be used to read or write small subsections of the BLOB.
-    ^The [sqlite3_blob_bytes()] interface returns the size of the BLOB in bytes."""
+    `sqlite3_blob_open | incremental BLOB I/O` can be performed.
 
+    * Objects of this type are created by `sqlite3_blob_open()`
+    and destroyed by `sqlite3_blob_close()`.
+    * The `sqlite3_blob_read()` and `sqlite3_blob_write()` interfaces
+    can be used to read or write small subsections of the BLOB.
+    * The `sqlite3_blob_bytes()` interface returns the size of the BLOB in bytes."""
     pass

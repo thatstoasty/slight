@@ -13,7 +13,7 @@ More documentation will come, but for now please use the test files as reference
 
 This project was heavily inspired by:
 
-- <https://github.com/alexcrichton/curl-rust/tree/main>
+- The [rusqlite](https://github.com/rusqlite/rusqlite) Rust crate.
 
 ## TODO
 

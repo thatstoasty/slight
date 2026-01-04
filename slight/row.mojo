@@ -1,3 +1,4 @@
+from sys.intrinsics import _type_is_eq
 from memory import Pointer
 from slight.statement import Statement, InvalidColumnIndexError
 from slight.types.value_ref import (
@@ -46,7 +47,7 @@ __extension StringSlice(RowIndex):
 struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Movable):
     """Represents a single row in the result set of a SQL query."""
 
-    var stmt: Pointer[Statement[conn], statement]
+    var stmt: Pointer[Statement[Self.conn], Self.statement]
     """A pointer to the statement that produced this row."""
 
     fn get_int64(self, idx: Some[RowIndex]) raises -> Optional[Int]:
@@ -135,7 +136,7 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Movable):
         else:
             raise InvalidColumnTypeError
 
-    fn get_string_slice(self, idx: Some[RowIndex]) raises -> Optional[StringSlice[conn]]:
+    fn get_string_slice(self, idx: Some[RowIndex]) raises -> Optional[StringSlice[Self.conn]]:
         """Gets a StringSlice value from the specified column.
 
         Args:
@@ -155,12 +156,12 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Movable):
 
         if value.isa[SQLite3Null]():
             return None
-        elif value.isa[SQLite3Text[conn]]():
-            return value[SQLite3Text[conn]].value
+        elif value.isa[SQLite3Text[Self.conn]]():
+            return value[SQLite3Text[Self.conn]].value
         else:
             raise InvalidColumnTypeError
 
-    fn get[S: FromSQL](self, idx: Some[RowIndex]) raises -> S:
+    fn get[S: FromSQL, I: RowIndex](self, idx: I) raises -> S:
         """Gets a value of type S from the specified column using generic type conversion.
 
         This is a generic method that can retrieve values of any supported type,
@@ -184,44 +185,26 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Movable):
         return S(self.stmt[].value_ref(i))
 
 
-struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator, Movable):
+@fieldwise_init
+struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator):
     """An iterator over rows returned by a SQL query."""
 
-    alias Element = Row[conn, statement]
+    comptime Element = Row[Self.conn, Self.statement]
 
-    var stmt: Pointer[Statement[conn], statement]
+    var stmt: Pointer[Statement[Self.conn], Self.statement]
     """A pointer to the statement that produces rows."""
-
-    fn __init__(out self, stmt: Pointer[Statement[conn], statement]):
-        """Initializes a new Rows iterator.
-
-        Args:
-            stmt: A pointer to the statement that will produce rows.
-        """
-        self.stmt = stmt
-
-    fn __has_next__(self) -> Bool:
-        """Checks if there are more rows available.
-
-        Returns:
-            True if there are more rows to iterate over, False otherwise.
-        """
+    
+    fn __next__(
+        mut self,
+    ) raises StopIteration -> Self.Element:
         try:
             if self.stmt[].step():
-                return True
+                return Row(self.stmt)
             else:
                 self.reset()
-                return False
+                raise StopIteration()
         except:
-            return False
-
-    fn __next__(mut self) -> Self.Element:
-        """Returns the next row in the result set.
-
-        Returns:
-            The next Row object.
-        """
-        return Row(self.stmt)
+            raise StopIteration()
 
     fn __iter__(self) -> Self:
         """Returns an iterator over the rows.
@@ -245,17 +228,17 @@ struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator, Movab
             # raise
 
 
-struct MappedRows[T: Copyable & Movable, //, conn: ImmutOrigin, statement: ImmutOrigin, transform: fn (Row) -> T](
-    Copyable, Iterator, Movable
+struct MappedRows[T: Movable, //, conn: ImmutOrigin, statement: ImmutOrigin, transform: fn (Row) raises -> T](
+    Copyable, Iterator
 ):
     """An iterator that transforms rows using a mapping function."""
 
-    alias Element = T
+    comptime Element = Self.T
 
-    var rows: Rows[conn, statement]
+    var rows: Rows[Self.conn, Self.statement]
     """The underlying rows iterator."""
 
-    fn __init__(out self, rows: Rows[conn, statement]):
+    fn __init__(out self, rows: Rows[Self.conn, Self.statement]):
         """Initializes a new MappedRows iterator.
 
         Args:
@@ -263,21 +246,17 @@ struct MappedRows[T: Copyable & Movable, //, conn: ImmutOrigin, statement: Immut
         """
         self.rows = rows.copy()
 
-    fn __has_next__(self) -> Bool:
-        """Checks if there are more transformed rows available.
-
-        Returns:
-            True if there are more rows to iterate over, False otherwise.
-        """
-        return self.rows.__has_next__()
-
-    fn __next__(mut self) -> T:
+    fn __next__(mut self) raises StopIteration -> Self.T:
         """Returns the next transformed row.
 
         Returns:
             The next row transformed by the mapping function.
         """
-        return transform(self.rows.__next__())
+        var result = self.rows.__next__()
+        try:
+            return Self.transform(result)
+        except e:
+            raise StopIteration()
 
     fn __iter__(self) -> Self:
         """Returns an iterator over the transformed rows.
