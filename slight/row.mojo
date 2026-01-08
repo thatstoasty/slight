@@ -170,6 +170,7 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Movable):
         Parameters:
             S: The type to convert the column value to. Supported types are:
                Int, Float64, String, and Bool.
+            I: The type used to specify the column index (0-based). Can be Int, UInt, String, or StringSlice.
 
         Args:
             idx: The column index (0-based).

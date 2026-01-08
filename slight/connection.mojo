@@ -256,7 +256,7 @@ struct Connection(Movable):
             _ = stmt^.finalize()
 
     fn query_row[
-        T: Movable & ImplicitlyDestructible, //, transform: fn (Row) raises -> T
+        T: Movable, //, transform: fn (Row) raises -> T
     ](mut self, var sql: String, params: List[Parameter] = []) raises -> T:
         """Executes the query and returns a single row.
 
@@ -278,13 +278,14 @@ struct Connection(Movable):
             Error: If parameter binding fails, no rows are returned, or more than one row is returned.
         """
         var stmt = self.prepare(sql^)
-        try:
-            return stmt.query_row[transform=transform](params)
-        finally:
-            _ = stmt^.finalize()
+        return stmt.query_row[transform=transform](params)
+        # try:
+        #     return stmt.query_row[transform=transform](params)
+        # finally:
+        #     _ = stmt^.finalize()
 
     fn query_row[
-        T: Movable & ImplicitlyDestructible, //, transform: fn (Row) raises -> T
+        T: Movable, //, transform: fn (Row) raises -> T
     ](mut self, var sql: String, params: Dict[String, Parameter]) raises -> T:
         """Executes the query and returns a single row.
 
@@ -306,13 +307,14 @@ struct Connection(Movable):
             Error: If parameter binding fails, no rows are returned, or more than one row is returned.
         """
         var stmt = self.prepare(sql^)
-        try:
-            return stmt.query_row[transform=transform](params)
-        finally:
-            _ = stmt^.finalize()
+        return stmt.query_row[transform=transform](params)
+        # try:
+        #     return stmt.query_row[transform=transform](params)
+        # finally:
+        #     _ = stmt^.finalize()
 
     fn query_row[
-        T: Movable & ImplicitlyDestructible, //, transform: fn (Row) raises -> T
+        T: Movable, //, transform: fn (Row) raises -> T
     ](mut self, var sql: String, params: List[Tuple[String, Parameter]]) raises -> T:
         """Executes the query and returns a single row.
 
@@ -334,10 +336,11 @@ struct Connection(Movable):
             Error: If parameter binding fails, no rows are returned, or more than one row is returned.
         """
         var stmt = self.prepare(sql^)
-        try:
-            return stmt.query_row[transform=transform](params)
-        finally:
-            _ = stmt^.finalize()
+        return stmt.query_row[transform=transform](params)
+        # try:
+        #     return stmt.query_row[transform](params)
+        # finally:
+        #     _ = stmt^.finalize()
 
     fn execute_batch(self, sql: String) raises:
         """Executes a batch of SQL statements.

@@ -475,7 +475,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         return Rows(Pointer(to=self))
 
     fn query_map[
-        T: Copyable, //, transform: fn (Row) raises -> T
+        T: Movable, //, transform: fn (Row) raises -> T
     ](mut self, params: List[Parameter] = []) raises -> MappedRows[Self.conn, origin_of(self), transform]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
@@ -498,7 +498,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         return MappedRows[Self.conn, origin_of(self), transform](self.query(params))
 
     fn query_map[
-        T: Copyable, //, transform: fn (Row) raises -> T
+        T: Movable, //, transform: fn (Row) raises -> T
     ](mut self, params: Dict[String, Parameter]) raises -> MappedRows[Self.conn, origin_of(self), transform]:
         """Executes the query and returns a mapped iterator that transforms each row.
 

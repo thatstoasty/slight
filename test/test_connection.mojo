@@ -10,28 +10,28 @@ from slight.c.raw_bindings import sqlite3_stmt, SQLITE_OK
 from slight.c.api import sqlite_ffi
 
 
-# @fieldwise_init
-# struct Employee(Copyable, Movable, Writable):
-#     var id: Int
-#     var name: String
-#     var age: Int8
-#     var address: String
-#     var salary: Float64
-#     var is_active: Bool
+# # @fieldwise_init
+# # struct Employee(Copyable, Movable, Writable):
+# #     var id: Int
+# #     var name: String
+# #     var age: Int8
+# #     var address: String
+# #     var salary: Float64
+# #     var is_active: Bool
 
-#     fn write_to[W: Writer](self, mut writer: W):
-#         writer.write("Employee(id=", self.id, ", name=", self.name, ", age=", self.age, ", address=", self.address, ", salary=", self.salary, ", is_active=", self.is_active, ")")
+# #     fn write_to[W: Writer](self, mut writer: W):
+# #         writer.write("Employee(id=", self.id, ", name=", self.name, ", age=", self.age, ", address=", self.address, ", salary=", self.salary, ", is_active=", self.is_active, ")")
 
 
-# fn transform_row(row: Row) raises -> Employee:
-#     return Employee(
-#         id=row.get[Int]("id"),
-#         name=row.get[String]("name"),
-#         age=row.get[Int8]("age"),
-#         address=row.get[String]("address"),
-#         salary=row.get[Float64]("salary"),
-#         is_active=row.get[Bool]("is_active")
-#     )
+# # fn transform_row(row: Row) raises -> Employee:
+# #     return Employee(
+# #         id=row.get[Int]("id"),
+# #         name=row.get[String]("name"),
+# #         age=row.get[Int8]("age"),
+# #         address=row.get[String]("address"),
+# #         salary=row.get[Float64]("salary"),
+# #         is_active=row.get[Bool]("is_active")
+# #     )
         
 
 fn test_eq_ignore_ascii_case_test() raises:
@@ -141,7 +141,7 @@ fn test_open_failure() raises:
 #         assert_equal(row.get[String](1), "Alice")
 
 #     stmt = db.prepare(select_user_query)
-#     var employee = stmt.query_row[transform=transform_row](["Bob"])
+#     var employee = stmt.query_row[transform_row](["Bob"])
 #     assert_equal(employee.id, 1)
 #     assert_equal(employee.name, "Bob")
 
@@ -175,20 +175,6 @@ fn test_execute_batch() raises:
     # db.execute_batch("PRAGMA locking_mode = EXCLUSIVE")
 
 
-# fn test_execute() raises:
-#     var db = Connection.open_in_memory()
-    
-#     fn get_int(r: Row) raises -> Int:
-#         return r.get[Int](0)
-    
-#     db.execute_batch("CREATE TABLE foo(x INTEGER)")
-    
-#     assert_equal(db.execute("INSERT INTO foo(x) VALUES (?1)", [1]), 1)
-#     assert_equal(db.execute("INSERT INTO foo(x) VALUES (?1)", [2]), 1)
-    
-#     assert_equal(db.query_row[transform=get_int]("SELECT SUM(x) FROM foo"), 3)
-
-
 fn test_execute_select_with_row() raises:
     var db = Connection.open_in_memory()
     with assert_raises(contains="Query returned rows"):
@@ -217,6 +203,20 @@ fn test_prepare_column_names() raises:
     assert_equal(stmt2.column_count(), 2)
     # assert_equal(stmt2.column_names()[0], "a")
     # assert_equal(stmt2.column_names()[1], "b")
+
+comptime dummy: Int = 1
+"""For some reason, using the extended type explicitly makes the extensions start working after it in the file."""
+
+fn test_execute() raises:
+    var db = Connection.open_in_memory()
+    
+    fn get_int(r: Row) raises -> Int:
+        return r.get[Int](0)
+    
+    db.execute_batch("CREATE TABLE foo(x INTEGER)")
+    assert_equal(db.execute("INSERT INTO foo(x) VALUES (?1)", [1]), 1)
+    assert_equal(db.execute("INSERT INTO foo(x) VALUES (?1)", [2]), 1)
+    assert_equal(db.query_row[get_int]("SELECT SUM(x) FROM foo"), 3)
 
 
 fn test_prepare_execute() raises:
@@ -273,7 +273,8 @@ fn test_prepare_query() raises:
 
 
 fn test_query_map() raises:
-    var db = Connection.open_in_memory()    
+    var db = Connection.open_in_memory()
+
     fn get_string(r: Row) raises -> String:
         return r.get[String](1)
     
@@ -324,10 +325,10 @@ fn test_pragma_query_row() raises:
     fn get_string(r: Row) raises -> String:
         return r.get[String](0)
 
-    var mode = db.query_row[transform=get_string]("PRAGMA journal_mode")
+    var mode = db.query_row[get_string]("PRAGMA journal_mode")
     assert_equal(mode, "memory")
     
-    var mode2 = db.query_row[transform=get_string]("PRAGMA journal_mode=off")
+    var mode2 = db.query_row[get_string]("PRAGMA journal_mode=off")
     # Note: system SQLite behavior may vary
     assert_true(mode2 == "memory" or mode2 == "off")
 
@@ -514,8 +515,6 @@ fn test_alter_table() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE x(t);")
     db.execute_batch("ALTER TABLE x RENAME TO y;")
-
-
 
 
 # Skipping test_batch, test_invalid_batch, test_returning as they require Batch type
