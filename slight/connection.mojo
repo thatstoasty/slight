@@ -10,6 +10,7 @@ from slight.statement import Statement
 from slight.row import Row, Int  # RowIndex extension for Int
 from slight.types.from_sql import FromSQL
 from slight.column import ColumnMetadata
+from slight.transaction import Transaction, Savepoint, TransactionBehavior
 
 
 struct Connection(Movable):
@@ -257,7 +258,7 @@ struct Connection(Movable):
 
     fn query_row[
         T: Movable, //, transform: fn (Row) raises -> T
-    ](mut self, var sql: String, params: List[Parameter] = []) raises -> T:
+    ](self, var sql: String, params: List[Parameter] = []) raises -> T:
         """Executes the query and returns a single row.
 
         This is a convenience method for queries that are expected to return exactly one row.
@@ -286,7 +287,7 @@ struct Connection(Movable):
 
     fn query_row[
         T: Movable, //, transform: fn (Row) raises -> T
-    ](mut self, var sql: String, params: Dict[String, Parameter]) raises -> T:
+    ](self, var sql: String, params: Dict[String, Parameter]) raises -> T:
         """Executes the query and returns a single row.
 
         This is a convenience method for queries that are expected to return exactly one row.
@@ -315,7 +316,7 @@ struct Connection(Movable):
 
     fn query_row[
         T: Movable, //, transform: fn (Row) raises -> T
-    ](mut self, var sql: String, params: List[Tuple[String, Parameter]]) raises -> T:
+    ](self, var sql: String, params: List[Tuple[String, Parameter]]) raises -> T:
         """Executes the query and returns a single row.
 
         This is a convenience method for queries that are expected to return exactly one row.
@@ -372,29 +373,29 @@ struct Connection(Movable):
         """Returns the row ID of the last inserted row."""
         return self.db.last_insert_row_id()
 
-    # fn one_column[
-    #     T: FromSQL,
-    # ](mut self, var sql: String, params: List[Parameter] = []) raises -> T:
-    #     fn get_item(row: Row) -> T:
-    #         return row.get[T](0)
+    fn one_column[
+        T: FromSQL,
+    ](self, var sql: String, params: List[Parameter] = []) raises -> T:
+        fn get_item(row: Row) raises -> T:
+            return row.get[T](0)
 
-    #     return self.query_row[get_item](sql, params)
+        return self.query_row[get_item](sql, params)
 
-    # fn one_column[
-    #     T: FromSQL,
-    # ](mut self, var sql: String, params: Dict[String, Parameter]) raises -> T:
-    #     fn get_item(row: Row) raises -> T:
-    #         return row.get[T](0)
+    fn one_column[
+        T: FromSQL,
+    ](self, var sql: String, params: Dict[String, Parameter]) raises -> T:
+        fn get_item(row: Row) raises -> T:
+            return row.get[T](0)
 
-    #     return self.query_row[get_item](sql, params)
+        return self.query_row[get_item](sql, params)
 
-    # fn one_column[
-    #     T: FromSQL,
-    # ](mut self, var sql: String, params: List[Tuple[String, Parameter]]) raises -> T:
-    #     fn get_item(row: Row) raises -> T:
-    #         return row.get[T](0)
+    fn one_column[
+        T: FromSQL,
+    ](self, var sql: String, params: List[Tuple[String, Parameter]]) raises -> T:
+        fn get_item(row: Row) raises -> T:
+            return row.get[T](0)
 
-    #     return self.query_row[get_item](sql, params)
+        return self.query_row[get_item](sql, params)
 
     fn column_exists(
         self,
@@ -525,3 +526,67 @@ struct Connection(Movable):
             return False
         else:
             raise self.decode_error(r)
+
+    fn transaction(mut self, behavior: Optional[TransactionBehavior] = None) raises -> Transaction[origin_of(self)]:
+        """Begin a new transaction with the default behavior (DEFERRED).
+
+        The transaction defaults to rolling back when it is dropped. If you
+        want the transaction to commit, you must call `commit()` or
+        `set_drop_behavior(DropBehavior.COMMIT())`.
+
+        ## Example
+
+        ```mojo
+        from slight import Connection
+
+        fn perform_queries(mut conn: Connection) raises:
+            var tx = conn.transaction()
+
+            _ = tx.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
+            _ = tx.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
+
+            tx.commit()
+        ```
+
+        Returns:
+            A new Transaction object.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        if behavior:
+            return Transaction(Pointer(to=self), behavior.value())
+        else:
+            return Transaction(Pointer(to=self))
+
+    fn savepoint(mut self, name: Optional[String] = None) raises -> Savepoint[origin_of(self)]:
+        """Begin a new savepoint with the default behavior (DEFERRED).
+
+        The savepoint defaults to rolling back when it is dropped. If you want
+        the savepoint to commit, you must call `commit()` or
+        `set_drop_behavior(DropBehavior.COMMIT())`.
+
+        ## Example
+
+        ```mojo
+        from slight import Connection
+        fn perform_queries(mut conn: Connection) raises:
+            var sp = conn.savepoint()
+
+            _ = sp.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
+            _ = sp.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
+
+            sp.commit()
+        ```
+
+        Returns:
+            A new Savepoint object.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        if name:
+            return Savepoint(Pointer(to=self), name.value())
+        else:
+            return Savepoint(Pointer(to=self))
+
