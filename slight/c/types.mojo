@@ -3,9 +3,9 @@ from utils import StaticTuple
 
 from sys.ffi import c_char, c_int
 
-comptime ImmutExternalPointer = ImmutUnsafePointer[origin = ImmutOrigin.external]
+comptime ImmutExternalPointer = ImmutUnsafePointer[origin = ImmutExternalOrigin]
 comptime ImmutExternalOpaquePointer = ImmutExternalPointer[NoneType]
-comptime MutExternalPointer = MutUnsafePointer[origin = MutOrigin.external]
+comptime MutExternalPointer = MutUnsafePointer[origin = MutExternalOrigin]
 comptime MutExternalOpaquePointer = MutExternalPointer[NoneType]
 
 

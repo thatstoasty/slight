@@ -1,7 +1,7 @@
 from slight.types.value_ref import ValueRef
 
 
-trait FromSQL(Copyable, Movable):
+trait FromSQL(Copyable):
     """A trait for types that can be constructed from a SQL value."""
 
     fn __init__(out self, value: ValueRef) raises:

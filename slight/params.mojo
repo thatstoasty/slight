@@ -92,8 +92,8 @@ struct Parameter(Copyable):
     fn copy(self) -> Self:
         return Self(self.value.copy())
 
-    fn isa[T: Copyable & Movable](self) -> Bool:
+    fn isa[T: Copyable](self) -> Bool:
         return self.value.isa[T]()
 
-    fn __getitem__[T: Copyable & Movable](self) -> ref [self.value] T:
+    fn __getitem__[T: Copyable](self) -> ref [self.value] T:
         return self.value[T]

@@ -383,24 +383,24 @@ fn test_is_autocommit() raises:
 fn test_column_exists() raises:
     var db = Connection.open_in_memory()
     # Check column exists in sqlite_master table
-    assert_true(db.column_exists(None, "sqlite_master", "type"))
-    assert_true(db.column_exists("temp", "sqlite_master", "type"))
-    assert_false(db.column_exists("main", "sqlite_temp_master", "type"))
+    assert_true(db.column_exists("sqlite_master", "type"))
+    assert_true(db.column_exists("sqlite_master", "type", "temp"))
+    assert_false(db.column_exists("sqlite_temp_master", "type", "main"))
 
 
 fn test_table_exists() raises:
     var db = Connection.open_in_memory()
     # Check that sqlite_master table exists
-    assert_true(db.table_exists(None, "sqlite_master"))
-    assert_true(db.table_exists("temp", "sqlite_master"))
-    assert_false(db.table_exists("main", "sqlite_temp_master"))
+    assert_true(db.table_exists("sqlite_master"))
+    assert_true(db.table_exists("sqlite_master", "temp"))
+    assert_false(db.table_exists("sqlite_temp_master", "main"))
 
 
 fn test_column_metadata() raises:
     var db = Connection.open_in_memory()
     
     # Get column metadata for the 'type' column in sqlite_master table
-    var metadata = db.column_metadata(None, "sqlite_master", "type")
+    var metadata = db.column_metadata("sqlite_master", "type")
     
     # Check data type (should be TEXT)
     var data_type = metadata.data_type
@@ -419,7 +419,7 @@ fn test_column_metadata() raises:
     
     # Test that querying non-existent column raises an error
     with assert_raises():
-        _ = db.column_metadata(None, "sqlite_master", "foo")
+        _ = db.column_metadata("sqlite_master", "foo")
 
 
 # TODO: Need to work on this.

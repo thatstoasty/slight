@@ -172,7 +172,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         """
         self.connection[].raise_if_error(self.stmt.reset())
 
-    fn _execute(mut self) raises -> Int64:
+    fn _execute(self) raises -> Int64:
         """Executes the statement.
 
         This is a private function meant to be called by the public execute methods, which handle parameter binding.
@@ -202,7 +202,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             else:
                 raise Error("Unknown error occurred during step execution: ", r)
 
-    fn execute(mut self, params: List[Parameter] = []) raises -> Int64:
+    fn execute(self, params: List[Parameter] = []) raises -> Int64:
         """Executes the statement with the given parameters and returns the number of affected rows.
 
         This method is intended for statements that don't return rows (INSERT, UPDATE, DELETE).
@@ -222,7 +222,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             self.bind_parameters(params)
         return self._execute()
 
-    fn execute(mut self, params: Dict[String, Parameter]) raises -> Int64:
+    fn execute(self, params: Dict[String, Parameter]) raises -> Int64:
         """Executes the statement with the given parameters and returns the number of affected rows.
 
         This method is intended for statements that don't return rows (INSERT, UPDATE, DELETE).
@@ -242,7 +242,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             self.bind_parameters_named(params)
         return self._execute()
 
-    fn execute(mut self, params: List[Tuple[String, Parameter]]) raises -> Int64:
+    fn execute(self, params: List[Tuple[String, Parameter]]) raises -> Int64:
         """Executes the statement with the given parameters and returns the number of affected rows.
 
         This method is intended for statements that don't return rows (INSERT, UPDATE, DELETE).
@@ -366,7 +366,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         else:
             raise Error("Unsupported parameter type")
 
-    fn bind_parameters(mut self, params: List[Parameter]) raises -> None:
+    fn bind_parameters(self, params: List[Parameter]) raises -> None:
         """Binds a list of parameters to the statement in order.
 
         Args:
@@ -386,7 +386,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         if index != expected:
             raise Error("Invalid parameter count: ", index, ", expected: ", expected)
 
-    fn bind_parameters_named(mut self, params: Dict[String, Parameter]) raises -> None:
+    fn bind_parameters_named(self, params: Dict[String, Parameter]) raises -> None:
         """Binds a list of parameters to the statement in order.
 
         Args:
@@ -403,7 +403,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
             self.bind_parameter(kv.value, i[])
 
-    fn bind_parameters_named(mut self, params: List[Tuple[String, Parameter]]) raises -> None:
+    fn bind_parameters_named(self, params: List[Tuple[String, Parameter]]) raises -> None:
         """Binds a list of parameters to the statement in order.
 
         Args:
@@ -420,7 +420,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
             self.bind_parameter(kv[1], i[])
 
-    fn query(mut self, params: List[Parameter] = []) raises -> Rows[Self.conn, origin_of(self)]:
+    fn query(self, params: List[Parameter] = []) raises -> Rows[Self.conn, origin_of(self)]:
         """Executes the statement as a query and returns an iterator over the result rows.
 
         This method is intended for SELECT statements that return data.
@@ -438,7 +438,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         self.bind_parameters(params)
         return Rows(Pointer(to=self))
 
-    fn query(mut self, params: Dict[String, Parameter]) raises -> Rows[Self.conn, origin_of(self)]:
+    fn query(self, params: Dict[String, Parameter]) raises -> Rows[Self.conn, origin_of(self)]:
         """Executes the statement as a query and returns an iterator over the result rows.
 
         This method is intended for SELECT statements that return data.
@@ -456,7 +456,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         self.bind_parameters_named(params)
         return Rows(Pointer(to=self))
 
-    fn query(mut self, params: List[Tuple[String, Parameter]]) raises -> Rows[Self.conn, origin_of(self)]:
+    fn query(self, params: List[Tuple[String, Parameter]]) raises -> Rows[Self.conn, origin_of(self)]:
         """Executes the statement as a query and returns an iterator over the result rows.
 
         This method is intended for SELECT statements that return data.
@@ -476,7 +476,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
     fn query_map[
         T: Movable, //, transform: fn (Row) raises -> T
-    ](mut self, params: List[Parameter] = []) raises -> MappedRows[Self.conn, origin_of(self), transform]:
+    ](self, params: List[Parameter] = []) raises -> MappedRows[Self.conn, origin_of(self), transform]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
         This method applies a transformation function to each row returned by the query,
@@ -499,7 +499,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
     fn query_map[
         T: Movable, //, transform: fn (Row) raises -> T
-    ](mut self, params: Dict[String, Parameter]) raises -> MappedRows[Self.conn, origin_of(self), transform]:
+    ](self, params: Dict[String, Parameter]) raises -> MappedRows[Self.conn, origin_of(self), transform]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
         This method applies a transformation function to each row returned by the query,
@@ -522,7 +522,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
     fn query_map[
         T: Movable, //, transform: fn (Row) raises -> T
-    ](mut self, params: List[Tuple[String, Parameter]]) raises -> MappedRows[Self.conn, origin_of(self), transform]:
+    ](self, params: List[Tuple[String, Parameter]]) raises -> MappedRows[Self.conn, origin_of(self), transform]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
         This method applies a transformation function to each row returned by the query,
@@ -545,7 +545,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
     fn query_row[
         T: Movable, //, transform: fn (Row) raises -> T
-    ](mut self, params: List[Parameter] = []) raises -> T:
+    ](self, params: List[Parameter] = []) raises -> T:
         """Executes the query and returns a single row.
 
         This is a convenience method for queries that are expected to return exactly one row.
@@ -575,7 +575,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
     fn query_row[
         T: Movable, //, transform: fn (Row) raises -> T
-    ](mut self, params: Dict[String, Parameter]) raises -> T:
+    ](self, params: Dict[String, Parameter]) raises -> T:
         """Executes the query and returns a single row.
 
         This is a convenience method for queries that are expected to return exactly one row.
@@ -605,7 +605,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
     fn query_row[
         T: Movable, //, transform: fn (Row) raises -> T
-    ](mut self, params: List[Tuple[String, Parameter]]) raises -> T:
+    ](self, params: List[Tuple[String, Parameter]]) raises -> T:
         """Executes the query and returns a single row.
 
         This is a convenience method for queries that are expected to return exactly one row.
@@ -633,7 +633,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         
         return transform(row)
 
-    fn exists(mut self, params: List[Parameter] = []) raises -> Bool:
+    fn exists(self, params: List[Parameter] = []) raises -> Bool:
         """Checks if the query returns at least one row.
 
         This is a convenience method that executes the query and returns True
@@ -656,7 +656,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         except StopIteration:
             return False
 
-    fn exists(mut self, params: Dict[String, Parameter]) raises -> Bool:
+    fn exists(self, params: Dict[String, Parameter]) raises -> Bool:
         """Checks if the query returns at least one row.
 
         This is a convenience method that executes the query and returns True
@@ -679,7 +679,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         except StopIteration:
             return False
 
-    fn exists(mut self, params: List[Tuple[String, Parameter]]) raises -> Bool:
+    fn exists(self, params: List[Tuple[String, Parameter]]) raises -> Bool:
         """Checks if the query returns at least one row.
 
         This is a convenience method that executes the query and returns True
@@ -774,7 +774,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
         raise Error("InvalidColumnNameError: Could not find column with name: ", name)
 
-    fn insert(mut self, params: List[Parameter] = []) raises -> Int64:
+    fn insert(self, params: List[Parameter] = []) raises -> Int64:
         """Executes an INSERT statement and returns the last inserted row ID.
 
         This is a convenience method for executing INSERT statements that
@@ -794,7 +794,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         else:
             raise Error("StatementChangedRows: Expected 1 row to be inserted, but ", changes, " rows were affected.")
 
-    fn insert(mut self, params: Dict[String, Parameter]) raises -> Int64:
+    fn insert(self, params: Dict[String, Parameter]) raises -> Int64:
         """Executes an INSERT statement and returns the last inserted row ID.
 
         This is a convenience method for executing INSERT statements that
@@ -814,7 +814,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         else:
             raise Error("StatementChangedRows: Expected 1 row to be inserted, but ", changes, " rows were affected.")
 
-    fn insert(mut self, params: List[Tuple[String, Parameter]]) raises -> Int64:
+    fn insert(self, params: List[Tuple[String, Parameter]]) raises -> Int64:
         """Executes an INSERT statement and returns the last inserted row ID.
 
         This is a convenience method for executing INSERT statements that

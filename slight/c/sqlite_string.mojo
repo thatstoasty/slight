@@ -4,7 +4,7 @@ from slight.c.types import MutExternalPointer
 
 
 @fieldwise_init
-struct SQLiteMallocString(Copyable, Movable):
+struct SQLiteMallocString(Movable):
     """A string we are in charge of freeing that's allocated on the SQLite heap.
     
     Automatically calls `sqlite3_free` when deleted."""
