@@ -1,7 +1,7 @@
 from testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
 
 from slight.connection import Connection
-from slight.row import Row, String, Int
+from slight import Row, String, Int
 from slight.pragma import Sql, is_identifier
 
 comptime dummy: Int = 0

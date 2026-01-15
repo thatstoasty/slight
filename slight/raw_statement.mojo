@@ -167,6 +167,18 @@ struct RawStatement(Movable):
         return sqlite_ffi()[].bind_text64(
             self.stmt, Int32(index), value, len(value), TextEncoding.UTF8, destructor_callback
         )
+    
+    fn bind_blob(self, index: UInt, value: Span[Byte], destructor_callback: ResultDestructorFn) -> SQLite3Result:
+        """Binds a blob value to the specified parameter.
+
+        Args:
+            index: The 1-based index of the parameter to bind.
+            value: The blob value to bind.
+            destructor_callback: The destructor function to call when SQLite is done with the blob.
+        """
+        return sqlite_ffi()[].bind_blob64(
+            self.stmt, Int32(index), value.unsafe_ptr().bitcast[NoneType](), len(value), destructor_callback
+        )
 
     fn sql(self) -> Optional[StringSlice[origin_of(self)]]:
         """Returns the original SQL text of the prepared statement.

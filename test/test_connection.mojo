@@ -4,7 +4,8 @@ from pathlib import Path
 
 from slight.connection import Connection
 from slight.statement import eq_ignore_ascii_case
-from slight.row import Row, String, Int, Bool, SIMD
+from slight.row import Row
+from slight import String, Int, Bool, SIMD
 from slight.flags import OpenFlag
 from slight.c.raw_bindings import sqlite3_stmt, SQLITE_OK
 from slight.c.api import sqlite_ffi
@@ -217,6 +218,24 @@ fn test_execute() raises:
     assert_equal(db.execute("INSERT INTO foo(x) VALUES (?1)", [1]), 1)
     assert_equal(db.execute("INSERT INTO foo(x) VALUES (?1)", [2]), 1)
     assert_equal(db.query_row[get_int]("SELECT SUM(x) FROM foo"), 3)
+
+
+fn test_insert_bytes() raises:
+    var db = Connection.open_in_memory()
+    var example = "hello".as_bytes()
+    
+    fn get_int(r: Row) raises -> Int:
+        return r.get[Int](0)
+    
+    db.execute_batch("CREATE TABLE foo(x BLOB)")
+    assert_equal(db.execute("INSERT INTO foo(x) VALUES (?1)", [example]), 1)
+
+    # Select and verify inserted blob
+    var stmt = db.prepare("SELECT x FROM foo")
+    for row in stmt.query():
+        var blob = row.get[List[Byte]](0)
+        for i in range(len(example)):
+            assert_equal(blob[i], example[i])
 
 
 fn test_prepare_execute() raises:
@@ -540,4 +559,7 @@ fn test_alter_table() raises:
 
 
 fn main() raises:
-    TestSuite.discover_tests[__functions_in_module()]().run()
+    # TestSuite.discover_tests[__functions_in_module()]().run()
+    var suite = TestSuite()
+    suite.test[test_insert_bytes]()
+    suite^.run()

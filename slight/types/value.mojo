@@ -1,7 +1,7 @@
 from utils.variant import Variant
 
 
-trait SQLTypeRef:
+trait SQLType:
     """A marker trait for types that represent SQL values."""
 
     pass
@@ -11,7 +11,7 @@ comptime InvalidColumnTypeError = "InvalidColumnType: Unsupported value type"
 
 
 @fieldwise_init
-struct SQLite3Null(Copyable, Movable, SQLTypeRef):
+struct SQLite3Null(Copyable, Movable, SQLType):
     """Represents a SQL NULL value.
 
     This is a zero-sized struct that represents the absence of a value
@@ -23,7 +23,7 @@ struct SQLite3Null(Copyable, Movable, SQLTypeRef):
 
 
 @fieldwise_init
-struct SQLite3Integer(Copyable, Movable, SQLTypeRef):
+struct SQLite3Integer(Copyable, Movable, SQLType):
     """Represents a SQL INTEGER value.
 
     This struct wraps a 64-bit signed integer value as used by SQLite.
@@ -34,7 +34,7 @@ struct SQLite3Integer(Copyable, Movable, SQLTypeRef):
 
 
 @fieldwise_init
-struct SQLite3Real(Copyable, Movable, SQLTypeRef):
+struct SQLite3Real(Copyable, Movable, SQLType):
     """Represents a SQL REAL (floating-point) value.
 
     This struct wraps a 64-bit floating-point value as used by SQLite.
@@ -45,42 +45,37 @@ struct SQLite3Real(Copyable, Movable, SQLTypeRef):
 
 
 @fieldwise_init
-struct SQLite3Text[stmt: ImmutOrigin](Copyable, Movable, SQLTypeRef):
+struct SQLite3Text(Copyable, Movable, SQLType):
     """Represents a SQL TEXT value.
 
     This struct wraps a text string value from SQLite. The text is stored
     as a StringSlice that references memory owned by the SQLite statement,
     so it's only valid for the lifetime of the statement.
-
-    Parameters:
-        stmt: The origin of the statement that owns the text memory.
     """
 
-    var value: StringSlice[Self.stmt]
+    var value: String
 
 
 @fieldwise_init
-struct SQLite3Blob[stmt: ImmutOrigin](Copyable, Movable, SQLTypeRef):
+struct SQLite3Blob(Copyable, Movable, SQLType):
     """Represents a SQL BLOB (binary large object) value.
 
-    This struct wraps binary data from SQLite. The data is stored as a Span
+    This struct wraps binary data from SQLite. The data is stored as a List
     that references memory owned by the SQLite statement, so it's only valid
     for the lifetime of the statement.
-
-    Parameters:
-        stmt: The origin of the statement that owns the blob memory.
     """
 
-    var value: Span[Byte, Self.stmt]
+    var value: List[Byte]
 
 
-struct ValueRef[stmt: ImmutOrigin](Movable):
-    """A non-owning dynamic type value. Typically, the memory backing this value is var by SQLite.
+# TODO: Don't copy out data for Text and Blob, use references instead.
+struct Value(Movable):
+    """A owning dynamic type value. Typically, the memory backing this value is var by SQLite.
 
     See [`Value`](Value) for an owning dynamic type value.
     """
 
-    comptime _type = Variant[SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text[Self.stmt], SQLite3Blob[Self.stmt]]
+    comptime _type = Variant[SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text, SQLite3Blob]
     """The underlying variant type for the SQL value."""
     var value: Self._type
     """The actual value stored in the variant."""
@@ -125,7 +120,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
         """
         self.value = value^
 
-    fn isa[T: SQLTypeRef](self) -> Bool:
+    fn isa[T: SQLType](self) -> Bool:
         """Check if the value is of the specified type T.
 
         This method allows runtime type checking of the stored SQL value.
@@ -138,7 +133,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
         """
         return self.value.isa[T]()
 
-    fn __getitem__[T: SQLTypeRef](self) -> ref [self.value] T:
+    fn __getitem__[T: SQLType](self) -> ref [self.value] T:
         """Get the value as the specified type T.
 
         This method provides type-safe access to the stored SQL value. The type T
@@ -152,7 +147,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
         """
         return self.value[T]
 
-    fn as_string_slice(self) raises -> StringSlice[Self.stmt]:
+    fn as_string(ref self) raises -> String:
         """Convert the SQL value to its string representation.
 
         This method provides a way to get a human-readable string representation
@@ -161,12 +156,12 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
         Returns:
             A String representing the SQL value.
         """
-        if self.isa[SQLite3Text[Self.stmt]]():
-            return self[SQLite3Text[Self.stmt]].value
+        if self.isa[SQLite3Text]():
+            return self[SQLite3Text].value.copy()
 
         raise Error(InvalidColumnTypeError)
 
-    fn as_string_slice_or_null(self) raises -> Optional[StringSlice[Self.stmt]]:
+    fn as_string_slice_or_null(self) raises -> Optional[String]:
         """Convert the SQL value to its string representation.
 
         This method provides a way to get a human-readable string representation
@@ -175,8 +170,8 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
         Returns:
             A String representing the SQL value, or None if the value is NULL.
         """
-        if self.isa[SQLite3Text[Self.stmt]]():
-            return self[SQLite3Text[Self.stmt]].value
+        if self.isa[SQLite3Text]():
+            return self[SQLite3Text].value.copy()
         elif self.isa[SQLite3Null]():
             return None
 
@@ -242,7 +237,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
 
         raise Error(InvalidColumnTypeError)
 
-    fn as_blob(self) raises -> Span[Byte, Self.stmt]:
+    fn as_blob(self) raises -> List[Byte]:
         """Convert the SQL value to its BLOB representation.
 
         This method provides a way to get the binary data representation
@@ -251,12 +246,12 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
         Returns:
             A Span of Bytes representing the SQL value.
         """
-        if self.isa[SQLite3Blob[Self.stmt]]():
-            return self[SQLite3Blob[Self.stmt]].value
+        if self.isa[SQLite3Blob]():
+            return self[SQLite3Blob].value.copy()
 
         raise Error(InvalidColumnTypeError)
 
-    fn as_blob_or_null(self) raises -> Optional[Span[Byte, Self.stmt]]:
+    fn as_blob_or_null(self) raises -> Optional[List[Byte]]:
         """Convert the SQL value to its BLOB representation.
 
         This method provides a way to get the binary data representation
@@ -265,14 +260,14 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
         Returns:
             A Span of Bytes representing the SQL value, or None if the value is NULL.
         """
-        if self.isa[SQLite3Blob[Self.stmt]]():
-            return self[SQLite3Blob[Self.stmt]].value
+        if self.isa[SQLite3Blob]():
+            return self[SQLite3Blob].value.copy()
         elif self.isa[SQLite3Null]():
             return None
 
         raise Error(InvalidColumnTypeError)
 
-    fn as_bytes(self) raises -> Span[Byte, Self.stmt]:
+    fn as_bytes(self) raises -> List[Byte]:
         """Convert the SQL value to a byte representation.
 
         This method provides a way to get byte data for either BLOB or TEXT SQL values.
@@ -280,14 +275,14 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
         Returns:
             A Span of Bytes representing the SQL value.
         """
-        if self.isa[SQLite3Blob[Self.stmt]]():
-            return self[SQLite3Blob[Self.stmt]].value
-        if self.isa[SQLite3Text[Self.stmt]]():
-            return self[SQLite3Text[Self.stmt]].value.as_bytes()
+        if self.isa[SQLite3Blob]():
+            return self[SQLite3Blob].value.copy()
+        if self.isa[SQLite3Text]():
+            return List(self[SQLite3Text].value.as_bytes())
 
         raise Error(InvalidColumnTypeError)
 
-    fn as_bytes_or_null(self) raises -> Optional[Span[Byte, Self.stmt]]:
+    fn as_bytes_or_null(self) raises -> Optional[List[Byte]]:
         """Convert the SQL value to a byte representation.
 
         This method provides a way to get byte data for either BLOB or TEXT SQL values.
@@ -295,10 +290,10 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
         Returns:
             A Span of Bytes representing the SQL value, or None if the value is NULL.
         """
-        if self.isa[SQLite3Blob[Self.stmt]]():
-            return self[SQLite3Blob[Self.stmt]].value
-        if self.isa[SQLite3Text[Self.stmt]]():
-            return self[SQLite3Text[Self.stmt]].value.as_bytes()
+        if self.isa[SQLite3Blob]():
+            return self[SQLite3Blob].value.copy()
+        if self.isa[SQLite3Text]():
+            return List(self[SQLite3Text].value.as_bytes())
         elif self.isa[SQLite3Null]():
             return None
 

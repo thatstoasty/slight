@@ -2,7 +2,7 @@ from testing import assert_equal, assert_true, assert_false, assert_not_equal, T
 
 from slight.connection import Connection
 from slight.transaction import Transaction, Savepoint, TransactionBehavior, DropBehavior
-from slight.row import Row, String, Int, Bool, SIMD
+from slight import Row, String, Int, Bool, SIMD
 
 comptime dummy_int: Int = 1
 

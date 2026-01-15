@@ -2,8 +2,15 @@ from testing import assert_equal, assert_true, assert_false, assert_not_equal, T
 
 from slight.connection import Connection
 from slight.statement import eq_ignore_ascii_case, Parameter
-from slight.row import Row, String, Int, Bool, SIMD
+from slight.row import Row
+from slight import String, Int, Bool, SIMD
+from slight.types.to_sql import ToSQL, String, Int, Bool, SIMD
 from slight.types.from_sql import NoneType
+
+comptime dummy_int: Int = 0
+comptime dummy_str: String = ""
+comptime dummy_bool: Bool = False
+comptime dummy_simd: Int32 = 0
 
 
 fn test_execute_named() raises:
@@ -12,15 +19,15 @@ fn test_execute_named() raises:
 
     # TODO: Because the tuple literal syntax is not supported anymore ATM, use the initializer format.
     assert_equal(
-        db.execute("INSERT INTO foo(x) VALUES (:x)", [{":x", 1}]),
+        db.execute("INSERT INTO foo(x) VALUES (:x)", {":x": 1}),
         1
     )
     assert_equal(
-        db.execute("INSERT INTO foo(x) VALUES (:x)", [{":x", 2}]),
+        db.execute("INSERT INTO foo(x) VALUES (:x)", {":x": 2}),
         1
     )
     assert_equal(
-        db.execute("INSERT INTO foo(x) VALUES (:x)", [{":x", 3}]),
+        db.execute("INSERT INTO foo(x) VALUES (:x)", {":x": 3}),
         1
     )
 
@@ -30,14 +37,14 @@ fn test_execute_named() raises:
     assert_equal(
         db.query_row[get_int32](
             "SELECT SUM(x) FROM foo WHERE x > :x",
-            [{":x", 0}],
+            {":x": 0},
         ),
         6
     )
     assert_equal(
         db.query_row[get_int32](
             "SELECT SUM(x) FROM foo WHERE x > :x",
-            [{":x", 1}],
+            {":x": 1},
         ),
         5
     )
@@ -49,15 +56,15 @@ fn test_stmt_execute_named() raises:
     db.execute_batch("CREATE TABLE test (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, flag INTEGER)")
 
     var stmt = db.prepare("INSERT INTO test (name) VALUES (:name)")
-    _ = stmt.execute([{":name", "one"}])
-    _ = stmt.execute([{":name", "one"}])
+    _ = stmt.execute({":name": "one"})
+    _ = stmt.execute({":name": "one"})
 
     fn get_count(r: Row) raises -> Int:
         return r.get[Int](0)
 
     var stmt2 = db.prepare("SELECT COUNT(*) FROM test WHERE name = :name")
     assert_equal(
-        stmt2.query_row[transform=get_count]([{":name", "one"}]),
+        stmt2.query_row[transform=get_count]({":name": "one"}),
         2
     )
 
@@ -68,7 +75,19 @@ fn test_query_named() raises:
     INSERT INTO test(id, name) VALUES (1, "one");""")
 
     var stmt = db.prepare("SELECT id FROM test where name = :name")
-    var rows = stmt.query([{":name", "one"}])
+    # var rows = stmt.query([(":name", "one")])
+    var rows = stmt.query({":name": "one"})
+    for row in rows:
+        assert_equal(row.get[Int](0), 1)
+
+
+fn test_query_params() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""CREATE TABLE test (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, flag INTEGER);
+    INSERT INTO test(id, name) VALUES (1, "one");""")
+
+    var stmt = db.prepare("SELECT id FROM test where name = ?1")
+    var rows = stmt.query(["one"])
     for row in rows:
         assert_equal(row.get[Int](0), 1)
 
@@ -85,7 +104,7 @@ fn test_query_map_named() raises:
             return 0
 
     var stmt = db.prepare("SELECT id FROM test where name = :name")
-    for row in stmt.query_map[transform=get_doubled_id]([{":name", "one"}]):
+    for row in stmt.query_map[transform=get_doubled_id]({":name": "one"}):
         assert_equal(row, 2)
 
 
@@ -94,8 +113,7 @@ fn test_unbound_parameters_are_null() raises:
     db.execute_batch("CREATE TABLE test (x TEXT, y TEXT)")
 
     var stmt = db.prepare("INSERT INTO test (x, y) VALUES (:x, :y)")
-    _ = stmt.execute([{":x", "one"}])
-
+    _ = stmt.execute({":x": "one"})
     fn get_value(r: Row) raises -> NoneType:
         var result = r.get_string_slice(0)
         if not result:
@@ -110,8 +128,8 @@ fn test_unbound_parameters_are_reused() raises:
     db.execute_batch("CREATE TABLE test (x TEXT, y TEXT)")
 
     var stmt = db.prepare("INSERT INTO test (x, y) VALUES (:x, :y)")
-    _ = stmt.execute([{":x", "one"}])
-    _ = stmt.execute([{":y", "two"}])
+    _ = stmt.execute({":x": "one"})
+    _ = stmt.execute({":y": "two"})
 
     fn get_value(r: Row) raises -> String:
         return r.get[String](0)
@@ -164,6 +182,20 @@ fn test_exists() raises:
     # assert_false(stmt.exists([0]))
 
 
+fn test_variadic_params() raises:
+    var db = Connection.open_in_memory()
+
+    var stmt = db.prepare("SELECT printf('[%s]', ?1)")
+    var rows = stmt.query("abc")
+    for row in rows:
+        assert_equal(row.get[String](0), "[abc]")
+
+    stmt = db.prepare("SELECT printf('%d %s %d', ?1, ?2, ?3)")
+    rows = stmt.query(1, "abc", 2)
+    for row in rows:
+        assert_equal(row.get[String](0), "1 abc 2")
+
+
 fn test_list_params() raises:
     var db = Connection.open_in_memory()
 
@@ -175,7 +207,7 @@ fn test_list_params() raises:
 
     var s2 = db.query_row[get_string](
         "SELECT printf('%d %s %d', ?1, ?2, ?3)",
-        [1, "abc", 2],
+        [1, "abc", 2]
     )
     assert_equal(s2, "1 abc 2")
 
@@ -420,5 +452,5 @@ fn test_column_name_reference() raises:
 fn main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
     # var suite = TestSuite()
-    # suite.test[test_stmt_execute_named]()
+    # suite.test[test_variadic_params]()
     # suite^.run()
