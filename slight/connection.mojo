@@ -6,6 +6,7 @@ from slight.result import SQLite3Result
 from slight.inner_connection import InnerConnection
 from slight.flags import PrepFlag, OpenFlag
 from slight.params import Parameter
+from slight.raw_statement import RawStatement
 from slight.statement import Statement
 from slight.row import Row, Int  # RowIndex extension for Int
 from slight.types.to_sql import ToSQL
@@ -208,23 +209,23 @@ struct Connection(Movable):
                     "MultipleStatementsError: Prepared statement contains multiple SQL statements. Should be one."
                 )
 
-        return Statement(Pointer(to=self), stmt)
+        return Statement(Pointer(to=self), RawStatement(stmt))
     
-    fn execute(self, var sql: String, params: List[Parameter] = []) raises -> Int64:
-        """Executes a SQL statement with the given parameters.
+    # fn execute(self, var sql: String, params: List[Parameter] = []) raises -> Int64:
+    #     """Executes a SQL statement with the given parameters.
 
-        Args:
-            sql: The SQL statement to execute.
-            params: The parameters to bind to the SQL statement.
+    #     Args:
+    #         sql: The SQL statement to execute.
+    #         params: The parameters to bind to the SQL statement.
 
-        Returns:
-            The number of rows affected by the statement.
-        """
-        var stmt = self.prepare(sql^)
-        try:
-            return stmt.execute(params)
-        finally:
-            _ = stmt^.finalize()
+    #     Returns:
+    #         The number of rows affected by the statement.
+    #     """
+    #     var stmt = self.prepare(sql^)
+    #     try:
+    #         return stmt.execute(params)
+    #     finally:
+    #         _ = stmt^.finalize()
     
     fn execute[T: Params](self, var sql: String, params: T) raises -> Int64:
         """Executes a SQL statement with the given parameters.
@@ -294,29 +295,29 @@ struct Connection(Movable):
     #     """
     #     return self.prepare(sql^).execute(params)
     
-    fn query_row[
-        T: Movable, //, transform: fn (Row) raises -> T
-    ](self, var sql: String, params: List[Parameter] = []) raises -> T:
-        """Executes the query and returns a single row.
+    # fn query_row[
+    #     T: Movable, //, transform: fn (Row) raises -> T
+    # ](self, var sql: String, params: List[Parameter] = []) raises -> T:
+    #     """Executes the query and returns a single row.
 
-        This is a convenience method for queries that are expected to return exactly one row.
-        If the query returns more than one row, the rest are ignored.
+    #     This is a convenience method for queries that are expected to return exactly one row.
+    #     If the query returns more than one row, the rest are ignored.
 
-        Parameters:
-            T: The type that the row will be transformed into.
-            transform: A function that takes a Row and returns a value of type T.
+    #     Parameters:
+    #         T: The type that the row will be transformed into.
+    #         transform: A function that takes a Row and returns a value of type T.
 
-        Args:
-            sql: The SQL query to execute.
-            params: A list of parameters to bind to the statement.
+    #     Args:
+    #         sql: The SQL query to execute.
+    #         params: A list of parameters to bind to the statement.
 
-        Returns:
-            The single Row returned by the query.
+    #     Returns:
+    #         The single Row returned by the query.
 
-        Raises:
-            Error: If parameter binding fails, no rows are returned, or more than one row is returned.
-        """
-        return self.prepare(sql^).query_row[transform=transform](params)
+    #     Raises:
+    #         Error: If parameter binding fails, no rows are returned, or more than one row is returned.
+    #     """
+    #     return self.prepare(sql^).query_row[transform=transform](params)
     
     fn query_row[
         T: Movable, P: Params, //, transform: fn (Row) raises -> T
@@ -472,7 +473,7 @@ struct Connection(Movable):
         while len(current_sql) > 0:
             # Is it possible to copy the sql string less here? I don't want to keep allocating strings.
             var stmt, tail = self.db.prepare(current_sql.copy(), PrepFlag.PREPARE_PERSISTENT)
-            if stmt and Statement(Pointer(to=self), stmt).step():
+            if stmt and Statement(Pointer(to=self), RawStatement(stmt)).step():
                 pass # some pragmas return results
                 # raise Error("ExecuteReturnedResults: The executed batch returned results, which is not supported.")
 
@@ -493,11 +494,11 @@ struct Connection(Movable):
         """Returns the row ID of the last inserted row."""
         return self.db.last_insert_row_id()
     
-    fn one_column[T: FromSQL](self, var sql: String, params: List[Parameter]) raises -> T:
-        fn get_item(row: Row) raises -> T:
-            return row.get[T](0)
+    # fn one_column[T: FromSQL](self, var sql: String, params: List[Parameter]) raises -> T:
+    #     fn get_item(row: Row) raises -> T:
+    #         return row.get[T](0)
 
-        return self.query_row[get_item](sql, params)
+    #     return self.query_row[get_item](sql, params)
     
     fn one_column[P: Params, //, T: FromSQL](self, var sql: String, params: P) raises -> T:
         fn get_item(row: Row) raises -> T:

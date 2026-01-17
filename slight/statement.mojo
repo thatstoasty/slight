@@ -72,15 +72,15 @@ struct Statement[conn: ImmutOrigin](Movable):
         self.connection = connection
         self.stmt = stmt^
 
-    fn __init__(out self, connection: Pointer[Connection, Self.conn], stmt: MutExternalPointer[sqlite3_stmt]):
-        """Initializes a new Statement with the given connection and raw statement pointer.
+    # fn __init__(out self, connection: Pointer[Connection, Self.conn], stmt: MutExternalPointer[sqlite3_stmt]):
+    #     """Initializes a new Statement with the given connection and raw statement pointer.
 
-        Args:
-            connection: A pointer to the SQLite connection.
-            stmt: A pointer to the prepared SQLite statement.
-        """
-        self.connection = connection
-        self.stmt = RawStatement(stmt)
+    #     Args:
+    #         connection: A pointer to the SQLite connection.
+    #         stmt: A pointer to the prepared SQLite statement.
+    #     """
+    #     self.connection = connection
+    #     self.stmt = RawStatement(stmt)
 
     # TODO: When should statements be finalized? Also we shouldn't be absorbing the error.
     fn __del__(deinit self):
@@ -261,25 +261,25 @@ struct Statement[conn: ImmutOrigin](Movable):
         self.bind_parameters(params)
         return self._execute()
     
-    fn execute(self, params: List[Parameter] = []) raises -> Int64:
-        """Executes the statement with the given parameters and returns the number of affected rows.
+    # fn execute(self, params: List[Parameter] = []) raises -> Int64:
+    #     """Executes the statement with the given parameters and returns the number of affected rows.
 
-        This method is intended for statements that don't return rows (INSERT, UPDATE, DELETE).
-        For SELECT statements, use query() instead.
+    #     This method is intended for statements that don't return rows (INSERT, UPDATE, DELETE).
+    #     For SELECT statements, use query() instead.
 
-        Args:
-            params: A list of parameters to bind to the statement.
+    #     Args:
+    #         params: A list of parameters to bind to the statement.
 
-        Returns:
-            The number of database rows that were changed, inserted, or deleted.
+    #     Returns:
+    #         The number of database rows that were changed, inserted, or deleted.
 
-        Raises:
-            Error: If the statement returns rows (use query() for SELECT statements),
-                   or if any other error occurs during execution.
-        """
-        if params:
-            self.bind_parameters(params)
-        return self._execute()
+    #     Raises:
+    #         Error: If the statement returns rows (use query() for SELECT statements),
+    #                or if any other error occurs during execution.
+    #     """
+    #     if params:
+    #         self.bind_parameters(params)
+    #     return self._execute()
 
     # fn execute[T: ToSQL](self, params: List[T]) raises -> Int64:
     #     """Executes the statement with the given parameters and returns the number of affected rows.
@@ -568,25 +568,25 @@ struct Statement[conn: ImmutOrigin](Movable):
     #     if index != expected:
     #         raise Error("Invalid parameter count: ", index, ", expected: ", expected)
     
-    fn bind_parameters(self, params: List[Parameter]) raises -> None:
-        """Binds a list of parameters to the statement in order.
+    # fn bind_parameters(self, params: List[Parameter]) raises -> None:
+    #     """Binds a list of parameters to the statement in order.
 
-        Args:
-            params: List of parameter values to bind to the statement.
+    #     Args:
+    #         params: List of parameter values to bind to the statement.
 
-        Raises:
-            Error: If the number of parameters doesn't match what the statement expects
-                   or if any parameter binding fails.
-        """
-        var expected = Int(self.stmt.bind_parameter_count())
-        var index = 0
-        for p in params:
-            index += 1  # The leftmost SQL parameter has an index of 1.
-            if index > expected:
-                break
-            self.bind_parameter(p, UInt(index))
-        if index != expected:
-            raise Error("Invalid parameter count: ", index, ", expected: ", expected)
+    #     Raises:
+    #         Error: If the number of parameters doesn't match what the statement expects
+    #                or if any parameter binding fails.
+    #     """
+    #     var expected = Int(self.stmt.bind_parameter_count())
+    #     var index = 0
+    #     for p in params:
+    #         index += 1  # The leftmost SQL parameter has an index of 1.
+    #         if index > expected:
+    #             break
+    #         self.bind_parameter(p, UInt(index))
+    #     if index != expected:
+    #         raise Error("Invalid parameter count: ", index, ", expected: ", expected)
     
     # fn bind_parameters_named[S: BindIndex, T: ToSQL](self, params: List[Tuple[S, T]]) raises -> None:
     #     """Binds a list of parameters to the statement in order.
@@ -657,23 +657,23 @@ struct Statement[conn: ImmutOrigin](Movable):
         params.bind(self)
         return Rows(Pointer(to=self))
     
-    fn query(self, params: List[Parameter] = []) raises -> Rows[Self.conn, origin_of(self)]:
-        """Executes the statement as a query and returns an iterator over the result rows.
+    # fn query(self, params: List[Parameter] = []) raises -> Rows[Self.conn, origin_of(self)]:
+    #     """Executes the statement as a query and returns an iterator over the result rows.
 
-        This method is intended for SELECT statements that return data.
-        For non-SELECT statements, use execute() instead.
+    #     This method is intended for SELECT statements that return data.
+    #     For non-SELECT statements, use execute() instead.
 
-        Args:
-            params: A list of parameters to bind to the statement.
+    #     Args:
+    #         params: A list of parameters to bind to the statement.
 
-        Returns:
-            A Rows iterator for iterating over the query results.
+    #     Returns:
+    #         A Rows iterator for iterating over the query results.
 
-        Raises:
-            Error: If parameter binding fails or the query execution fails.
-        """
-        self.bind_parameters(params)
-        return Rows(Pointer(to=self))
+    #     Raises:
+    #         Error: If parameter binding fails or the query execution fails.
+    #     """
+    #     self.bind_parameters(params)
+    #     return Rows(Pointer(to=self))
 
     fn query[*Ts: ToSQL](self, *params: *Ts) raises -> Rows[Self.conn, origin_of(self)]:
         """Executes the statement as a query and returns an iterator over the result rows.
@@ -747,28 +747,28 @@ struct Statement[conn: ImmutOrigin](Movable):
     #     self.bind_parameters_named(params)
     #     return Rows(Pointer(to=self))
     
-    fn query_map[
-        T: Movable, //, transform: fn (Row) raises -> T
-    ](self, params: List[Parameter] = []) raises -> MappedRows[Self.conn, origin_of(self), transform]:
-        """Executes the query and returns a mapped iterator that transforms each row.
+    # fn query_map[
+    #     T: Movable, //, transform: fn (Row) raises -> T
+    # ](self, params: List[Parameter] = []) raises -> MappedRows[Self.conn, origin_of(self), transform]:
+    #     """Executes the query and returns a mapped iterator that transforms each row.
 
-        This method applies a transformation function to each row returned by the query,
-        allowing you to convert database rows into custom types.
+    #     This method applies a transformation function to each row returned by the query,
+    #     allowing you to convert database rows into custom types.
 
-        Parameters:
-            T: The type that each row will be transformed into.
-            transform: A function that takes a Row and returns a value of type T.
+    #     Parameters:
+    #         T: The type that each row will be transformed into.
+    #         transform: A function that takes a Row and returns a value of type T.
 
-        Args:
-            params: A list of parameters to bind to the statement.
+    #     Args:
+    #         params: A list of parameters to bind to the statement.
 
-        Returns:
-            A MappedRows iterator that yields transformed values of type T.
+    #     Returns:
+    #         A MappedRows iterator that yields transformed values of type T.
 
-        Raises:
-            Error: If parameter binding fails or the query execution fails.
-        """
-        return MappedRows[Self.conn, origin_of(self), transform](self.query(params))
+    #     Raises:
+    #         Error: If parameter binding fails or the query execution fails.
+    #     """
+    #     return MappedRows[Self.conn, origin_of(self), transform](self.query(params))
     
     fn query_map[
         T: Movable, P: Params, //, transform: fn (Row) raises -> T
@@ -885,35 +885,35 @@ struct Statement[conn: ImmutOrigin](Movable):
     #     """
     #     return MappedRows[Self.conn, origin_of(self), transform](self.query(params))
     
-    fn query_row[
-        T: Movable, //, transform: fn (Row) raises -> T
-    ](self, params: List[Parameter] = []) raises -> T:
-        """Executes the query and returns a single row.
+    # fn query_row[
+    #     T: Movable, //, transform: fn (Row) raises -> T
+    # ](self, params: List[Parameter] = []) raises -> T:
+    #     """Executes the query and returns a single row.
 
-        This is a convenience method for queries that are expected to return exactly one row.
-        If the query returns more than one row, the rest are ignored.
+    #     This is a convenience method for queries that are expected to return exactly one row.
+    #     If the query returns more than one row, the rest are ignored.
 
-        Parameters:
-            T: The type that the row will be transformed into.
-            transform: A function that takes a Row and returns a value of type T.
+    #     Parameters:
+    #         T: The type that the row will be transformed into.
+    #         transform: A function that takes a Row and returns a value of type T.
 
-        Args:
-            params: A list of parameters to bind to the statement.
+    #     Args:
+    #         params: A list of parameters to bind to the statement.
 
-        Returns:
-            The single Row returned by the query.
+    #     Returns:
+    #         The single Row returned by the query.
 
-        Raises:
-            Error: If parameter binding fails, no rows are returned, or more than one row is returned.
-        """
-        var rows = self.query(params)
-        var row: Row[Self.conn, origin_of(self)]
-        try:
-            row = rows.__next__()
-        except StopIteration:
-            raise Error("No rows returned by query.")
+    #     Raises:
+    #         Error: If parameter binding fails, no rows are returned, or more than one row is returned.
+    #     """
+    #     var rows = self.query(params)
+    #     var row: Row[Self.conn, origin_of(self)]
+    #     try:
+    #         row = rows.__next__()
+    #     except StopIteration:
+    #         raise Error("No rows returned by query.")
         
-        return transform(row)
+    #     return transform(row)
     
     fn query_row[
         T: Movable, P: Params, //, transform: fn (Row) raises -> T
@@ -1095,28 +1095,28 @@ struct Statement[conn: ImmutOrigin](Movable):
         
     #     return transform(row)
     
-    fn exists(self, params: List[Parameter] = []) raises -> Bool:
-        """Checks if the query returns at least one row.
+    # fn exists(self, params: List[Parameter] = []) raises -> Bool:
+    #     """Checks if the query returns at least one row.
 
-        This is a convenience method that executes the query and returns True
-        if any rows are found, False otherwise. It's more efficient than
-        counting all rows when you only need to know if results exist.
+    #     This is a convenience method that executes the query and returns True
+    #     if any rows are found, False otherwise. It's more efficient than
+    #     counting all rows when you only need to know if results exist.
 
-        Args:
-            params: A list of parameters to bind to the statement.
+    #     Args:
+    #         params: A list of parameters to bind to the statement.
 
-        Returns:
-            True if the query returns at least one row, False otherwise.
+    #     Returns:
+    #         True if the query returns at least one row, False otherwise.
 
-        Raises:
-            Error: If parameter binding fails or the query execution fails.
-        """
-        var rows = self.query(params)
-        try:
-            _ = rows.__next__()
-            return True
-        except StopIteration:
-            return False
+    #     Raises:
+    #         Error: If parameter binding fails or the query execution fails.
+    #     """
+    #     var rows = self.query(params)
+    #     try:
+    #         _ = rows.__next__()
+    #         return True
+    #     except StopIteration:
+    #         return False
     
     fn exists[T: Params, //](self, params: T) raises -> Bool:
         """Checks if the query returns at least one row.
@@ -1305,25 +1305,25 @@ struct Statement[conn: ImmutOrigin](Movable):
 
         raise Error("InvalidColumnNameError: Could not find column with name: ", name)
     
-    fn insert(self, params: List[Parameter] = []) raises -> Int64:
-        """Executes an INSERT statement and returns the last inserted row ID.
+    # fn insert(self, params: List[Parameter] = []) raises -> Int64:
+    #     """Executes an INSERT statement and returns the last inserted row ID.
 
-        This is a convenience method for executing INSERT statements that
-        return the last inserted row ID. It ensures that exactly one row
-        was inserted.
+    #     This is a convenience method for executing INSERT statements that
+    #     return the last inserted row ID. It ensures that exactly one row
+    #     was inserted.
 
-        Returns:
-            The last inserted row ID.
+    #     Returns:
+    #         The last inserted row ID.
 
-        Raises:
-            Error: If the number of affected rows is not exactly one,
-            or if any error occurs during execution.
-        """
-        var changes = self.execute(params)
-        if changes == 1:
-            return self.connection[].last_insert_row_id()
-        else:
-            raise Error("StatementChangedRows: Expected 1 row to be inserted, but ", changes, " rows were affected.")
+    #     Raises:
+    #         Error: If the number of affected rows is not exactly one,
+    #         or if any error occurs during execution.
+    #     """
+    #     var changes = self.execute(params)
+    #     if changes == 1:
+    #         return self.connection[].last_insert_row_id()
+    #     else:
+    #         raise Error("StatementChangedRows: Expected 1 row to be inserted, but ", changes, " rows were affected.")
 
     fn insert[T: Params, //](self, params: T) raises -> Int64:
         """Executes an INSERT statement and returns the last inserted row ID.

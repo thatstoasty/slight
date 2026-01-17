@@ -185,20 +185,6 @@ fn test_exists() raises:
 fn test_variadic_params() raises:
     var db = Connection.open_in_memory()
 
-    var stmt = db.prepare("SELECT printf('[%s]', ?1)")
-    var rows = stmt.query("abc")
-    for row in rows:
-        assert_equal(row.get[String](0), "[abc]")
-
-    stmt = db.prepare("SELECT printf('%d %s %d', ?1, ?2, ?3)")
-    rows = stmt.query(1, "abc", 2)
-    for row in rows:
-        assert_equal(row.get[String](0), "1 abc 2")
-
-
-fn test_list_params() raises:
-    var db = Connection.open_in_memory()
-
     fn get_string(r: Row) raises -> String:
         return r.get[String](0)
 
@@ -207,13 +193,13 @@ fn test_list_params() raises:
 
     var s2 = db.query_row[get_string](
         "SELECT printf('%d %s %d', ?1, ?2, ?3)",
-        [1, "abc", 2]
+        1, "abc", 2
     )
     assert_equal(s2, "1 abc 2")
 
     var s3 = db.query_row[get_string](
         "SELECT printf('%d %s %d %d', ?1, ?2, ?3, ?4)",
-        [1, "abc", 2, 4],
+        1, "abc", 2, 4,
     )
     assert_equal(s3, "1 abc 2 4")
     
@@ -227,7 +213,7 @@ fn test_list_params() raises:
     )"""
     var s4 = db.query_row[get_string](
         query,
-        [0, "a", 1, "b", 2, "c", 3, "d", 4, "e", 5, "f", 6, "g", 7, "h"]
+        0, "a", 1, "b", 2, "c", 3, "d", 4, "e", 5, "f", 6, "g", 7, "h"
     )
     assert_equal(s4, "0 a | 1 b | 2 c | 3 d || 4 e | 5 f | 6 g | 7 h")
 

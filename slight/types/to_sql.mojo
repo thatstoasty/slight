@@ -3,9 +3,9 @@
 This module provides the ToSQL trait which allows converting Mojo types
 into SQLite-compatible values for binding to prepared statements.
 """
-
+from sys.intrinsics import _type_is_eq_parse_time
 from utils.variant import Variant
-from slight.types.value_ref import SQLTypeRef, ValueRef, SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text
+from slight.types.value_ref import SQLTypeRef, ValueRef, SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text, SQLite3Blob
 from slight.types.value import Value
 from slight.params import Parameter
 
@@ -121,6 +121,14 @@ __extension NoneType(ToSQL):
     fn to_sql(ref self) raises -> ToSqlOutput[origin_of(self)]:
         """Convert None to a SQL NULL parameter."""
         return ToSqlOutput(Borrowed(ValueRef[origin_of(self)](SQLite3Null())))
+
+
+__extension List(ToSQL):
+    fn to_sql(ref self) raises -> ToSqlOutput[origin_of(self)] where _type_is_eq_parse_time[
+        Self.T, Byte
+    ]():
+        """Convert Bytes to a SQL Blob parameter."""
+        return ToSqlOutput(Borrowed(ValueRef[origin_of(self)](SQLite3Blob(rebind[List[Byte]](self)))))
 
 
 # Optional support - convert Some(value) to value, None to NULL
