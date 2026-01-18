@@ -1,7 +1,7 @@
 from utils.variant import Variant
 
 
-trait SQLTypeRef:
+trait SQLTypeRef(Copyable):
     """A marker trait for types that represent SQL values."""
 
     pass
@@ -11,7 +11,7 @@ comptime InvalidColumnTypeError = "InvalidColumnType: Unsupported value type"
 
 
 @fieldwise_init
-struct SQLite3Null(Copyable, Movable, SQLTypeRef):
+struct SQLite3Null(SQLTypeRef):
     """Represents a SQL NULL value.
 
     This is a zero-sized struct that represents the absence of a value
@@ -22,8 +22,7 @@ struct SQLite3Null(Copyable, Movable, SQLTypeRef):
     pass
 
 
-@fieldwise_init
-struct SQLite3Integer(Copyable, Movable, SQLTypeRef):
+struct SQLite3Integer(SQLTypeRef):
     """Represents a SQL INTEGER value.
 
     This struct wraps a 64-bit signed integer value as used by SQLite.
@@ -31,10 +30,28 @@ struct SQLite3Integer(Copyable, Movable, SQLTypeRef):
     """
 
     var value: Int64
+    """The underlying integer value."""
+
+    @implicit
+    fn __init__(out self, value: Int64):
+        """Initialize a `SQLite3Integer` with the given `Int64` value.
+
+        Args:
+            value: The value to wrap.
+        """
+        self.value = value
+    
+    @implicit
+    fn __init__(out self, value: Int):
+        """Initialize a `SQLite3Integer` with the given `Int` value.
+
+        Args:
+            value: The value to wrap.
+        """
+        self.value = value
 
 
-@fieldwise_init
-struct SQLite3Real(Copyable, Movable, SQLTypeRef):
+struct SQLite3Real(SQLTypeRef):
     """Represents a SQL REAL (floating-point) value.
 
     This struct wraps a 64-bit floating-point value as used by SQLite.
@@ -42,10 +59,19 @@ struct SQLite3Real(Copyable, Movable, SQLTypeRef):
     """
 
     var value: Float64
+    """The underlying floating-point value."""
+
+    @implicit
+    fn __init__(out self, value: Float64):
+        """Initialize a `SQLite3Real` with the given `Float64` value.
+
+        Args:
+            value: The value to wrap.
+        """
+        self.value = value
 
 
-@fieldwise_init
-struct SQLite3Text[stmt: ImmutOrigin](Copyable, Movable, SQLTypeRef):
+struct SQLite3Text[stmt: ImmutOrigin](SQLTypeRef):
     """Represents a SQL TEXT value.
 
     This struct wraps a text string value from SQLite. The text is stored
@@ -57,10 +83,19 @@ struct SQLite3Text[stmt: ImmutOrigin](Copyable, Movable, SQLTypeRef):
     """
 
     var value: StringSlice[Self.stmt]
+    """The underlying text value."""
+
+    @implicit
+    fn __init__(out self, value: StringSlice[Self.stmt]):
+        """Initialize a `SQLite3Text` with the given `StringSlice` value.
+
+        Args:
+            value: The text value to wrap.
+        """
+        self.value = value
 
 
-@fieldwise_init
-struct SQLite3Blob[stmt: ImmutOrigin](Copyable, Movable, SQLTypeRef):
+struct SQLite3Blob[stmt: ImmutOrigin](SQLTypeRef):
     """Represents a SQL BLOB (binary large object) value.
 
     This struct wraps binary data from SQLite. The data is stored as a Span
@@ -72,19 +107,28 @@ struct SQLite3Blob[stmt: ImmutOrigin](Copyable, Movable, SQLTypeRef):
     """
 
     var value: Span[Byte, Self.stmt]
+    """The underlying blob value."""
+
+    @implicit
+    fn __init__(out self, value: Span[Byte, Self.stmt]):
+        """Initialize a `SQLite3Blob` with the given `Span` value.
+
+        Args:
+            value: The blob value to wrap.
+        """
+        self.value = value
 
 
 struct ValueRef[stmt: ImmutOrigin](Movable):
     """A non-owning dynamic type value. Typically, the memory backing this value is var by SQLite.
 
-    See [`Value`](Value) for an owning dynamic type value.
+    See `Value`for an owning dynamic type value.
     """
 
-    comptime _type = Variant[SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text[Self.stmt], SQLite3Blob[Self.stmt]]
-    """The underlying variant type for the SQL value."""
-    var value: Self._type
+    var value: Variant[SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text[Self.stmt], SQLite3Blob[Self.stmt]]
     """The actual value stored in the variant."""
 
+    @implicit
     fn __init__(out self, var value: SQLite3Null):
         """Initialize a ValueRef with a NULL value.
 
@@ -93,6 +137,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
         """
         self.value = value^
 
+    @implicit
     fn __init__(out self, var value: SQLite3Integer):
         """Initialize a ValueRef with an INTEGER value.
 
@@ -101,6 +146,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
         """
         self.value = value^
 
+    @implicit
     fn __init__(out self, var value: SQLite3Real):
         """Initialize a ValueRef with a REAL (floating-point) value.
 
@@ -109,6 +155,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
         """
         self.value = value^
 
+    @implicit
     fn __init__(out self, var value: SQLite3Text):
         """Initialize a ValueRef with a TEXT value.
 
@@ -117,6 +164,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
         """
         self.value = value^
 
+    @implicit
     fn __init__(out self, var value: SQLite3Blob):
         """Initialize a ValueRef with a BLOB value.
 

@@ -4,8 +4,9 @@ This module provides utilities for building and executing SQLite PRAGMA statemen
 as well as helper methods for common pragma operations.
 """
 
-from slight.params import Parameter
-from slight.error import Error as SQLiteError
+from slight.types.to_sql import ToSQL
+from slight.types.value_ref import SQLite3Integer, SQLite3Real, SQLite3Text
+from slight.error import Error
 from slight.c.raw_bindings import SQLITE_MISUSE
 
 
@@ -65,7 +66,7 @@ struct Sql(Movable, Stringable):
         if len(keyword) > 0 and is_identifier(keyword):
             self.buf.write_string(keyword)
         else:
-            raise SQLiteError(
+            raise Error(
                 SQLITE_MISUSE,
                 "Invalid keyword \"" + keyword + "\""
             )
@@ -89,8 +90,11 @@ struct Sql(Movable, Stringable):
         else:
             self.wrap_and_escape(s, '"')
     
-    fn push_value(mut self, value: Parameter) raises:
+    fn push_value[T: ToSQL, //](mut self, value: T) raises:
         """Push a parameter value to the buffer.
+
+        Parameters:
+            T: The type of the parameter value.
         
         Args:
             value: The parameter value to push.
@@ -98,41 +102,21 @@ struct Sql(Movable, Stringable):
         Raises:
             Error: If the value type is unsupported.
         """
-        if value.isa[Int]():
-            self.push_int(value[Int])
-        elif value.isa[Int8]():
-            self.push_int(Int(value[Int8]))
-        elif value.isa[Int16]():
-            self.push_int(Int(value[Int16]))
-        elif value.isa[Int32]():
-            self.push_int(Int(value[Int32]))
-        elif value.isa[Int64]():
-            self.push_int(Int(value[Int64]))
-        elif value.isa[UInt]():
-            self.push_int(Int(value[UInt]))
-        elif value.isa[UInt8]():
-            self.push_int(Int(value[UInt8]))
-        elif value.isa[UInt16]():
-            self.push_int(Int(value[UInt16]))
-        elif value.isa[UInt32]():
-            self.push_int(Int(value[UInt32]))
-        elif value.isa[UInt64]():
-            self.push_int(Int(value[UInt64]))
-        elif value.isa[Float16]():
-            self.push_real(Float64(value[Float16]))
-        elif value.isa[Float32]():
-            self.push_real(Float64(value[Float32]))
-        elif value.isa[Float64]():
-            self.push_real(value[Float64])
-        elif value.isa[String]():
-            self.push_string_literal(value[String])
+        var sql = value.to_sql()
+
+        if sql.isa[SQLite3Integer]():
+            self.push_int(Int(sql[SQLite3Integer].value))
+        elif sql.isa[SQLite3Real]():
+            self.push_real(sql[SQLite3Real].value)
+        elif sql.isa[SQLite3Text[sql.stmt]]():
+            self.push_string_literal(sql[SQLite3Text[sql.stmt]].value)
         else:
-            raise SQLiteError(
+            raise Error(
                 SQLITE_MISUSE,
                 "Unsupported parameter type for pragma value"
             )
     
-    fn push_string_literal(mut self, s: String):
+    fn push_string_literal(mut self, s: StringSlice):
         """Push a string literal to the buffer, properly escaped.
         
         Args:

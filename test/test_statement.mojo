@@ -1,10 +1,10 @@
 from testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
 
 from slight.connection import Connection
-from slight.statement import eq_ignore_ascii_case, Parameter
+from slight.statement import eq_ignore_ascii_case
 from slight.row import Row
-from slight import String, Int, Bool, SIMD
-from slight.types.to_sql import ToSQL, String, Int, Bool, SIMD
+from slight import String, Int, Bool, SIMD, Dict, List
+from slight.types.to_sql import ToSQL
 from slight.types.from_sql import NoneType
 
 comptime dummy_int: Int = 0

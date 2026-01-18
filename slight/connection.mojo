@@ -5,7 +5,7 @@ from slight.c.api import sqlite_ffi
 from slight.result import SQLite3Result
 from slight.inner_connection import InnerConnection
 from slight.flags import PrepFlag, OpenFlag
-from slight.params import Parameter
+from slight.params import Params
 from slight.raw_statement import RawStatement
 from slight.statement import Statement
 from slight.row import Row, Int  # RowIndex extension for Int
@@ -211,22 +211,6 @@ struct Connection(Movable):
 
         return Statement(Pointer(to=self), RawStatement(stmt))
     
-    # fn execute(self, var sql: String, params: List[Parameter] = []) raises -> Int64:
-    #     """Executes a SQL statement with the given parameters.
-
-    #     Args:
-    #         sql: The SQL statement to execute.
-    #         params: The parameters to bind to the SQL statement.
-
-    #     Returns:
-    #         The number of rows affected by the statement.
-    #     """
-    #     var stmt = self.prepare(sql^)
-    #     try:
-    #         return stmt.execute(params)
-    #     finally:
-    #         _ = stmt^.finalize()
-    
     fn execute[T: Params](self, var sql: String, params: T) raises -> Int64:
         """Executes a SQL statement with the given parameters.
 
@@ -255,70 +239,6 @@ struct Connection(Movable):
         """
         return self.prepare(sql^).execute(params)
 
-    # fn execute[T: ToSQL](self, var sql: String, params: List[T]) raises -> Int64:
-    #     """Executes a SQL statement with the given parameters.
-
-    #     Args:
-    #         sql: The SQL statement to execute.
-    #         params: The parameters to bind to the SQL statement.
-
-    #     Returns:
-    #         The number of rows affected by the statement.
-    #     """
-    #     var stmt = self.prepare(sql^)
-    #     try:
-    #         return stmt.execute(params)
-    #     finally:
-    #         _ = stmt^.finalize()
-
-    # fn execute[T: ToSQL](self, var sql: String, params: Dict[String, T]) raises -> Int64:
-    #     """Executes a SQL statement with the given parameters.
-
-    #     Args:
-    #         sql: The SQL statement to execute.
-    #         params: The parameters to bind to the SQL statement.
-
-    #     Returns:
-    #         The number of rows affected by the statement.
-    #     """
-    #     return self.prepare(sql^).execute(params)
-
-    # fn execute[T: ToSQL](self, var sql: String, params: List[Tuple[String, T]]) raises -> Int64:
-    #     """Executes a SQL statement with the given parameters.
-
-    #     Args:
-    #         sql: The SQL statement to execute.
-    #         params: The parameters to bind to the SQL statement.
-
-    #     Returns:
-    #         The number of rows affected by the statement.
-    #     """
-    #     return self.prepare(sql^).execute(params)
-    
-    # fn query_row[
-    #     T: Movable, //, transform: fn (Row) raises -> T
-    # ](self, var sql: String, params: List[Parameter] = []) raises -> T:
-    #     """Executes the query and returns a single row.
-
-    #     This is a convenience method for queries that are expected to return exactly one row.
-    #     If the query returns more than one row, the rest are ignored.
-
-    #     Parameters:
-    #         T: The type that the row will be transformed into.
-    #         transform: A function that takes a Row and returns a value of type T.
-
-    #     Args:
-    #         sql: The SQL query to execute.
-    #         params: A list of parameters to bind to the statement.
-
-    #     Returns:
-    #         The single Row returned by the query.
-
-    #     Raises:
-    #         Error: If parameter binding fails, no rows are returned, or more than one row is returned.
-    #     """
-    #     return self.prepare(sql^).query_row[transform=transform](params)
-    
     fn query_row[
         T: Movable, P: Params, //, transform: fn (Row) raises -> T
     ](self, var sql: String, params: P) raises -> T:
@@ -329,6 +249,7 @@ struct Connection(Movable):
 
         Parameters:
             T: The type that the row will be transformed into.
+            P: The type of the parameters to bind.
             transform: A function that takes a Row and returns a value of type T.
 
         Args:
@@ -354,6 +275,7 @@ struct Connection(Movable):
         Parameters:
             T: The type that the row will be transformed into.
             transform: A function that takes a Row and returns a value of type T.
+            Ts: The types of the parameters to bind.
 
         Args:
             sql: The SQL query to execute.
@@ -378,10 +300,11 @@ struct Connection(Movable):
         Parameters:
             T: The type that the row will be transformed into.
             transform: A function that takes a Row and returns a value of type T.
+            Ts: The types of the parameters to bind.
 
         Args:
             sql: The SQL query to execute.
-            params: A list of parameters to bind to the statement.
+            params: A variadic pack of parameters to bind to the statement.
 
         Returns:
             The single Row returned by the query.
@@ -390,78 +313,6 @@ struct Connection(Movable):
             Error: If parameter binding fails, no rows are returned, or more than one row is returned.
         """
         return self.prepare(sql^).query_row[transform=transform](params)
-
-    # fn query_row[
-    #     T: Movable, P: ToSQL, //, transform: fn (Row) raises -> T
-    # ](self, var sql: String, params: List[P]) raises -> T:
-    #     """Executes the query and returns a single row.
-
-    #     This is a convenience method for queries that are expected to return exactly one row.
-    #     If the query returns more than one row, the rest are ignored.
-
-    #     Parameters:
-    #         T: The type that the row will be transformed into.
-    #         transform: A function that takes a Row and returns a value of type T.
-
-    #     Args:
-    #         sql: The SQL query to execute.
-    #         params: A list of parameters to bind to the statement.
-
-    #     Returns:
-    #         The single Row returned by the query.
-
-    #     Raises:
-    #         Error: If parameter binding fails, no rows are returned, or more than one row is returned.
-    #     """
-    #     return self.prepare(sql^).query_row[transform=transform](params)
-
-    # fn query_row[
-    #     T: Movable, P: ToSQL, //, transform: fn (Row) raises -> T
-    # ](self, var sql: String, params: Dict[String, P]) raises -> T:
-    #     """Executes the query and returns a single row.
-
-    #     This is a convenience method for queries that are expected to return exactly one row.
-    #     If the query returns more than one row, the rest are ignored.
-
-    #     Parameters:
-    #         T: The type that the row will be transformed into.
-    #         transform: A function that takes a Row and returns a value of type T.
-
-    #     Args:
-    #         sql: The SQL query to execute.
-    #         params: A list of parameters to bind to the statement.
-
-    #     Returns:
-    #         The single Row returned by the query.
-
-    #     Raises:
-    #         Error: If parameter binding fails, no rows are returned, or more than one row is returned.
-    #     """
-    #     return self.prepare(sql^).query_row[transform=transform](params)
-
-    # fn query_row[
-    #     T: Movable, P: ToSQL, //, transform: fn (Row) raises -> T
-    # ](self, var sql: String, params: List[Tuple[String, P]]) raises -> T:
-    #     """Executes the query and returns a single row.
-
-    #     This is a convenience method for queries that are expected to return exactly one row.
-    #     If the query returns more than one row, the rest are ignored.
-
-    #     Parameters:
-    #         T: The type that the row will be transformed into.
-    #         transform: A function that takes a Row and returns a value of type T.
-
-    #     Args:
-    #         sql: The SQL query to execute.
-    #         params: A list of parameters to bind to the statement.
-
-    #     Returns:
-    #         The single Row returned by the query.
-
-    #     Raises:
-    #         Error: If parameter binding fails, no rows are returned, or more than one row is returned.
-    #     """
-    #     return self.prepare(sql^).query_row[transform=transform](params)
 
     fn execute_batch(self, sql: String) raises:
         """Executes a batch of SQL statements.
@@ -494,41 +345,41 @@ struct Connection(Movable):
         """Returns the row ID of the last inserted row."""
         return self.db.last_insert_row_id()
     
-    # fn one_column[T: FromSQL](self, var sql: String, params: List[Parameter]) raises -> T:
-    #     fn get_item(row: Row) raises -> T:
-    #         return row.get[T](0)
-
-    #     return self.query_row[get_item](sql, params)
-    
     fn one_column[P: Params, //, T: FromSQL](self, var sql: String, params: P) raises -> T:
+        """Fetches a single column from the first row of the result set.
+
+        Args:
+            sql: The SQL query to execute.
+            params: The parameters to bind to the SQL query.
+        
+        Returns:
+            The value of the first column in the first row of the result set.
+        
+        Raises:
+            Error: If the query fails or no rows are returned.
+        """
         fn get_item(row: Row) raises -> T:
             return row.get[T](0)
 
         return self.query_row[get_item](sql, params)
 
     fn one_column[T: FromSQL, *Ts: ToSQL](self, var sql: String, *params: *Ts) raises -> T:
+        """Fetches a single column from the first row of the result set.
+
+        Args:
+            sql: The SQL query to execute.
+            params: The parameters to bind to the SQL query.
+
+        Returns:
+            The value of the first column in the first row of the result set.
+
+        Raises:
+            Error: If the query fails or no rows are returned.
+        """
         fn get_item(row: Row) raises -> T:
             return row.get[T](0)
 
         return self.query_row[get_item](sql, params)
-
-    # fn one_column[P: ToSQL, //, T: FromSQL](self, var sql: String, params: List[P]) raises -> T:
-    #     fn get_item(row: Row) raises -> T:
-    #         return row.get[T](0)
-
-    #     return self.query_row[get_item](sql, params)
-
-    # fn one_column[P: ToSQL, //, T: FromSQL](self, var sql: String, params: Dict[String, P]) raises -> T:
-    #     fn get_item(row: Row) raises -> T:
-    #         return row.get[T](0)
-
-    #     return self.query_row[get_item](sql, params)
-
-    # fn one_column[P: ToSQL, //, T: FromSQL](self, var sql: String, params: List[Tuple[String, P]]) raises -> T:
-    #     fn get_item(row: Row) raises -> T:
-    #         return row.get[T](0)
-
-    #     return self.query_row[get_item](sql, params)
 
     fn column_exists(
         self,
@@ -816,11 +667,11 @@ struct Connection(Movable):
             callback(row)
 
     fn pragma[
-        callback: fn (Row) raises -> None
+        T: ToSQL, //, callback: fn (Row) raises -> None
     ](
         self,
         pragma: StringSlice,
-        value: Parameter,
+        value: T,
         schema: Optional[String] = None,
     ) raises:
         """Query the current value(s) of a pragma associated with a value.
@@ -848,6 +699,7 @@ struct Connection(Movable):
         ```
 
         Parameters:
+            T: The type of the value argument.
             callback: A function to process each row.
 
         Args:
@@ -867,10 +719,10 @@ struct Connection(Movable):
         for row in self.prepare(String(sql)).query():
             callback(row)
 
-    fn pragma_update(
+    fn pragma_update[T: ToSQL, //](
         self,
         pragma: StringSlice,
-        value: Parameter,
+        value: T,
         schema: Optional[String] = None,
     ) raises:
         """Set a new value to a pragma.
@@ -904,11 +756,11 @@ struct Connection(Movable):
         self.execute_batch(String(sql))
 
     fn pragma_update_and_check[
-        T: Movable, //, transform: fn (Row) raises -> T
+        T: Movable, V: ToSQL, //, transform: fn (Row) raises -> T
     ](
         self,
         pragma: StringSlice,
-        value: Parameter,
+        value: V,
         schema: Optional[String] = None,
     ) raises -> T:
         """Set a new value to a pragma and return the updated value.
@@ -934,6 +786,7 @@ struct Connection(Movable):
 
         Parameters:
             T: The return type.
+            V: The type of the value argument.
             transform: A function to transform the row into the desired type.
 
         Args:

@@ -2,6 +2,7 @@ from testing import assert_equal, assert_true, assert_false, assert_not_equal, T
 
 from slight.connection import Connection
 from slight import Row, String, Int
+from slight.types.to_sql import Int
 from slight.pragma import Sql, is_identifier
 
 comptime dummy: Int = 0
