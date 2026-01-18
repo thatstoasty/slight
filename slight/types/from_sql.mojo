@@ -1,4 +1,4 @@
-from sys.intrinsics import _type_is_eq, _type_is_eq_parse_time
+from sys.intrinsics import _type_is_eq_parse_time
 from slight.types.value_ref import ValueRef
 
 
@@ -24,6 +24,11 @@ __extension String(FromSQL):
         self = Self(value.as_string_slice())
 
 
+# __extension StringSlice(FromSQL):
+#     fn __init__[origin: ImmutOrigin](out self, value: ValueRef[origin]) raises:
+#         self = value.as_string_slice()
+
+
 __extension Bool(FromSQL):
     fn __init__(out self, value: ValueRef) raises:
         self = value.as_int64() == 1
@@ -37,27 +42,27 @@ __extension NoneType(FromSQL):
 __extension SIMD(FromSQL):
     fn __init__(out self, value: ValueRef) raises:
         @parameter
-        if dtype == DType.int8:
+        if Self.dtype == DType.int8:
             self = Scalar[dtype](value.as_int64())
-        elif dtype == DType.int16:
+        elif Self.dtype == DType.int16:
             self = Scalar[dtype](value.as_int64())
-        elif dtype == DType.int32:
+        elif Self.dtype == DType.int32:
             self = Scalar[dtype](value.as_int64())
-        elif dtype == DType.int64:
+        elif Self.dtype == DType.int64:
             self = Scalar[dtype](value.as_int64())
-        elif dtype == DType.uint8:
+        elif Self.dtype == DType.uint8:
             self = Scalar[dtype](value.as_int64())
-        elif dtype == DType.uint16:
+        elif Self.dtype == DType.uint16:
             self = Scalar[dtype](value.as_int64())
-        elif dtype == DType.uint32:
+        elif Self.dtype == DType.uint32:
             self = Scalar[dtype](value.as_int64())
-        elif dtype == DType.uint64:
+        elif Self.dtype == DType.uint64:
             self = Scalar[dtype](value.as_int64())
-        elif dtype == DType.float16:
+        elif Self.dtype == DType.float16:
             self = Scalar[dtype](value.as_float64())
-        elif dtype == DType.float32:
+        elif Self.dtype == DType.float32:
             self = Scalar[dtype](value.as_float64())
-        elif dtype == DType.float64:
+        elif Self.dtype == DType.float64:
             self = Scalar[dtype](value.as_float64())
         else:
             raise Error("InvalidColumnType: Unsupported SIMD dtype")

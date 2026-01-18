@@ -1,6 +1,7 @@
 from sys.intrinsics import _type_is_eq_parse_time
 from builtin.constrained import _constrained_conforms_to
 from slight.statement import Statement
+from slight.bind import BindIndex
 
 
 trait Params:
@@ -37,21 +38,23 @@ __extension Dict(Params):
 
     fn bind(self, stmt: Statement) raises:
         _constrained_conforms_to[
-            conforms_to(V, ToSQL),
+            conforms_to(Self.K, BindIndex),
             Parent=Self,
-            Element=V,
+            Element=Self.K,
+            ParentConformsTo="Params",
+            ElementConformsTo="BindIndex",
+        ]()
+        _constrained_conforms_to[
+            conforms_to(Self.V, ToSQL) and conforms_to(Self.K, BindIndex),
+            Parent=Self,
+            Element=Self.V,
             ParentConformsTo="Params",
             ElementConformsTo="ToSQL",
         ]()
         
         for kv in self.items():
-            ref key = rebind[String](kv.key)
-            var i = stmt.parameter_index(key)
-            if not i:
-                raise Error("ParameterNotFoundError: Invalid parameter name: ", key)
-
             ref value = trait_downcast[ToSQL](kv.value)
-            stmt.bind_parameter(value, i[])
+            stmt.bind_parameter(value, trait_downcast[BindIndex](kv.key).idx(stmt))
 
 
 # __extension List(Params):

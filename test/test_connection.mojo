@@ -560,7 +560,7 @@ fn test_alter_table() raises:
 
 
 fn main() raises:
-    # TestSuite.discover_tests[__functions_in_module()]().run()
-    var suite = TestSuite()
-    suite.test[test_insert_bytes]()
-    suite^.run()
+    TestSuite.discover_tests[__functions_in_module()]().run()
+    # var suite = TestSuite()
+    # suite.test[test_insert_bytes]()
+    # suite^.run()

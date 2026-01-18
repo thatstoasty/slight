@@ -182,13 +182,33 @@ fn test_exists() raises:
     # assert_false(stmt.exists([0]))
 
 
-fn test_variadic_params() raises:
+fn test_list_params() raises:
     var db = Connection.open_in_memory()
 
     fn get_string(r: Row) raises -> String:
         return r.get[String](0)
 
     var s = db.query_row[get_string]("SELECT printf('[%s]', ?1)", ["abc"])
+    assert_equal(s, "[abc]")
+
+
+fn test_dict_params() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE foo(x INTEGER);")
+
+    assert_equal(
+        db.execute("INSERT INTO foo(x) VALUES (:x)", {":x": 1}),
+        1
+    )
+
+
+fn test_variadic_params() raises:
+    var db = Connection.open_in_memory()
+
+    fn get_string(r: Row) raises -> String:
+        return r.get[String](0)
+
+    var s = db.query_row[get_string]("SELECT printf('[%s]', ?1)", "abc")
     assert_equal(s, "[abc]")
 
     var s2 = db.query_row[get_string](

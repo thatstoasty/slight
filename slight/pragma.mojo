@@ -111,10 +111,7 @@ struct Sql(Movable, Stringable):
         elif sql.isa[SQLite3Text[sql.stmt]]():
             self.push_string_literal(sql[SQLite3Text[sql.stmt]].value)
         else:
-            raise Error(
-                SQLITE_MISUSE,
-                "Unsupported parameter type for pragma value"
-            )
+            raise Error(SQLITE_MISUSE, " Unsupported parameter type for pragma value")
     
     fn push_string_literal(mut self, s: StringSlice):
         """Push a string literal to the buffer, properly escaped.
