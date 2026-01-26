@@ -1,7 +1,16 @@
+from os import abort
 from slight.c.api import sqlite_ffi
 from slight.result import SQLite3Result
-from slight.c.types import sqlite3_stmt, ResultDestructorFn, TextEncoding, MutExternalPointer
+from slight.c.types import sqlite3_stmt, ResultDestructorFn, TextEncoding, MutExternalPointer, ImmutExternalPointer
 from slight.c.sqlite_string import SQLiteMallocString
+
+
+@fieldwise_init
+struct ValueFetchError(Movable, Writable):
+    var msg: String
+
+    fn write_to[W: Writer, //](self, mut writer: W):
+        writer.write_string(self.msg)
 
 
 @fieldwise_init
@@ -46,24 +55,24 @@ struct RawStatement(Movable):
         """
         return sqlite_ffi()[].column_double(self.stmt, Int32(idx))
 
-    fn column_text(self, idx: UInt) raises -> StringSlice[origin_of(self)]:
+    fn column_text(self, idx: UInt) raises -> ImmutExternalPointer[UInt8]:
         """Returns the value of the specified column as a text string.
+
+        The program will abort if the column contains NULL data, so this method
+        takes ownership of `self` to be able to finalize the statement in that case.
 
         Args:
             idx: The index of the column to retrieve.
 
         Returns:
             The value of the specified column as a StringSlice.
-
-        Raises:
-            Error: If the column contains NULL data unexpectedly.
         """
         var ptr = sqlite_ffi()[].column_text(self.stmt, Int32(idx))
-        if not ptr:
-            raise Error("unexpected SQLITE_TEXT column type with NULL data")
+        if ptr:
+            # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
+            return ptr
 
-        # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
-        return StringSlice(unsafe_from_utf8_ptr=ptr.unsafe_origin_cast[origin_of(self)]())
+        raise Error("unexpected SQLITE_TEXT column type with NULL data")
 
     fn column_blob(self, idx: UInt) raises -> Span[Byte, origin_of(self)]:
         """Returns the value of the specified column as binary data.
@@ -248,7 +257,7 @@ struct RawStatement(Movable):
         """
         return sqlite_ffi()[].clear_bindings(self.stmt)
 
-    fn column_name(self, idx: UInt) -> Optional[StringSlice[origin_of(self)]]:
+    fn column_name(self, idx: UInt) -> Optional[ImmutExternalPointer[Int8]]:
         """Returns the name of the specified column.
 
         Args:
@@ -266,7 +275,7 @@ struct RawStatement(Movable):
         if not ptr:
             return None
 
-        return StringSlice(unsafe_from_utf8_ptr=ptr.unsafe_origin_cast[origin_of(self)]())
+        return ptr
 
     fn is_explain(self) -> Int32:
         """Returns whether the prepared statement is an EXPLAIN statement.

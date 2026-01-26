@@ -5,8 +5,7 @@ into SQLite-compatible values for binding to prepared statements.
 """
 from sys.intrinsics import _type_is_eq_parse_time
 from utils.variant import Variant
-from slight.types.value_ref import SQLTypeRef, ValueRef, SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text, SQLite3Blob
-from slight.types.value import Value
+from slight.types.value_ref import SQLType, ValueRef, SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text, SQLite3Blob
 
 
 # @fieldwise_init
@@ -62,7 +61,6 @@ trait ToSQL(Copyable):
     
     # TODO: How can I enforce an immutable origin here? If I don't use ref, then
     # it complains that self might be a register_passable type.
-    # fn to_sql(ref self) raises -> ToSqlOutput[origin_of(self)]:
     fn to_sql(ref self) raises -> ValueRef[origin_of(self)]:
         """Convert this value to a Parameter that can be bound to SQL.
         
@@ -73,13 +71,13 @@ trait ToSQL(Copyable):
 
 
 __extension Bool(ToSQL):
-    fn to_sql(ref self) raises -> ValueRef[origin_of(self)]:
+    fn to_sql(ref self) -> ValueRef[origin_of(self)]:
         """Convert a Bool to a SQL parameter (as INTEGER 0 or 1)."""
         return ValueRef[origin_of(self)](SQLite3Integer(Int64(self)))
 
 
 __extension Int(ToSQL):
-    fn to_sql(ref self) raises -> ValueRef[origin_of(self)]:
+    fn to_sql(ref self) -> ValueRef[origin_of(self)]:
         """Convert an Int to a SQL parameter."""
         return ValueRef[origin_of(self)](SQLite3Integer(Int64(self)))
 
@@ -87,40 +85,23 @@ __extension Int(ToSQL):
 __extension SIMD(ToSQL):
     fn to_sql(ref self) raises -> ValueRef[origin_of(self)] where size == 1:
         @parameter
-        if dtype == DType.int8:
-            return ValueRef[origin_of(self)](SQLite3Integer(Int64(self[0])))
-        elif dtype == DType.int16:
-            return ValueRef[origin_of(self)](SQLite3Integer(Int64(self[0])))
-        elif dtype == DType.int32:
-            return ValueRef[origin_of(self)](SQLite3Integer(Int64(self[0])))
-        elif dtype == DType.int64:
-            return ValueRef[origin_of(self)](SQLite3Integer(Int64(self[0])))
-        elif dtype == DType.uint8:
-            return ValueRef[origin_of(self)](SQLite3Integer(Int64(self[0])))
-        elif dtype == DType.uint16:
-            return ValueRef[origin_of(self)](SQLite3Integer(Int64(self[0])))
-        elif dtype == DType.uint32:
-            return ValueRef[origin_of(self)](SQLite3Integer(Int64(self[0])))
-        elif dtype == DType.uint64:
-            return ValueRef[origin_of(self)](SQLite3Integer(Int64(self[0])))
-        elif dtype == DType.float16:
-            return ValueRef[origin_of(self)](SQLite3Real(Float64(self[0])))
-        elif dtype == DType.float32:
-            return ValueRef[origin_of(self)](SQLite3Real(Float64(self[0])))
-        elif dtype == DType.float64:
-            return ValueRef[origin_of(self)](SQLite3Real(Float64(self[0])))
+        if dtype in (DType.float16, DType.float32, DType.float64):
+            return ValueRef[origin_of(self)](SQLite3Real(Float64(self._refine[self.dtype, 1]())))
+        elif dtype in (DType.int8, DType.int16, DType.int32, DType.int64,
+                       DType.uint, DType.uint8, DType.uint16, DType.uint32, DType.uint64):
+            return ValueRef[origin_of(self)](SQLite3Integer(Int64(self._refine[self.dtype, 1]())))
         else:
-            raise Error("InvalidColumnType: Unsupported SIMD dtype")
+            raise Error("InvalidColumnType: Unsupported SIMD dtype for size 1")
 
 
 __extension String(ToSQL):
-    fn to_sql(ref self) raises -> ValueRef[origin_of(self)]:
+    fn to_sql(ref self) -> ValueRef[origin_of(self)]:
         """Convert a String to a SQL parameter."""
         return ValueRef[origin_of(self)](SQLite3Text(self))
 
 
 __extension NoneType(ToSQL):
-    fn to_sql(ref self) raises -> ValueRef[origin_of(self)]:
+    fn to_sql(ref self) -> ValueRef[origin_of(self)]:
         """Convert None to a SQL NULL parameter."""
         return ValueRef[origin_of(self)](SQLite3Null())
 

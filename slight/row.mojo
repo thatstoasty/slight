@@ -1,7 +1,10 @@
 from sys.intrinsics import _type_is_eq
+from utils.variant import Variant
 from memory import Pointer
-from slight.statement import Statement, InvalidColumnIndexError
+from slight.raw_statement import ValueFetchError
+from slight.statement import Statement, InvalidColumnIndexError, InvalidColumnError
 from slight.types.value_ref import (
+    ValueRef,
     SQLite3Blob,
     SQLite3Integer,
     SQLite3Null,
@@ -9,6 +12,23 @@ from slight.types.value_ref import (
     SQLite3Text,
     InvalidColumnTypeError,
 )
+
+
+@fieldwise_init
+struct GetError(Movable, Writable):
+    var err: Variant[ValueFetchError, InvalidColumnError, InvalidColumnTypeError]
+
+    @implicit
+    fn __init__(out self, var e: ValueFetchError):
+        self.err = e^
+    
+    @implicit
+    fn __init__(out self, var e: InvalidColumnError):
+        self.err = e^
+    
+    @implicit
+    fn __init__(out self, e: InvalidColumnTypeError):
+        self.err = e
 
 
 trait RowIndex:
@@ -19,17 +39,9 @@ trait RowIndex:
 __extension Int(RowIndex):
     fn idx(self, stmt: Statement) raises -> UInt:
         if self < 0 or UInt(self) >= stmt.column_count():
-            raise InvalidColumnIndexError
+            raise Error("Invalid column index: ", self)
 
         return UInt(self)
-
-
-__extension UInt(RowIndex):
-    fn idx(self, stmt: Statement) raises -> UInt:
-        if self >= stmt.column_count():
-            raise InvalidColumnIndexError
-
-        return self
 
 
 __extension String(RowIndex):
@@ -56,7 +68,7 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Movable):
             idx: The column index (0-based).
 
         Returns:
-            An Optional 2taining the Int value, or None if the column is NULL.
+            An Optional containing the Int value, or None if the column is NULL.
 
         Raises:
             InvalidColumnIndexError: If the column index is out of bounds.
@@ -64,15 +76,16 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Movable):
         """
         var i = idx.idx(self.stmt[])
         if i >= self.stmt[].column_count():
-            raise InvalidColumnIndexError
+            raise Error("Invalid column index: ", i)
 
+        # TODO: More error variant issues leading to verbosity here.
         var value = self.stmt[].value_ref(i)
         if value.isa[SQLite3Null]():
             return None
         elif value.isa[SQLite3Integer]():
             return Int(value[SQLite3Integer].value)
         else:
-            raise InvalidColumnTypeError
+            raise Error("InvalidColumnTypeError: column is not of type INTEGER")
 
     fn get_int(self, idx: Some[RowIndex]) raises -> Optional[Int]:
         """Gets an Int value from the specified column.
@@ -123,17 +136,21 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Movable):
             InvalidColumnIndexError: If the column index is out of bounds.
             InvalidColumnTypeError: If the column does not contain a real number.
         """
+        # TODO: Verbosity due to error variant issues.
         var i = idx.idx(self.stmt[])
         if i >= self.stmt[].column_count():
-            raise InvalidColumnIndexError
-        var value = self.stmt[].value_ref(i)
+            raise Error("InvalidColumnIndexError: column index out of bounds: ", i)
 
-        if value.isa[SQLite3Null]():
-            return None
-        elif value.isa[SQLite3Real]():
-            return Float64(value[SQLite3Real].value)
-        else:
-            raise InvalidColumnTypeError
+        try:
+            var value = self.stmt[].value_ref(i)
+            if value.isa[SQLite3Null]():
+                return None
+            elif value.isa[SQLite3Real]():
+                return Float64(value[SQLite3Real].value)
+        except e:
+            raise e^
+        
+        raise Error("InvalidColumnTypeError: column is not of type REAL")
 
     fn get_string_slice(self, idx: Some[RowIndex]) raises -> Optional[StringSlice[Self.conn]]:
         """Gets a StringSlice value from the specified column.
@@ -150,16 +167,20 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Movable):
         """
         var i = idx.idx(self.stmt[])
         if i >= self.stmt[].column_count():
-            raise InvalidColumnIndexError
-        var value = self.stmt[].value_ref(i)
+            raise Error("InvalidColumnIndexError: column index out of bounds: ", i)
 
-        if value.isa[SQLite3Null]():
-            return None
-        elif value.isa[SQLite3Text[Self.conn]]():
-            return value[SQLite3Text[Self.conn]].value
-        else:
-            raise InvalidColumnTypeError
+        try:
+            var value = self.stmt[].value_ref(i)
+            if value.isa[SQLite3Null]():
+                return None
+            elif value.isa[SQLite3Text[Self.conn]]():
+                return value[SQLite3Text[Self.conn]].value
+        except e:
+            raise e^
+    
+        raise Error("InvalidColumnTypeError: column is not of type TEXT")
 
+    # TODO: Parameter inference breaks if I try to put RowIndex first in the parameter list.
     fn get[S: FromSQL, I: RowIndex](self, idx: I) raises -> S:
         """Gets a value of type S from the specified column using generic type conversion.
 
@@ -167,9 +188,9 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Movable):
         making the API more ergonomic by eliminating the need for type-specific methods.
 
         Parameters:
-            I: The type used to specify the column index (0-based). Can be Int, UInt, String, or StringSlice.
             S: The type to convert the column value to. Supported types are:
                Int, Float64, String, and Bool.
+            I: The type used to specify the column index (0-based). Can be Int, UInt, String, or StringSlice.
 
         Args:
             idx: The column index (0-based).
@@ -181,8 +202,15 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Movable):
             InvalidColumnIndexError: If the column index is out of bounds.
             Error: If the column value cannot be converted to type T.
         """
+        # TODO: Verbosity due to error variant issues.
         var i = idx.idx(self.stmt[])
-        return S(self.stmt[].value_ref(i))
+
+        try:
+            value_ref = self.stmt[].value_ref(i)
+        except e:
+            raise e^
+
+        return S(value_ref)
 
 
 @fieldwise_init

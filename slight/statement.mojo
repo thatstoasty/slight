@@ -1,4 +1,6 @@
 from sys import stderr
+from os import abort
+from utils.variant import Variant
 from slight.result import SQLite3Result
 from slight.c.raw_bindings import sqlite3_stmt
 from slight.c.sqlite_string import SQLiteMallocString
@@ -10,14 +12,49 @@ from slight.c.types import (
 )
 from slight.connection import Connection
 from slight.params import Params, List
-from slight.raw_statement import RawStatement
+from slight.raw_statement import RawStatement, ValueFetchError
 from slight.row import MappedRows, Row, Rows
 from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
 from slight.types.from_sql import FromSQL
 from slight.types.to_sql import ToSQL
 from slight.bind import BindIndex
 
-comptime InvalidColumnIndexError = "InvalidColumnIndex: Index provided is greater than the number of columns."
+
+@fieldwise_init
+@register_passable("trivial")
+struct InvalidColumnIndexError(Movable, Writable):
+    comptime msg = "InvalidColumnIndex: Index provided is greater than the number of columns."
+
+    fn write_to[W: Writer, //](self, mut writer: W):
+        writer.write_string(Self.msg)
+
+
+@fieldwise_init
+struct InvalidColumnNameError(Movable, Writable):
+    comptime msg = "InvalidColumnNameError: Name provided does not match any column. Column name: "
+    var column: String
+
+    fn write_to[W: Writer, //](self, mut writer: W):
+        writer.write_string(Self.msg)
+        writer.write_string(self.column)
+
+
+
+@fieldwise_init
+struct InvalidColumnError(Movable, Writable):
+    comptime msg = "InvalidColumnNameError: Name provided does not match any column. Column name: "
+    var err: Variant[InvalidColumnNameError, InvalidColumnIndexError]
+
+    @implicit
+    fn __init__(out self, var e: InvalidColumnNameError):
+        self.err = e^
+    
+    @implicit
+    fn __init__(out self, e: InvalidColumnIndexError):
+        self.err = e
+    # fn write_to[W: Writer, //](self, mut writer: W):
+    #     writer.write_string(self.err)
+    #     writer.write_string(self.column)
 
 
 fn eq_ignore_ascii_case(a: Span[Byte], b: Span[Byte]) -> Bool:
@@ -116,11 +153,12 @@ struct Statement[conn: ImmutOrigin](Movable):
         elif DataType.FLOAT == column_type:
             return ValueRef[origin_of(self)](SQLite3Real(self.stmt.column_double(col)))
         elif DataType.TEXT == column_type:
-            return ValueRef[origin_of(self)](SQLite3Text(self.stmt.column_text(col)))
+            var str = StringSlice(unsafe_from_utf8_ptr=self.stmt.column_text(col).unsafe_origin_cast[origin_of(self)]())
+            return ValueRef[origin_of(self)](SQLite3Text(str))
         elif DataType.BLOB == column_type:
             return ValueRef[origin_of(self)](SQLite3Blob(self.stmt.column_blob(col)))
         else:
-            raise Error("Unknown column type: ", column_type)
+            abort(String("[UNREACHABLE] sqlite3_column_type returned an invalid value: ", column_type))
 
     fn finalize(deinit self) raises -> None:
         """Finalizes the statement and releases its resources.
@@ -646,7 +684,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
         return String(sql.value().as_string_slice())
 
-    fn column_name(self, idx: UInt) raises -> StringSlice[origin_of(self.stmt)]:
+    fn column_name(self, idx: UInt) raises -> StringSlice[origin_of(self)]:
         """Returns the name of the column at the specified index.
 
         Args:
@@ -660,9 +698,9 @@ struct Statement[conn: ImmutOrigin](Movable):
         """
         var name = self.stmt.column_name(idx)
         if not name:
-            raise InvalidColumnIndexError
+            raise Error("InvalidColumnIndexError: column index is out of bounds.")
 
-        return name.value()
+        return StringSlice(unsafe_from_utf8_ptr=name.value().unsafe_origin_cast[origin_of(self)]())
 
     fn column_index(self, name: StringSlice) raises -> UInt:
         """Returns the index of the column with the specified name.
@@ -679,10 +717,10 @@ struct Statement[conn: ImmutOrigin](Movable):
         for i in range(0, self.column_count()):
             # Note: `column_name` is only fallible if `i` is out of bounds,
             # which we've already checked.
-            if eq_ignore_ascii_case(name.as_bytes(), self.column_name(UInt(i)).as_bytes()):
-                return UInt(i)
-
-        raise Error("InvalidColumnNameError: Could not find column with name: ", name)
+            if eq_ignore_ascii_case(name.as_bytes(), self.column_name(i).as_bytes()):
+                return i 
+            
+        raise Error("InvalidColumnNameError: no column with the specified name exists.")
     
     fn insert[T: Params, //](self, params: T) raises -> Int64:
         """Executes an INSERT statement and returns the last inserted row ID.
@@ -737,7 +775,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         """Returns whether the prepared statement is read-only."""
         return self.stmt.is_read_only()
 
-    fn column_names(self) raises -> List[StringSlice[origin_of(self.stmt)]]:
+    fn column_names(self) raises -> List[StringSlice[origin_of(self)]]:
         """Get all the column names in the result set of the prepared statement.
 
         If associated DB schema can be altered concurrently, you should make
@@ -748,10 +786,10 @@ struct Statement[conn: ImmutOrigin](Movable):
             A list of column names.
 
         Raises:
-            Error: If a column index is out of bounds.
+            InvalidColumnIndexError: If a column index is out of bounds.
         """
         var n = self.column_count()
-        var cols = List[StringSlice[origin_of(self.stmt)]](capacity=Int(n))
+        var cols = List[StringSlice[origin_of(self)]](capacity=Int(n))
         for i in range(n):
-            cols.append(self.column_name(UInt(i)))
+            cols.append(self.column_name(i))
         return cols^

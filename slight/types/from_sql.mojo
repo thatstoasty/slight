@@ -1,5 +1,15 @@
 from sys.intrinsics import _type_is_eq_parse_time
-from slight.types.value_ref import ValueRef
+from utils.variant import Variant
+from slight.types.value_ref import ValueRef, InvalidColumnTypeError
+
+
+@fieldwise_init
+struct FromSQLConversionError(Movable, Writable):
+    var err: Variant[InvalidColumnTypeError]
+
+    @implicit
+    fn __init__(out self, e: InvalidColumnTypeError):
+        self.err = e
 
 
 trait FromSQL(Copyable):
@@ -25,8 +35,9 @@ __extension String(FromSQL):
 
 
 # __extension StringSlice(FromSQL):
-#     fn __init__[origin: ImmutOrigin](out self, value: ValueRef[origin]) raises:
-#         self = value.as_string_slice()
+#     fn __init__(out self, value: ValueRef[Self.origin]) raises:
+#         var val = value.as_string_slice()
+#         self = val
 
 
 __extension Bool(FromSQL):
@@ -42,30 +53,13 @@ __extension NoneType(FromSQL):
 __extension SIMD(FromSQL):
     fn __init__(out self, value: ValueRef) raises:
         @parameter
-        if Self.dtype == DType.int8:
-            self = Scalar[dtype](value.as_int64())
-        elif Self.dtype == DType.int16:
-            self = Scalar[dtype](value.as_int64())
-        elif Self.dtype == DType.int32:
-            self = Scalar[dtype](value.as_int64())
-        elif Self.dtype == DType.int64:
-            self = Scalar[dtype](value.as_int64())
-        elif Self.dtype == DType.uint8:
-            self = Scalar[dtype](value.as_int64())
-        elif Self.dtype == DType.uint16:
-            self = Scalar[dtype](value.as_int64())
-        elif Self.dtype == DType.uint32:
-            self = Scalar[dtype](value.as_int64())
-        elif Self.dtype == DType.uint64:
-            self = Scalar[dtype](value.as_int64())
-        elif Self.dtype == DType.float16:
+        if dtype in (DType.float16, DType.float32, DType.float64):
             self = Scalar[dtype](value.as_float64())
-        elif Self.dtype == DType.float32:
-            self = Scalar[dtype](value.as_float64())
-        elif Self.dtype == DType.float64:
-            self = Scalar[dtype](value.as_float64())
+        elif dtype in (DType.int8, DType.int16, DType.int32, DType.int64,
+                       DType.uint, DType.uint8, DType.uint16, DType.uint32, DType.uint64):
+            self = Scalar[dtype](value.as_int64())
         else:
-            raise Error("InvalidColumnType: Unsupported SIMD dtype")
+            raise InvalidColumnTypeError()
 
 
 __extension List(FromSQL):

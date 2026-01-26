@@ -1,8 +1,10 @@
 from slight.connection import Connection
-from slight.row import Row, String, Int, Bool, SIMD
+from slight.row import Row
+from slight import Int, Bool, SIMD, Dict, List
 
 comptime dummy_int: Int = 1
 comptime dummy_float: Float64 = 1.0
+comptime dummy_string: String = ""
 
 
 @fieldwise_init
@@ -34,26 +36,15 @@ fn main() raises:
     );
     """)
 
-    # Running multiple inserts in one query doesn't work atm. Will need to fix
-    try:
-        print("Inserting data...")
-        print(db.execute("""
-        INSERT INTO COMPANY (ID, NAME, AGE, ADDRESS, SALARY, IS_ACTIVE) VALUES 
-        (1, 'Bob', 30, '123 Main St', 45000.0, False),
-        (2, 'Alice', 30, '123 Main St', 50000.0, True);
-        """), "row(s) affected.")
-    except e:
-        if String(e) == "not an error":
-            print("No error, but no rows affected?")
-            db^.close()
-            return
-        print("Error inserting data: ", e)
-        db^.close()
-        raise e^
+    print("Inserting data...")
+    print(db.execute("""
+    INSERT INTO COMPANY (ID, NAME, AGE, ADDRESS, SALARY, IS_ACTIVE) VALUES 
+    (1, 'Bob', 30, '123 Main St', 45000.0, False),
+    (2, 'Alice', 30, '123 Main St', 50000.0, True);
+    """), "row(s) affected.")
 
     var stmt = db.prepare("SELECT * FROM COMPANY WHERE NAME = ?;")
     print(stmt.sql().value())
-    print(stmt.expanded_sql().value())
     for row in stmt.query(["Alice"]):
         print("Alice ID:", row.get[Int]("id"))
         
@@ -77,10 +68,7 @@ fn main() raises:
         )
 
     stmt = db.prepare("SELECT * FROM COMPANY;")
-    try:
-        for row in stmt.query_map[transform=transform_row]():
-            print(row)
-    except e:
-        print("Error during query_map:", e)
+    for row in stmt.query_map[transform=transform_row]():
+        print(row)
 
     db^.close()
