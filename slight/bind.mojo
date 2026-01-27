@@ -16,7 +16,6 @@ struct BindIndexError(Movable, Writable):
         writer.write_string(self.msg)
 
 
-
 trait BindIndex(Movable):
     """A trait implemented by types that can index into parameters of a statement.
 

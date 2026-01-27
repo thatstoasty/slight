@@ -133,18 +133,19 @@ struct Statement[conn: ImmutOrigin](Movable):
         """
         return UInt(self.stmt.column_count())
 
-    fn value_ref(self, col: UInt) raises -> ValueRef[origin_of(self)]:
+    fn value_ref(self, col: UInt) -> ValueRef[origin_of(self)]:
         """Returns a reference to the value in the specified column of the current row.
+
+        `sqlite3` behavior can be found here: https://sqlite.org/c3ref/column_blob.html
 
         Args:
             col: The column index (0-based).
 
         Returns:
             A ValueRef containing the column's value with its appropriate type.
-
-        Raises:
-            Error: If the column type is unknown or unsupported.
         """
+        # TODO: Generally need to handle nulls here, for now we're kind of asserting that
+        # data requested via this function is not null.
         var column_type = self.stmt.column_type(col)
         if DataType.NULL == column_type:
             return ValueRef[origin_of(self)](SQLite3Null())
@@ -153,10 +154,17 @@ struct Statement[conn: ImmutOrigin](Movable):
         elif DataType.FLOAT == column_type:
             return ValueRef[origin_of(self)](SQLite3Real(self.stmt.column_double(col)))
         elif DataType.TEXT == column_type:
-            var str = StringSlice(unsafe_from_utf8_ptr=self.stmt.column_text(col).unsafe_origin_cast[origin_of(self)]())
-            return ValueRef[origin_of(self)](SQLite3Text(str))
+            try:
+                return ValueRef[origin_of(self)](SQLite3Text(
+                    StringSlice(unsafe_from_utf8_ptr=self.stmt.column_text(col).unsafe_origin_cast[origin_of(self)]()))
+                )
+            except e:
+                abort(String(e))
         elif DataType.BLOB == column_type:
-            return ValueRef[origin_of(self)](SQLite3Blob(self.stmt.column_blob(col)))
+            try:
+                return ValueRef[origin_of(self)](SQLite3Blob(self.stmt.column_blob(col)))
+            except e:
+                abort(String(e))
         else:
             abort(String("[UNREACHABLE] sqlite3_column_type returned an invalid value: ", column_type))
 

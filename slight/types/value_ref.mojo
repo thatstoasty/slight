@@ -125,7 +125,7 @@ struct SQLite3Blob[stmt: ImmutOrigin](SQLType):
         self.value = value
 
 
-struct ValueRef[stmt: ImmutOrigin](Movable):
+struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
     """A non-owning dynamic type value. Typically, the memory backing this value is var by SQLite.
 
     See `Value`for an owning dynamic type value.
@@ -178,6 +178,32 @@ struct ValueRef[stmt: ImmutOrigin](Movable):
             value: The SQLite3Blob value to store.
         """
         self.value = value^
+    
+    fn write_to[W: Writer, //](self, mut writer: W):
+        """Write the string representation of the SQL value to the given writer.
+
+        This method provides a way to serialize the SQL value into a human-readable
+        format, suitable for logging or debugging purposes.
+
+        Parameters:
+            W: The type of the writer to write to. Must implement the Writer trait.
+        
+        Args:
+            writer: The writer to which the string representation will be written.
+        """
+        if self.isa[SQLite3Null]():
+            writer.write_string("NULL")
+        elif self.isa[SQLite3Integer]():
+            writer.write(self[SQLite3Integer].value)
+        elif self.isa[SQLite3Real]():
+            writer.write(self[SQLite3Real].value)
+        elif self.isa[SQLite3Text[Self.stmt]]():
+            writer.write("'", self[SQLite3Text[Self.stmt]].value, "'")
+        elif self.isa[SQLite3Blob[Self.stmt]]():
+            # TODO: Improve blob representation
+            writer.write("BLOB(")
+            writer.write(len(self[SQLite3Blob[Self.stmt]].value))
+            writer.write(" bytes)")
 
     fn isa[T: SQLType](self) -> Bool:
         """Check if the value is of the specified type T.

@@ -55,11 +55,21 @@ __extension StringSlice(RowIndex):
 
 
 @fieldwise_init
-struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Movable):
+struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
     """Represents a single row in the result set of a SQL query."""
 
     var stmt: Pointer[Statement[Self.conn], Self.statement]
     """A pointer to the statement that produced this row."""
+
+    fn write_to[W: Writer, //](self, mut writer: W):
+        writer.write_string("(")
+        var column_count = self.stmt[].column_count()
+        for i in range(column_count):
+            if i > 0:
+                writer.write_string(", ")
+            writer.write(self.stmt[].value_ref(i))
+        writer.write_string(")")
+        
 
     fn get_int64(self, idx: Some[RowIndex]) raises -> Optional[Int]:
         """Gets an Int64 value from the specified column.
@@ -204,13 +214,7 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Movable):
         """
         # TODO: Verbosity due to error variant issues.
         var i = idx.idx(self.stmt[])
-
-        try:
-            value_ref = self.stmt[].value_ref(i)
-        except e:
-            raise e^
-
-        return S(value_ref)
+        return S(self.stmt[].value_ref(i))
 
 
 @fieldwise_init
