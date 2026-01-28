@@ -22,7 +22,7 @@ trait BindIndex(Movable):
     This trait is implemented for Int, UInt, String, and StringSlice types.
     """
 
-    fn idx(self, stmt: Statement) raises BindIndexError -> UInt:
+    fn bind_idx(self, stmt: Statement) raises BindIndexError -> UInt:
         """Returns the index of the associated parameter.
 
         Args:
@@ -32,13 +32,13 @@ trait BindIndex(Movable):
             The 1-based index of the parameter.
 
         Raises:
-            Error: If no such parameter exists or the parameter name is invalid.
+            BindIndexError: If no such parameter exists or the parameter name is invalid.
         """
         ...
 
 
 __extension Int(BindIndex):
-    fn idx(self, stmt: Statement) -> UInt:
+    fn bind_idx(self, stmt: Statement) -> UInt:
         """Returns the index directly without validation.
 
         Args:
@@ -52,7 +52,7 @@ __extension Int(BindIndex):
 
 
 __extension String(BindIndex):
-    fn idx(self, stmt: Statement) raises BindIndexError -> UInt:
+    fn bind_idx(self, stmt: Statement) raises BindIndexError -> UInt:
         """Returns the index of the parameter with the given name.
 
         Args:
@@ -71,7 +71,7 @@ __extension String(BindIndex):
 
 
 __extension StringSlice(BindIndex):
-    fn idx(self, stmt: Statement) raises BindIndexError -> UInt:
+    fn bind_idx(self, stmt: Statement) raises BindIndexError -> UInt:
         """Returns the index of the parameter with the given name.
 
         Args:

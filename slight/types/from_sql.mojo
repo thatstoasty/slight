@@ -1,15 +1,5 @@
 from sys.intrinsics import _type_is_eq_parse_time
-from utils.variant import Variant
-from slight.types.value_ref import ValueRef, InvalidColumnTypeError
-
-
-@fieldwise_init
-struct FromSQLConversionError(Movable, Writable):
-    var err: Variant[InvalidColumnTypeError]
-
-    @implicit
-    fn __init__(out self, e: InvalidColumnTypeError):
-        self.err = e
+from slight.types.value_ref import ValueRef
 
 
 trait FromSQL(Copyable):
@@ -59,7 +49,7 @@ __extension SIMD(FromSQL):
                        DType.uint, DType.uint8, DType.uint16, DType.uint32, DType.uint64):
             self = Scalar[dtype](value.as_int64())
         else:
-            raise InvalidColumnTypeError()
+            raise Error("InvalidColumnTypeError: Unsupported value type")
 
 
 __extension List(FromSQL):

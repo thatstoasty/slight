@@ -6,14 +6,6 @@ from slight.c.sqlite_string import SQLiteMallocString
 
 
 @fieldwise_init
-struct ValueFetchError(Movable, Writable):
-    var msg: String
-
-    fn write_to[W: Writer, //](self, mut writer: W):
-        writer.write_string(self.msg)
-
-
-@fieldwise_init
 @explicit_destroy("RawStatement must be explicitly destroyed. Use self.finalize() to destroy.")
 struct RawStatement(Movable):
     """A raw SQL statement wrapper around a pointer to a `sqlite3_stmt`."""

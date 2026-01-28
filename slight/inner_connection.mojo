@@ -1,5 +1,4 @@
 from pathlib import Path
-from sys.ffi import c_char, CStringSlice
 
 from slight.c.api import sqlite_ffi
 from slight.c.raw_bindings import (

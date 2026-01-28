@@ -6,7 +6,6 @@ as well as helper methods for common pragma operations.
 
 from slight.types.to_sql import ToSQL
 from slight.types.value_ref import SQLite3Integer, SQLite3Real, SQLite3Text
-from slight.error import Error
 from slight.c.raw_bindings import SQLITE_MISUSE
 
 

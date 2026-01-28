@@ -8,15 +8,6 @@ trait SQLType(Copyable):
 
 
 @fieldwise_init
-@register_passable("trivial")
-struct InvalidColumnTypeError(Movable, Writable):
-    comptime msg = "InvalidColumnTypeError: Unsupported value type"
-
-    fn write_to[W: Writer, //](self, mut writer: W):
-        writer.write_string(Self.msg)
-
-
-@fieldwise_init
 struct SQLite3Null(SQLType):
     """Represents a SQL NULL value.
 

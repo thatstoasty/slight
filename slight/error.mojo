@@ -1,4 +1,3 @@
-from memory import MutUnsafePointer
 from slight.c.api import sqlite_ffi
 from slight.c.types import MutExternalPointer
 from slight.c.bindings import sqlite3_connection

@@ -5,7 +5,6 @@ from slight.bind import BindIndex
 
 
 trait Params:
-
     fn bind(self, stmt: Statement) raises:
         ...
 
@@ -54,7 +53,7 @@ __extension Dict(Params):
         
         for kv in self.items():
             ref value = trait_downcast[ToSQL](kv.value)
-            stmt.bind_parameter(value, trait_downcast[BindIndex](kv.key).idx(stmt))
+            stmt.bind_parameter(value, trait_downcast[BindIndex](kv.key).bind_idx(stmt))
 
 
 # __extension List(Params):

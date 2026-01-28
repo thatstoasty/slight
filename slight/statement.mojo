@@ -12,12 +12,11 @@ from slight.c.types import (
 )
 from slight.connection import Connection
 from slight.params import Params, List
-from slight.raw_statement import RawStatement, ValueFetchError
-from slight.row import MappedRows, Row, Rows
+from slight.raw_statement import RawStatement
+from slight.row import Row, Rows, TypedRows, MappedRows
 from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
 from slight.types.from_sql import FromSQL
 from slight.types.to_sql import ToSQL
-from slight.bind import BindIndex
 
 
 @fieldwise_init
@@ -612,53 +611,51 @@ struct Statement[conn: ImmutOrigin](Movable):
         
         return transform(row)
     
-    # fn query_as_type[
-    #     T: Movable, P: Params, //, type: AnyType
-    # ](self, params: P) raises -> MappedRows[Self.conn, origin_of(self)]:
-    #     """Executes the query and returns a mapped iterator that transforms each row.
+    fn query_as_type[
+        P: Params, //, T: Defaultable & Movable,
+    ](self, params: P) raises -> TypedRows[Self.conn, origin_of(self), T]:
+        """Executes the query and returns a mapped iterator that transforms each row.
 
-    #     This method applies a transformation function to each row returned by the query,
-    #     allowing you to convert database rows into custom types.
+        This method applies a transformation function to each row returned by the query,
+        allowing you to convert database rows into custom types.
 
-    #     Parameters:
-    #         T: The type that each row will be transformed into.
-    #         P: The type of the parameters to bind.
-    #         transform: A function that takes a Row and returns a value of type T.
+        Parameters:
+            P: The type of the parameters to bind.
+            T: The type that each row will be transformed into.
 
-    #     Args:
-    #         params: A list of parameters to bind to the statement.
+        Args:
+            params: A list of parameters to bind to the statement.
 
-    #     Returns:
-    #         A MappedRows iterator that yields transformed values of type T.
+        Returns:
+            A MappedRows iterator that yields transformed values of type T.
 
-    #     Raises:
-    #         Error: If parameter binding fails or the query execution fails.
-    #     """
-    #     return MappedRows[Self.conn, origin_of(self), transform](self.query(params))
+        Raises:
+            Error: If parameter binding fails or the query execution fails.
+        """
+        return TypedRows[Self.conn, origin_of(self), T](self.query(params))
 
-    # fn query_map[
-    #     T: Movable, //, transform: fn (Row) raises -> T, *Ts: ToSQL
-    # ](self, *params: *Ts) raises -> MappedRows[Self.conn, origin_of(self), transform]:
-    #     """Executes the query and returns a mapped iterator that transforms each row.
+    fn query_as_type[
+        T: Defaultable & Movable, *Ts: ToSQL
+    ](self, *params: *Ts) raises -> TypedRows[Self.conn, origin_of(self), T]:
+        """Executes the query and returns a mapped iterator that transforms each row.
 
-    #     This method applies a transformation function to each row returned by the query,
-    #     allowing you to convert database rows into custom types.
+        This method applies a transformation function to each row returned by the query,
+        allowing you to convert database rows into custom types.
 
-    #     Parameters:
-    #         T: The type that each row will be transformed into.
-    #         transform: A function that takes a Row and returns a value of type T.
-    #         Ts: The types of the parameters to bind.
+        Parameters:
+            T: The type that each row will be transformed into.
+            Ts: The types of the parameters to bind.
 
-    #     Args:
-    #         params: A list of parameters to bind to the statement.
+        Args:
+            params: A list of parameters to bind to the statement.
 
-    #     Returns:
-    #         A MappedRows iterator that yields transformed values of type T.
+        Returns:
+            A MappedRows iterator that yields transformed values of type T.
 
-    #     Raises:
-    #         Error: If parameter binding fails or the query execution fails.
-    #     """
-    #     return MappedRows[Self.conn, origin_of(self), transform](self.query(params))
+        Raises:
+            Error: If parameter binding fails or the query execution fails.
+        """
+        return TypedRows[Self.conn, origin_of(self), T](self.query(params))
 
     fn exists[T: Params, //](self, params: T) raises -> Bool:
         """Checks if the query returns at least one row.

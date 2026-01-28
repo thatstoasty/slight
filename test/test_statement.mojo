@@ -108,6 +108,28 @@ fn test_query_map_named() raises:
         assert_equal(row, 2)
 
 
+@fieldwise_init
+struct TestStruct(Defaultable, Movable):
+    var id: Int
+    var name: String
+    var flag: Int
+
+    fn __init__(out self):
+        self.id = 0
+        self.name = ""
+        self.flag = 0
+
+
+fn test_query_as_type_named() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""CREATE TABLE test (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, flag INTEGER);
+    INSERT INTO test(id, name) VALUES (1, "one");""")
+
+    var stmt = db.prepare("SELECT id FROM test where name = :name")
+    for row in stmt.query_as_type[T=TestStruct]({":name": "one"}):
+        assert_equal(row.id, 1)
+
+
 fn test_unbound_parameters_are_null() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (x TEXT, y TEXT)")

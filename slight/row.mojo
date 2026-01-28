@@ -1,16 +1,12 @@
-from sys.intrinsics import _type_is_eq
-from utils.variant import Variant
 from reflection import (
     struct_field_count,
     struct_field_names,
     struct_field_types,
     get_type_name,
-    get_base_type_name,
     is_struct_type,
 )
 from memory import Pointer
-from slight.raw_statement import ValueFetchError
-from slight.statement import Statement, InvalidColumnIndexError, InvalidColumnError
+from slight.statement import Statement
 from slight.types.value_ref import (
     ValueRef,
     SQLite3Blob,
@@ -18,25 +14,7 @@ from slight.types.value_ref import (
     SQLite3Null,
     SQLite3Real,
     SQLite3Text,
-    InvalidColumnTypeError,
 )
-
-
-@fieldwise_init
-struct GetError(Movable, Writable):
-    var err: Variant[ValueFetchError, InvalidColumnError, InvalidColumnTypeError]
-
-    @implicit
-    fn __init__(out self, var e: ValueFetchError):
-        self.err = e^
-    
-    @implicit
-    fn __init__(out self, var e: InvalidColumnError):
-        self.err = e^
-    
-    @implicit
-    fn __init__(out self, e: InvalidColumnTypeError):
-        self.err = e
 
 
 trait RowIndex:
@@ -95,14 +73,12 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
         if i >= self.stmt[].column_count():
             raise Error("Invalid column index: ", i)
 
-        # TODO: More error variant issues leading to verbosity here.
         var value = self.stmt[].value_ref(i)
         if value.isa[SQLite3Null]():
             return None
         elif value.isa[SQLite3Integer]():
             return Int(value[SQLite3Integer].value)
-        else:
-            raise Error("InvalidColumnTypeError: column is not of type INTEGER")
+        raise Error("InvalidColumnTypeError: column is not of type INTEGER")
 
     fn get_int(self, idx: Some[RowIndex]) raises -> Optional[Int]:
         """Gets an Int value from the specified column.
@@ -153,19 +129,15 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
             InvalidColumnIndexError: If the column index is out of bounds.
             InvalidColumnTypeError: If the column does not contain a real number.
         """
-        # TODO: Verbosity due to error variant issues.
         var i = idx.idx(self.stmt[])
         if i >= self.stmt[].column_count():
             raise Error("InvalidColumnIndexError: column index out of bounds: ", i)
 
-        try:
-            var value = self.stmt[].value_ref(i)
-            if value.isa[SQLite3Null]():
-                return None
-            elif value.isa[SQLite3Real]():
-                return Float64(value[SQLite3Real].value)
-        except e:
-            raise e^
+        var value = self.stmt[].value_ref(i)
+        if value.isa[SQLite3Null]():
+            return None
+        elif value.isa[SQLite3Real]():
+            return Float64(value[SQLite3Real].value)
         
         raise Error("InvalidColumnTypeError: column is not of type REAL")
 
@@ -186,14 +158,11 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
         if i >= self.stmt[].column_count():
             raise Error("InvalidColumnIndexError: column index out of bounds: ", i)
 
-        try:
-            var value = self.stmt[].value_ref(i)
-            if value.isa[SQLite3Null]():
-                return None
-            elif value.isa[SQLite3Text[Self.conn]]():
-                return value[SQLite3Text[Self.conn]].value
-        except e:
-            raise e^
+        var value = self.stmt[].value_ref(i)
+        if value.isa[SQLite3Null]():
+            return None
+        elif value.isa[SQLite3Text[Self.conn]]():
+            return value[SQLite3Text[Self.conn]].value
     
         raise Error("InvalidColumnTypeError: column is not of type TEXT")
 
@@ -219,7 +188,6 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
             InvalidColumnIndexError: If the column index is out of bounds.
             Error: If the column value cannot be converted to type T.
         """
-        # TODO: Verbosity due to error variant issues.
         var i = idx.idx(self.stmt[])
         return S(self.stmt[].value_ref(i))
 
@@ -271,7 +239,8 @@ struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator):
     ) -> MappedRows[Self.conn, Self.statement, transform]:
         """Returns an iterator that transforms each row using the provided function.
 
-        Args:
+        Parameters:
+            T: The target type to map each row to.
             transform: A function that takes a Row and returns a value of type T.
 
         Returns:
@@ -279,13 +248,13 @@ struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator):
         """
         return MappedRows[Self.conn, Self.statement, transform](self)
     
-    fn as_type[T: Movable & Defaultable & Writable](
+    fn as_type[T: Movable & Defaultable](
         self,
     ) -> TypedRows[Self.conn, Self.statement, T]:
         """Returns an iterator that transforms each row using the provided function.
 
-        Args:
-            transform: A function that takes a Row and returns a value of type T.
+        Parameters:
+            T: The target struct type to map each row to.
 
         Returns:
             An iterator that yields transformed rows.
@@ -340,7 +309,7 @@ struct MappedRows[T: Movable, //, conn: ImmutOrigin, statement: ImmutOrigin, tra
         self.rows.reset()
 
 
-struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: Movable & Defaultable & Writable](
+struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: Movable & Defaultable](
     Copyable, Iterator
 ):
     """An iterator that transforms rows using a mapping function."""
@@ -389,7 +358,6 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: Movable & Default
             )
 
         result = Self.T()
-        var col_idx = 0
         try:
             @parameter
             for i in range(field_count):
@@ -404,9 +372,9 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: Movable & Default
                         "' does not implement FromSQL."
                     )
                 ref field = __struct_field_ref(i, result)
-                field = row.get[type_of(trait_downcast[FromSQL](field))](Int(col_idx))
-                col_idx += 1
+                field = row.get[type_of(trait_downcast[FromSQL](field))](i)
         except e:
+            # TODO: We capture and print the error here because an extension bug swallows errors.
             print(e)
             raise e^
 
