@@ -611,6 +611,54 @@ struct Statement[conn: ImmutOrigin](Movable):
             raise Error("No rows returned by query.")
         
         return transform(row)
+    
+    # fn query_as_type[
+    #     T: Movable, P: Params, //, type: AnyType
+    # ](self, params: P) raises -> MappedRows[Self.conn, origin_of(self)]:
+    #     """Executes the query and returns a mapped iterator that transforms each row.
+
+    #     This method applies a transformation function to each row returned by the query,
+    #     allowing you to convert database rows into custom types.
+
+    #     Parameters:
+    #         T: The type that each row will be transformed into.
+    #         P: The type of the parameters to bind.
+    #         transform: A function that takes a Row and returns a value of type T.
+
+    #     Args:
+    #         params: A list of parameters to bind to the statement.
+
+    #     Returns:
+    #         A MappedRows iterator that yields transformed values of type T.
+
+    #     Raises:
+    #         Error: If parameter binding fails or the query execution fails.
+    #     """
+    #     return MappedRows[Self.conn, origin_of(self), transform](self.query(params))
+
+    # fn query_map[
+    #     T: Movable, //, transform: fn (Row) raises -> T, *Ts: ToSQL
+    # ](self, *params: *Ts) raises -> MappedRows[Self.conn, origin_of(self), transform]:
+    #     """Executes the query and returns a mapped iterator that transforms each row.
+
+    #     This method applies a transformation function to each row returned by the query,
+    #     allowing you to convert database rows into custom types.
+
+    #     Parameters:
+    #         T: The type that each row will be transformed into.
+    #         transform: A function that takes a Row and returns a value of type T.
+    #         Ts: The types of the parameters to bind.
+
+    #     Args:
+    #         params: A list of parameters to bind to the statement.
+
+    #     Returns:
+    #         A MappedRows iterator that yields transformed values of type T.
+
+    #     Raises:
+    #         Error: If parameter binding fails or the query execution fails.
+    #     """
+    #     return MappedRows[Self.conn, origin_of(self), transform](self.query(params))
 
     fn exists[T: Params, //](self, params: T) raises -> Bool:
         """Checks if the query returns at least one row.

@@ -7,7 +7,7 @@ comptime dummy_float: Float64 = 1.0
 
 
 @fieldwise_init
-struct Employee(Copyable, Movable, Writable):
+struct Employee(Copyable, Writable, Defaultable):
     var id: Int
     var name: String
     var age: Int8
@@ -15,9 +15,16 @@ struct Employee(Copyable, Movable, Writable):
     var salary: Float64
     var is_active: Bool
 
+    fn __init__(out self):
+        self.id = 0
+        self.name = ""
+        self.age = 0
+        self.address = ""
+        self.salary = 0.0
+        self.is_active = False
+
     fn write_to[W: Writer, //](self, mut writer: W):
         writer.write("Employee(id=", self.id, ", name=", self.name, ", age=", self.age, ", address=", self.address, ", salary=", self.salary, ", is_active=", self.is_active, ")")
-
 
 
 fn main() raises:
@@ -58,6 +65,11 @@ fn main() raises:
 
     # query_map returns an iterator which transforms rows into Employee structs.
     stmt = db.prepare("SELECT * FROM COMPANY;")
-    print("All Employees:")
+    print("\nAll employees mapped by transform function:")
     for row in stmt.query_map[transform=transform_row]():
         print(row)
+    
+    stmt = db.prepare("SELECT * FROM COMPANY;")
+    print("\nAll employees mapped by type:")
+    for employee in stmt.query().as_type[Employee]():
+        print(employee)

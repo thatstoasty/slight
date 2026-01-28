@@ -1,5 +1,13 @@
 from sys.intrinsics import _type_is_eq
 from utils.variant import Variant
+from reflection import (
+    struct_field_count,
+    struct_field_names,
+    struct_field_types,
+    get_type_name,
+    get_base_type_name,
+    is_struct_type,
+)
 from memory import Pointer
 from slight.raw_statement import ValueFetchError
 from slight.statement import Statement, InvalidColumnIndexError, InvalidColumnError
@@ -70,7 +78,6 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
             writer.write(self.stmt[].value_ref(i))
         writer.write_string(")")
         
-
     fn get_int64(self, idx: Some[RowIndex]) raises -> Optional[Int]:
         """Gets an Int64 value from the specified column.
 
@@ -258,6 +265,32 @@ struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator):
             print("Error resetting statement:", e)
             # TODO: come back to resetting this to avoid infinite loops
             # raise
+    
+    fn map[T: Movable, //, transform: fn (Row) raises -> T](
+        self,
+    ) -> MappedRows[Self.conn, Self.statement, transform]:
+        """Returns an iterator that transforms each row using the provided function.
+
+        Args:
+            transform: A function that takes a Row and returns a value of type T.
+
+        Returns:
+            An iterator that yields transformed rows.
+        """
+        return MappedRows[Self.conn, Self.statement, transform](self)
+    
+    fn as_type[T: Movable & Defaultable & Writable](
+        self,
+    ) -> TypedRows[Self.conn, Self.statement, T]:
+        """Returns an iterator that transforms each row using the provided function.
+
+        Args:
+            transform: A function that takes a Row and returns a value of type T.
+
+        Returns:
+            An iterator that yields transformed rows.
+        """
+        return TypedRows[Self.conn, Self.statement, T](self)
 
 
 struct MappedRows[T: Movable, //, conn: ImmutOrigin, statement: ImmutOrigin, transform: fn (Row) raises -> T](
@@ -287,6 +320,105 @@ struct MappedRows[T: Movable, //, conn: ImmutOrigin, statement: ImmutOrigin, tra
         var result = self.rows.__next__()
         try:
             return Self.transform(result)
+        except e:
+            raise StopIteration()
+
+    fn __iter__(self) -> Self:
+        """Returns an iterator over the transformed rows.
+
+        Returns:
+            Self as an iterator.
+        """
+        return self.copy()
+
+    fn reset(self) -> None:
+        """Resets the underlying rows iterator.
+
+        This method resets the underlying rows iterator so that iteration
+        can begin again from the first row.
+        """
+        self.rows.reset()
+
+
+struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: Movable & Defaultable & Writable](
+    Copyable, Iterator
+):
+    """An iterator that transforms rows using a mapping function."""
+
+    comptime Element = Self.T
+
+    var rows: Rows[Self.conn, Self.statement]
+    """The underlying rows iterator."""
+
+    fn __init__(out self, rows: Rows[Self.conn, Self.statement]):
+        """Initializes a new MappedRows iterator.
+
+        Args:
+            rows: The underlying rows iterator to transform.
+        """
+        self.rows = rows.copy()
+    
+    fn _transform(self, row: Row[Self.conn, Self.statement], out result: Self.T) raises:
+        """Transforms a Row into the target type T.
+
+        Args:
+            row: The Row to transform.
+
+        Returns:
+            The transformed value of type T.
+
+        Raises:
+            Error: If the transformation fails.
+        """
+        __comptime_assert is_struct_type[Self.T](), "TypedRows can only transform to struct types."
+
+        comptime field_count = struct_field_count[Self.T]()
+        comptime field_names = struct_field_names[Self.T]()
+        comptime field_types = struct_field_types[Self.T]()
+
+        var column_count = self.rows.stmt[].column_count()
+        if field_count != Int(column_count):
+            raise Error(
+                "Field count mismatch: struct '",
+                get_type_name[Self.T](),
+                "' has ",
+                Int(field_count),
+                " fields, but query returned ",
+                Int(column_count),
+                " columns."
+            )
+
+        result = Self.T()
+        var col_idx = 0
+        try:
+            @parameter
+            for i in range(field_count):
+                comptime field_name = field_names[i]
+                comptime field_type = field_types[i]
+                if not conforms_to(field_type, FromSQL):
+                    raise Error(
+                        "Field '",
+                        field_name,
+                        "' of struct '",
+                        get_type_name[Self.T](),
+                        "' does not implement FromSQL."
+                    )
+                ref field = __struct_field_ref(i, result)
+                field = row.get[type_of(trait_downcast[FromSQL](field))](Int(col_idx))
+                col_idx += 1
+        except e:
+            print(e)
+            raise e^
+
+    fn __next__(mut self) raises StopIteration -> Self.T:
+        """Returns the next transformed row.
+
+        Returns:
+            The next row transformed by the mapping function.
+        """
+        var result = self.rows.__next__()
+        try:
+            return self._transform(result)
         except e:
             raise StopIteration()
 
