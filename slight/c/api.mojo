@@ -1,4 +1,4 @@
-from sys.ffi import _get_global
+from std.ffi import _get_global
 
 from slight.c.bindings import sqlite3
 

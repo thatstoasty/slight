@@ -1,9 +1,8 @@
+from std.pathlib import Path
+from std.ffi import c_char, c_int, c_uint, c_uchar
+from std.memory import MutOpaquePointer, MutUnsafePointer
 from slight.c.raw_bindings import _sqlite3
 from slight.result import SQLite3Result
-from pathlib import Path
-from sys.ffi import c_char, c_int, c_uint, c_uchar
-
-from memory import MutOpaquePointer, MutUnsafePointer
 from slight.c.types import (
     sqlite3_backup,
     sqlite3_blob,
@@ -34,8 +33,14 @@ struct sqlite3:
     """
 
     var lib: _sqlite3
+    """The loaded SQLite3 library instance."""
 
     fn __init__(out self):
+        """Initializes the sqlite3 struct by loading the SQLite3 library.
+        
+        Returns:
+            An instance of the sqlite3 struct with the library loaded.
+        """
         self.lib = _sqlite3()
 
     fn version(self) -> ImmutExternalPointer[c_char]:
@@ -87,9 +92,9 @@ struct sqlite3:
     fn close(self, connection: MutExternalPointer[sqlite3_connection]) -> SQLite3Result:
         """Closing A Database Connection.
 
-        ^The `sqlite3_close()` and `sqlite3_close_v2()` routines are destructors
+        * The `sqlite3_close()` and `sqlite3_close_v2()` routines are destructors
         for the [sqlite3] object.
-        ^Calls to `sqlite3_close()` and `sqlite3_close_v2()` return [SQLITE_OK] if
+        * Calls to `sqlite3_close()` and `sqlite3_close_v2()` return [SQLITE_OK] if
         the [sqlite3] object is successfully destroyed and all associated
         resources are deallocated.
 
@@ -97,10 +102,11 @@ struct sqlite3:
         [prepared statements], [sqlite3_blob_close | close] all [BLOB handles], and
         [sqlite3_backup_finish | finish] all [sqlite3_backup] objects associated
         with the [sqlite3] object prior to attempting to close the object.
-        ^If the database connection is associated with unfinalized prepared
+        * If the database connection is associated with unfinalized prepared
         statements, BLOB handlers, and/or unfinished sqlite3_backup objects then
         `sqlite3_close()` will leave the database connection open and return
-        [SQLITE_BUSY]. ^If `sqlite3_close_v2()` is called with unfinalized prepared
+        [SQLITE_BUSY].
+        * If `sqlite3_close_v2()` is called with unfinalized prepared
         statements, unclosed BLOB handlers, and/or unfinished sqlite3_backups,
         it returns [SQLITE_OK] regardless, but instead of deallocating the database
         connection immediately, it marks the database connection as an unusable
@@ -110,7 +116,7 @@ struct sqlite3:
         is intended for use with host languages that are garbage collected, and
         where the order in which destructors are called is arbitrary.
 
-        ^If an [sqlite3] object is destroyed while a transaction is open,
+        * If an [sqlite3] object is destroyed while a transaction is open,
         the transaction is automatically rolled back.
 
         The C parameter to [sqlite3_close(C)] and [sqlite3_close_v2(C)]
@@ -118,8 +124,14 @@ struct sqlite3:
         pointer or an [sqlite3] object pointer obtained
         from [sqlite3_open()], [sqlite3_open16()], or
         [sqlite3_open_v2()], and not previously closed.
-        ^Calling `sqlite3_close()` or `sqlite3_close_v2()` with a NULL pointer
+        * Calling `sqlite3_close()` or `sqlite3_close_v2()` with a NULL pointer
         argument is a harmless no-op.
+
+        Args:
+            connection: The database connection to close.
+        
+        Returns:
+            [SQLITE_OK] on success, or an error code on failure.
         """
         return self.lib.sqlite3_close(connection)
 
@@ -331,6 +343,30 @@ struct sqlite3:
         callback: fn (MutOpaquePointer[cb_origin], c_int) -> c_int,
         arg: MutOpaquePointer[arg_origin],
     ) -> SQLite3Result:
+        """Set A Busy Handler.
+
+        This routine sets a callback function that is invoked when an attempt is made
+        to access a database table that is locked by another thread or process. The
+        callback is invoked with a copy of the user data pointer provided in the
+        third argument and the number of times that the access has been retried as
+        the second argument. If the callback returns zero, the access is denied and
+        the sqlite3_busy_handler() routine returns [SQLITE_BUSY]. If the callback
+        returns non-zero, the access is retried. If the callback continues to return
+        non-zero and the access is retried more than 100 times, sqlite3_busy_handler()
+        returns [SQLITE_BUSY] to prevent an infinite loop.
+
+        Parameters:
+            cb_origin: The origin of the callback function pointer.
+            arg_origin: The origin of the user data pointer passed to the callback.
+        
+        Args:
+            db: Database connection handle.
+            callback: User-defined callback function to handle busy events.
+            arg: User data pointer passed to the callback.
+        
+        Returns:
+            [SQLITE_OK] on success, or an error code on failure.
+        """
         return self.lib.sqlite3_busy_handler(db, callback, arg)
 
     fn busy_timeout(self, db: MutExternalPointer[sqlite3_connection], ms: c_int) -> SQLite3Result:
@@ -366,6 +402,9 @@ struct sqlite3:
 
         This routine frees memory that was obtained from malloc64.
 
+        Parameters:
+            origin: The origin of the pointer to free.
+
         Args:
             ptr: Pointer to memory to free.
         """
@@ -375,6 +414,9 @@ struct sqlite3:
         """Memory Size.
 
         This routine returns the size of a memory allocation obtained from malloc64.
+
+        Parameters:
+            origin: The origin of the pointer to check.
 
         Args:
             ptr: Pointer to allocated memory.
@@ -399,6 +441,15 @@ struct sqlite3:
         it tries to access a database or perform certain operations. The callback
         can approve, deny, or ignore the action.
 
+        Parameters:
+            origin: The origin of the auth_callback function pointer.
+            origin2: The origin of the database connection pointer passed to the callback.
+            origin3: The origin of the user data pointer passed to the callback.
+            origin4: The origin of the string parameters passed to the callback.
+            origin5: The origin of the string parameters passed to the callback.
+            auth_callback: The callback function that SQLite will invoke for authorization checks.
+            userdata_origin: The origin of the user data pointer passed to the callback.
+
         Args:
             db: Database connection.
             pUserData: User data pointer passed to the callback.
@@ -420,6 +471,11 @@ struct sqlite3:
 
         This routine registers a callback function to be invoked for each SQL
         statement as it is executed. This function is deprecated - use trace_v2 instead.
+
+        Parameters:
+            origin: The origin of the xTrace callback function pointer.
+            origin2: The origin of the SQL statement string passed to the callback.
+            arg_origin: The origin of the user data pointer passed to the callback.
 
         Args:
             db: Database connection.
@@ -445,6 +501,11 @@ struct sqlite3:
         statement finishes, providing execution time information. This function
         is deprecated - use trace_v2 instead.
 
+        Parameters:
+            origin: The origin of the xProfile callback function pointer.
+            origin2: The origin of the SQL statement string passed to the callback.
+            arg_origin: The origin of the user data pointer passed to the callback.
+
         Args:
             db: Database connection.
             xProfile: Callback function invoked when statements finish.
@@ -468,6 +529,12 @@ struct sqlite3:
 
         This routine registers a callback function to be invoked for various
         tracing events based on the mask parameter.
+
+        Parameters:
+            origin: The origin of the xCallback function pointer.
+            origin2: The origin of the first user data pointer passed to the callback.
+            origin3: The origin of the second user data pointer passed to the callback.
+            ctx_origin: The origin of the context pointer passed to the callback.
 
         Args:
             db: Database connection.
@@ -494,6 +561,10 @@ struct sqlite3:
         This routine registers a callback function to be invoked periodically
         during long-running operations. The callback can be used to provide
         progress feedback or to interrupt the operation.
+
+        Parameters:
+            origin: The origin of the xProgress callback function pointer.
+            arg_origin: The origin of the user data pointer passed to the callback.
 
         Args:
             db: Database connection.
@@ -679,6 +750,9 @@ struct sqlite3:
         better error handling and performance compared to the original
         sqlite3_prepare() function.
 
+        Parameters:
+            origin: The origin of the pzTail pointer.
+
         Args:
             db: Database connection handle.
             zSql: UTF-8 encoded SQL statement text.
@@ -704,6 +778,27 @@ struct sqlite3:
         mut ppStmt: MutExternalPointer[sqlite3_stmt],
         pzTail: MutUnsafePointer[ImmutUnsafePointer[c_char, origin=sql], tail],
     ) -> SQLite3Result:
+        """Compile an SQL statement into a prepared statement object (Version 3).
+
+        This function is an enhanced version of sqlite3_prepare_v2() that allows
+        additional preparation flags to be specified. It provides more control over
+        the preparation process and can be used for advanced use cases.
+
+        Parameters:
+            sql: The origin of the zSql pointer.
+            tail: The origin of the pzTail pointer.
+        
+        Args:
+            db: Database connection handle.
+            zSql: UTF-8 encoded SQL statement text.
+            nByte: Maximum length of zSql in bytes (or -1 for null-terminated).
+            prepFlags: Preparation flags (e.g., SQLITE_PREPARE_PERSISTENT).
+            ppStmt: Compiled prepared statement object.
+            pzTail: Pointer to unused portion of zSql (or NULL).
+        
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
         return self.lib.sqlite3_prepare_v3(db, zSql, nByte, prepFlags, UnsafePointer(to=ppStmt), pzTail)
 
     fn sql(self, pStmt: MutExternalPointer[sqlite3_stmt]) -> ImmutExternalPointer[c_char]:
@@ -798,6 +893,9 @@ struct sqlite3:
         This routine binds a BLOB value to a parameter in a prepared statement.
         The parameter is identified by its index (1-based). This version accepts
         a 64-bit length value for BLOBs larger than 2GB.
+
+        Parameters:
+            value_origin: The origin of the BLOB data pointer.
 
         Args:
             pStmt: Prepared statement.
@@ -902,6 +1000,9 @@ struct sqlite3:
         The pointer is identified by a type string and can be retrieved later
         using sqlite3_value_pointer(). This is useful for passing application-
         defined objects through SQL.
+
+        Parameters:
+            value_origin: The origin of the pointer data.
 
         Args:
             pStmt: Prepared statement.
@@ -1327,6 +1428,11 @@ struct sqlite3:
         only xFunc should be non-NULL. For aggregate functions, xStep and xFinal
         should be non-NULL and xFunc should be NULL.
 
+        Parameters:
+            app_origin: The origin of the pApp pointer.
+            fn_origin: The origin of the xFunc callback pointer.
+            step_origin: The origin of the xStep callback pointer.
+
         Args:
             db: Database connection handle.
             zFunctionName: Name of the SQL function to create.
@@ -1378,6 +1484,11 @@ struct sqlite3:
         functions operate over a sliding window of rows and require xValue and
         xInverse callbacks in addition to xStep and xFinal for efficient
         computation of window frames.
+
+        Parameters:
+            app_origin: The origin of the pApp pointer.
+            step_origin: The origin of the xStep callback pointer.
+            inverse_origin: The origin of the xInverse callback pointer.
 
         Args:
             db: Database connection handle.
@@ -1488,6 +1599,9 @@ struct sqlite3:
 
         This function was used to register a callback that would be invoked
         when memory usage exceeded a threshold. It is deprecated.
+
+        Parameters:
+            origin: The origin of the arg pointer.
 
         Args:
             callback: Callback function to invoke.
@@ -1697,6 +1811,9 @@ struct sqlite3:
         sqlite3_get_auxdata(). This is useful for caching per-query data
         across multiple function calls.
 
+        Parameters:
+            data_origin: The origin of the data pointer.
+
         Args:
             ctx: SQL function context.
             N: Index of the auxiliary data.
@@ -1717,6 +1834,9 @@ struct sqlite3:
         """Set The Result Of A Function To A BLOB (64-bit).
 
         This routine sets the result of a SQL function to a BLOB value.
+
+        Parameters:
+            origin: The origin of the value pointer.
 
         Args:
             ctx: SQL function context.
@@ -1816,6 +1936,9 @@ struct sqlite3:
 
         This routine sets the result of a SQL function to a UTF-8 or UTF-16 text string.
 
+        Parameters:
+            value_origin: The origin of the value string.
+
         Args:
             ctx: SQL function context.
             value: The text string.
@@ -1848,6 +1971,9 @@ struct sqlite3:
         """Set The Result Of A Function To A Pointer.
 
         This routine sets the result of a SQL function to a typed pointer value.
+
+        Parameters:
+            ptr_origin: The origin of the pointer value.
 
         Args:
             ctx: SQL function context.
@@ -1904,6 +2030,12 @@ struct sqlite3:
 
         This routine creates a new collating sequence for the database connection.
 
+        Parameters:
+            arg_origin: The origin of the pArg pointer.
+            compare_origin: The origin of the xCompare callback pointer.
+            compare_origin2: The origin of the first string pointer in the xCompare callback.
+            compare_origin3: The origin of the second string pointer in the xCompare callback.
+
         Args:
             db: Database connection.
             zName: Name of the collating sequence.
@@ -1939,6 +2071,11 @@ struct sqlite3:
 
         This routine registers a callback that is invoked when SQLite needs a collating
         sequence that has not been defined.
+
+        Parameters:
+            arg_origin: The origin of the pArg pointer.
+            cb_origin: The origin of the callback pointer.
+            cb_origin2: The origin of the string pointer in the callback.
 
         Args:
             db: Database connection.
@@ -2223,6 +2360,13 @@ struct sqlite3:
         This routine registers a callback function with the database connection that
         is invoked whenever a row is updated, inserted or deleted in a rowid table.
 
+        Parameters:
+            cb_origin: The origin of the xCallback pointer.
+            cb_fn_origin: The origin of the function pointer in the xCallback.
+            cb_fn_origin2: The origin of the first string pointer in the xCallback.
+            cb_fn_origin3: The origin of the second string pointer in the xCallback.
+            arg_origin: The origin of the pArg pointer.
+
         Args:
             db: Database connection.
             xCallback: Callback function invoked on updates.
@@ -2244,6 +2388,11 @@ struct sqlite3:
 
         This routine registers a callback function to be invoked whenever a transaction
         is committed. If the callback returns non-zero, the commit is converted into a rollback.
+
+        Parameters:
+            cb_origin: The origin of the xCallback pointer.
+            cb_fn_origin: The origin of the function pointer in the xCallback.
+            arg_origin: The origin of the pArg pointer.
 
         Args:
             db: Database connection.
@@ -2269,6 +2418,11 @@ struct sqlite3:
 
         This routine registers a callback function to be invoked whenever a transaction
         is rolled back.
+
+        Parameters:
+            cb_origin: The origin of the xCallback pointer.
+            cb_fn_origin: The origin of the function pointer in the xCallback.
+            arg_origin: The origin of the pArg pointer.
 
         Args:
             db: Database connection.
@@ -2348,6 +2502,12 @@ struct sqlite3:
         This routine opens a handle to the BLOB located in row iRow, column zColumn,
         table zTable in database zDb.
 
+        Parameters:
+            db_origin: The origin of the db pointer.
+            table_origin: The origin of the zTable string.
+            column_origin: The origin of the zColumn string.
+            blob_origin: The origin of the ppBlob pointer.
+
         Args:
             db: Database connection.
             zDb: Database name (e.g., "main", "temp").
@@ -2416,6 +2576,9 @@ struct sqlite3:
         This routine reads N bytes of data from the BLOB into buffer Z, starting
         at offset iOffset.
 
+        Parameters:
+            origin: The origin of the Z pointer.
+
         Args:
             pBlob: BLOB handle.
             Z: Buffer to read data into.
@@ -2436,6 +2599,9 @@ struct sqlite3:
 
         This routine writes N bytes of data from buffer z into the BLOB, starting
         at offset iOffset.
+
+        Parameters:
+            origin: The origin of the z pointer.
 
         Args:
             pBlob: BLOB handle.
@@ -2462,6 +2628,10 @@ struct sqlite3:
 
         This routine provides a direct interface to the VFS layer for low-level
         control of database files.
+
+        Parameters:
+            db_name_origin: The origin of the zDbName string.
+            arg_origin: The origin of the pArg pointer.
 
         Args:
             db: Database connection.
@@ -2566,6 +2736,11 @@ struct sqlite3:
         This routine registers a callback that is invoked when a database connection
         that was previously blocked is able to proceed.
 
+        Parameters:
+            notify_origin: The origin of the xNotify callback pointer.
+            notify_origin2: The origin of the function pointer in the xNotify callback.
+            arg_origin: The origin of the pNotifyArg pointer.
+
         Args:
             pBlocked: Database connection that is blocked.
             xNotify: Callback function to invoke when unblocked.
@@ -2604,6 +2779,11 @@ struct sqlite3:
 
         This routine registers a callback function to be invoked whenever data is
         committed to a database in WAL mode.
+
+        Parameters:
+            cb_origin: The origin of the xCallback pointer.
+            cb_origin2: The origin of the string pointer in the xCallback.
+            arg_origin: The origin of the pArg pointer.
 
         Args:
             db: Database connection.

@@ -1,4 +1,4 @@
-from sys.ffi import c_char
+from std.ffi import c_char
 from slight.c.api import sqlite_ffi
 from slight.c.types import MutExternalPointer
 
@@ -13,6 +13,7 @@ struct SQLiteMallocString(Movable):
     """A pointer to the C string allocated by SQLite."""
 
     fn __del__(deinit self):
+        """Frees the C string using `sqlite3_free` when the `SQLiteMallocString` is deleted."""
         if self.ptr:
             sqlite_ffi()[].free(self.ptr.bitcast[NoneType]())
     

@@ -1,7 +1,7 @@
-import os
-import pathlib
-from sys import ffi, env_get_string
-from sys.ffi import OwnedDLHandle, c_char, c_uchar, c_int, c_uint, CompilationTarget
+import std.os
+import std.pathlib
+from std.sys import env_get_string
+from std.ffi import OwnedDLHandle, c_char, c_uchar, c_int, c_uint, CompilationTarget, RTLD
 
 from slight.c.types import (
     sqlite3_backup,
@@ -23,59 +23,112 @@ from slight.c.types import (
 
 
 comptime SQLITE_OPEN_READONLY: Int32 = 0x00000001  # Ok for sqlite3_open_v2()
+"""SQLITE Open Flag: Read Only."""
 comptime SQLITE_OPEN_READWRITE: Int32 = 0x00000002  # Ok for sqlite3_open_v2()
+"""SQLITE Open Flag: Read Write."""
 comptime SQLITE_OPEN_CREATE: Int32 = 0x00000004  # Ok for sqlite3_open_v2()
+"""SQLITE Open Flag: Create (if the database file does not exist)."""
 comptime SQLITE_OPEN_DELETEONCLOSE: Int32 = 0x00000008  # VFS only
+"""SQLITE Open Flag: Delete the database file when the connection is closed."""
 comptime SQLITE_OPEN_EXCLUSIVE: Int32 = 0x00000010  # VFS only
+"""SQLITE Open Flag: Fail if the database file already exists."""
 comptime SQLITE_OPEN_AUTOPROXY: Int32 = 0x00000020  # VFS only
+"""SQLITE Open Flag: Automatically use a proxy if the file is not accessible."""
 comptime SQLITE_OPEN_URI: Int32 = 0x00000040  # Ok for sqlite3_open_v2()
+"""SQLITE Open Flag: Interpret the filename as a URI with query parameters."""
 comptime SQLITE_OPEN_MEMORY: Int32 = 0x00000080  # Ok for sqlite3_open_v2()
+"""SQLITE Open Flag: Open an in-memory database."""
 comptime SQLITE_OPEN_MAIN_DB: Int32 = 0x00000100  # VFS only
+"""SQLITE Open Flag: Open the main database file."""
 comptime SQLITE_OPEN_TEMP_DB: Int32 = 0x00000200  # VFS only
+"""SQLITE Open Flag: Open the temporary database file."""
 comptime SQLITE_OPEN_TRANSIENT_DB: Int32 = 0x00000400  # VFS only
+"""SQLITE Open Flag: Open a transient database that is automatically deleted when the connection is closed."""
 comptime SQLITE_OPEN_MAIN_JOURNAL: Int32 = 0x00000800  # VFS only
+"""SQLITE Open Flag: Open the main journal file."""
 comptime SQLITE_OPEN_TEMP_JOURNAL: Int32 = 0x00001000  # VFS only
+"""SQLITE Open Flag: Open the temporary journal file."""
 comptime SQLITE_OPEN_SUBJOURNAL: Int32 = 0x00002000  # VFS only
+"""SQLITE Open Flag: Open the sub-journal file."""
 comptime SQLITE_OPEN_SUPER_JOURNAL: Int32 = 0x00004000  # VFS only
+"""SQLITE Open Flag: Open the super-journal file."""
 comptime SQLITE_OPEN_NOMUTEX: Int32 = 0x00008000  # Ok for sqlite3_open_v2()
+"""SQLITE Open Flag: Do not use mutexes. The connection will be single-threaded."""
 comptime SQLITE_OPEN_FULLMUTEX: Int32 = 0x00010000  # Ok for sqlite3_open_v2()
+"""SQLITE Open Flag: Use mutexes for serialized threading mode."""
 comptime SQLITE_OPEN_SHAREDCACHE: Int32 = 0x00020000  # Ok for sqlite3_open_v2()
+"""SQLITE Open Flag: Enable shared cache mode for the connection."""
 comptime SQLITE_OPEN_PRIVATECACHE: Int32 = 0x00040000  # Ok for sqlite3_open_v2()
+"""SQLITE Open Flag: Disable shared cache mode for the connection."""
 comptime SQLITE_OPEN_WAL: Int32 = 0x00080000  # VFS only
+"""SQLITE Open Flag: Open the database in WAL mode."""
 comptime SQLITE_OPEN_NOFOLLOW: Int32 = 0x01000000  # Ok for sqlite3_open_v2()
+"""SQLITE Open Flag: Do not follow symbolic links when opening the database file."""
 comptime SQLITE_OPEN_EXRESCODE: Int32 = 0x02000000  # Extended result codes
+"""SQLITE Open Flag: Return extended error codes from sqlite3_open_v2()."""
 
 comptime SQLITE_OK: Int32 = 0
+"""SQLITE Result Code: Successful result."""
 comptime SQLITE_ERROR: Int32 = 1
+"""SQLITE Result Code: SQL error or missing database."""
 comptime SQLITE_INTERNAL: Int32 = 2
+"""SQLITE Result Code: Internal logic error in SQLite."""
 comptime SQLITE_PERM: Int32 = 3
+"""SQLITE Result Code: Access permission denied."""
 comptime SQLITE_ABORT: Int32 = 4
+"""SQLITE Result Code: Callback routine requested an abort."""
 comptime SQLITE_BUSY: Int32 = 5
+"""SQLITE Result Code: The database file is locked."""
 comptime SQLITE_LOCKED: Int32 = 6
+"""SQLITE Result Code: A table in the database is locked."""
 comptime SQLITE_NOMEM: Int32 = 7
+"""SQLITE Result Code: A malloc() failed."""
 comptime SQLITE_READONLY: Int32 = 8
+"""SQLITE Result Code: Attempt to write a readonly database."""
 comptime SQLITE_INTERRUPT: Int32 = 9
+"""SQLITE Result Code: Operation terminated by sqlite3_interrupt()."""
 comptime SQLITE_IOERR: Int32 = 10
+"""SQLITE Result Code: Some kind of disk I/O error occurred."""
 comptime SQLITE_CORRUPT: Int32 = 11
+"""SQLITE Result Code: The database disk image is malformed."""
 comptime SQLITE_NOTFOUND: Int32 = 12
+"""SQLITE Result Code: The requested item could not be found."""
 comptime SQLITE_FULL: Int32 = 13
+"""SQLITE Result Code: The database is full."""
 comptime SQLITE_CANTOPEN: Int32 = 14
+"""SQLITE Result Code: The database file could not be opened."""
 comptime SQLITE_PROTOCOL: Int32 = 15
+"""SQLITE Result Code: A protocol error occurred."""
 comptime SQLITE_EMPTY: Int32 = 16
+"""SQLITE Result Code: The database is empty."""
 comptime SQLITE_SCHEMA: Int32 = 17
+"""SQLITE Result Code: The database schema has changed."""
 comptime SQLITE_TOOBIG: Int32 = 18
+"""SQLITE Result Code: The data is too large."""
 comptime SQLITE_CONSTRAINT: Int32 = 19
+"""SQLITE Result Code: A constraint violation occurred."""
 comptime SQLITE_MISMATCH: Int32 = 20
+"""SQLITE Result Code: Data type mismatch."""
 comptime SQLITE_MISUSE: Int32 = 21
+"""SQLITE Result Code: The library was used incorrectly."""
 comptime SQLITE_NOLFS: Int32 = 22
+"""SQLITE Result Code: The database is too large for the file system."""
 comptime SQLITE_AUTH: Int32 = 23
+"""SQLITE Result Code: Authorization denied."""
 comptime SQLITE_FORMAT: Int32 = 24
+"""SQLITE Result Code: Auxiliary database format error."""
 comptime SQLITE_RANGE: Int32 = 25
+"""SQLITE Result Code: 2nd parameter to sqlite3_bind out of range."""
 comptime SQLITE_NOTADB: Int32 = 26
+"""SQLITE Result Code: File opened that is not a database file."""
 comptime SQLITE_NOTICE: Int32 = 27
+"""SQLITE Result Code: Notifications from sqlite3_log()."""
 comptime SQLITE_WARNING: Int32 = 28
+"""SQLITE Result Code: Warnings from sqlite3_log()."""
 comptime SQLITE_ROW: Int32 = 100
+"""SQLITE Result Code: sqlite3_step() has another row ready."""
 comptime SQLITE_DONE: Int32 = 101
+"""SQLITE Result Code: sqlite3_step() has finished executing."""
 
 
 @fieldwise_init
@@ -108,8 +161,7 @@ struct _sqlite3(Movable):
             # If its not explicitly set, then assume the program is running from the root of the project.
             if path == "":
 
-                @parameter
-                if CompilationTarget.is_macos():
+                comptime if CompilationTarget.is_macos():
                     path = String(pathlib.cwd() / ".pixi/envs/default/lib/libsqlite3.dylib")
                 else:
                     path = String(pathlib.cwd() / ".pixi/envs/default/lib/libsqlite3.so")
@@ -123,7 +175,7 @@ struct _sqlite3(Movable):
                     " The default path is `.pixi/envs/default/lib/libsqlite3.dylib (or .so)`, but this"
                     " error indicates that the library did not exist at that location."
                 )
-            self.lib = ffi.OwnedDLHandle(path, ffi.RTLD.LAZY)
+            self.lib = OwnedDLHandle(path, RTLD.LAZY)
         except e:
             os.abort(String("Failed to load the SQLite library: ", e))
 

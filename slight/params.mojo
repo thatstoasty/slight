@@ -5,13 +5,31 @@ from slight.bind import BindIndex
 
 
 trait Params:
+    """A trait for types that can be used as parameters in SQL queries."""
     fn bind(self, stmt: Statement) raises:
+        """Binds the parameters to the given statement.
+
+        Args:
+            stmt: The statement to bind the parameters to.
+        
+        Raises:
+            Error: If the parameters cannot be bound to the statement.
+        """
         ...
 
 
 __extension List(Params):
 
     fn bind(self, stmt: Statement) raises where conforms_to(Self.T, ToSQL):
+        """Binds the parameters to the given statement.
+
+        Args:
+            self: Temporary docstring due to extension bug.
+            stmt: The statement to bind the parameters to.
+        
+        Raises:
+            Error: If the parameters cannot be bound to the statement.
+        """
         _constrained_conforms_to[
             conforms_to(T, ToSQL),
             Parent=Self,
@@ -36,6 +54,15 @@ __extension List(Params):
 __extension Dict(Params):
 
     fn bind(self, stmt: Statement) raises:
+        """Binds the parameters to the given statement.
+
+        Args:
+            self: Temporary docstring due to extension bug.
+            stmt: The statement to bind the parameters to.
+        
+        Raises:
+            Error: If the parameters cannot be bound to the statement.
+        """
         _constrained_conforms_to[
             conforms_to(Self.K, BindIndex),
             Parent=Self,

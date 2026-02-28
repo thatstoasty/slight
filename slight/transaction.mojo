@@ -4,14 +4,14 @@ from slight.connection import Connection
 
 
 @fieldwise_init
-@register_passable("trivial")
-struct TransactionBehavior(ImplicitlyCopyable, Equatable):
+struct TransactionBehavior(ImplicitlyCopyable, Equatable, TrivialRegisterPassable):
     """Options for transaction behavior.
     
     See [BEGIN TRANSACTION](http://www.sqlite.org/lang_transaction.html) for details.
     """
     
     var value: Int
+    """Internal enum value."""
     comptime DEFERRED = Self(0)
     """DEFERRED means that the transaction does not actually start until the
     database is first accessed."""
@@ -23,11 +23,22 @@ struct TransactionBehavior(ImplicitlyCopyable, Equatable):
     while the transaction is underway."""
     
     fn __eq__(self, other: Self) -> Bool:
-        """Check if two TransactionBehavior values are equal."""
+        """Check if two values are equal.
+        
+        Args:
+            other: The other value to compare against.
+        
+        Returns:
+            True if the values are equal, False otherwise.
+        """
         return self.value == other.value
     
     fn to_sql(self) -> String:
-        """Convert the transaction behavior to its SQL representation."""
+        """Convert the transaction behavior to its SQL representation.
+        
+        Returns:
+            The SQL string corresponding to the transaction behavior.
+        """
         if self == Self.DEFERRED:
             return "BEGIN DEFERRED"
         elif self == Self.IMMEDIATE:
@@ -37,11 +48,11 @@ struct TransactionBehavior(ImplicitlyCopyable, Equatable):
 
 
 @fieldwise_init
-@register_passable("trivial")
-struct DropBehavior(ImplicitlyCopyable, Equatable):
+struct DropBehavior(ImplicitlyCopyable, Equatable, TrivialRegisterPassable):
     """Options for how a Transaction or Savepoint should behave when it is dropped."""
     
     var value: Int
+    """Internal enum value."""
     comptime ROLLBACK = Self(0)
     """Roll back the changes. This is the default."""
     comptime COMMIT = Self(1)
@@ -53,16 +64,23 @@ struct DropBehavior(ImplicitlyCopyable, Equatable):
     """Panic. Used to enforce intentional behavior during development."""
 
     fn __eq__(self, other: Self) -> Bool:
-        """Check if two DropBehavior values are equal."""
+        """Check if two DropBehavior values are equal.
+
+        Args:
+            other: The other value to compare against.
+        
+        Returns:
+            True if the values are equal, False otherwise.
+        """
         return self.value == other.value
 
 
 @fieldwise_init
-@register_passable("trivial")
-struct TransactionState(ImplicitlyCopyable, Equatable):
+struct TransactionState(ImplicitlyCopyable, Equatable, TrivialRegisterPassable):
     """Transaction state of a database."""
     
     var value: Int
+    """Internal enum value."""
     comptime NONE = Self(0)
     """No transaction is active. Equivalent to `SQLITE_TXN_NONE`."""
     comptime READ = Self(1)
@@ -71,20 +89,30 @@ struct TransactionState(ImplicitlyCopyable, Equatable):
     """A write transaction is active. Equivalent to `SQLITE_TXN_WRITE`."""
 
     fn __eq__(self, other: Self) -> Bool:
-        """Check if two TransactionState values are equal."""
+        """Check if two values are equal.
+        
+        Args:
+            other: The other value to compare against.
+        
+        Returns:
+            True if the values are equal, False otherwise.
+        """
         return self.value == other.value
 
 
 struct Transaction[conn_origin: ImmutOrigin](Movable):
     """Represents a transaction on a database connection.
 
-    ## Note
+    Parameters:
+        conn_origin: The immutable origin of the database connection pointer.
+
+    #### Note:
 
     Transactions will roll back by default. Use `commit` method to explicitly
     commit the transaction, or use `set_drop_behavior` to change what happens
     when the transaction is dropped.
 
-    ## Example
+    #### Example:
 
     ```mojo
     from slight import Connection
@@ -129,6 +157,11 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
             raise e^
     
     fn __del__(deinit self):
+        """Destructor for the Transaction.
+        
+        If the transaction has not been finished (committed or rolled back),
+        it will be finished according to the current `drop_behavior`.
+        """
         try:
             self^.finish()
         except:
@@ -137,6 +170,11 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
             pass
     
     fn __enter__(var self) -> Self:
+        """Enter the transaction context manager.
+
+        Returns:
+            The transaction.
+        """
         return self^
     
     fn savepoint(self, name: Optional[String] = None) raises -> Savepoint[Self.conn_origin]:
@@ -207,13 +245,16 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
 struct Savepoint[conn_origin: ImmutOrigin](Movable):
     """Represents a savepoint on a database connection.
 
-    ## Note
+    Parameters:
+        conn_origin: The immutable origin of the database connection pointer.
+
+    #### Note:
 
     Savepoints will roll back by default. Use `commit` method to explicitly
     commit the savepoint, or use `set_drop_behavior` to change what happens
     when the savepoint is dropped.
 
-    ## Example
+    #### Example:
 
     ```mojo
     from slight import Connection
@@ -262,6 +303,10 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
             raise e^
     
     fn __del__(deinit self):
+        """Destructor for the Savepoint.
+
+        If the savepoint has not been committed, it will be rolled back.
+        """
         try:
             self^.finish()
         except:
@@ -270,6 +315,11 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
             pass
     
     fn __enter__(var self) -> Self:
+        """Enter the savepoint context manager.
+
+        Returns:
+            The savepoint.
+        """
         return self^
     
     fn savepoint(self, name: Optional[String] = None) raises -> Self:

@@ -38,6 +38,16 @@ struct PrepFlag(Copyable, Movable, ImplicitlyCopyable):
     """Prevents SQL compiler errors from being sent to the error log."""
 
     fn __or__(self, other: Self) -> Self:
+        """Combines two PrepFlags using a bitwise OR operation.
+        
+        This allows multiple flags to be set at once when preparing a SQLite statement.
+
+        Args:
+            other: The second PrepFlag to combine with the first.
+        
+        Returns:
+            A new PrepFlag that is the result of combining the two flags with a bitwise OR operation.
+        """
         return Self(self.value | other.value)
 
 
@@ -102,9 +112,24 @@ struct OpenFlag(Copyable, Movable, ImplicitlyCopyable):
 
     # Default flags
     fn __init__(out self):
+        """Initializes the OpenFlag with the default flags for opening a SQLite database connection.
+        
+        Returns:
+            An OpenFlag instance with the default flags set (`READ_WRITE` | `CREATE` | `URI`).
+        """
         self.value = Self.READ_WRITE.value |
             Self.CREATE.value |
             Self.URI.value
 
     fn __or__(self, other: Self) -> Self:
+        """Combines two OpenFlags using a bitwise OR operation.
+
+        This allows multiple flags to be set at once when opening a SQLite database connection.
+
+        Args:
+            other: The second OpenFlag to combine with the first.
+
+        Returns:
+            A new OpenFlag that is the result of combining the two flags with a bitwise OR operation.
+        """
         return Self(self.value | other.value)

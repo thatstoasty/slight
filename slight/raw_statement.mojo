@@ -22,7 +22,11 @@ struct RawStatement(Movable):
         self.stmt = MutExternalPointer[sqlite3_stmt]()
 
     fn __bool__(self) -> Bool:
-        """Returns True if the statement is valid (i.e., the stmt pointer is not null)."""
+        """Returns True if the statement is valid (i.e., the stmt pointer is not null).
+        
+        Returns:
+            True if the statement is valid, False otherwise.
+        """
         return Bool(self.stmt)
 
     fn column_int64(self, idx: UInt) -> Int64:
@@ -58,6 +62,9 @@ struct RawStatement(Movable):
 
         Returns:
             The value of the specified column as a StringSlice.
+        
+        Raises:
+            Error: If the column contains NULL data.
         """
         var ptr = sqlite_ffi()[].column_text(self.stmt, Int32(idx))
         if ptr:
@@ -136,6 +143,9 @@ struct RawStatement(Movable):
 
         Args:
             index: The 1-based index of the parameter to bind.
+        
+        Returns:
+            The SQLite result code from binding the NULL value.
         """
         return sqlite_ffi()[].bind_null(self.stmt, Int32(index))
 
@@ -145,6 +155,9 @@ struct RawStatement(Movable):
         Args:
             index: The 1-based index of the parameter to bind.
             value: The integer value to bind.
+        
+        Returns:
+            The SQLite result code from binding the integer value.
         """
         return sqlite_ffi()[].bind_int64(self.stmt, Int32(index), value)
 
@@ -154,6 +167,9 @@ struct RawStatement(Movable):
         Args:
             index: The 1-based index of the parameter to bind.
             value: The float value to bind.
+        
+        Returns:
+            The SQLite result code from binding the float value.
         """
         return sqlite_ffi()[].bind_double(self.stmt, Int32(index), value)
 
@@ -164,9 +180,12 @@ struct RawStatement(Movable):
             index: The 1-based index of the parameter to bind.
             value: The string value to bind.
             destructor_callback: The destructor function to call when SQLite is done with the text.
+        
+        Returns:
+            The SQLite result code from binding the text value.
         """
         return sqlite_ffi()[].bind_text64(
-            self.stmt, Int32(index), value, len(value), TextEncoding.UTF8, destructor_callback
+            self.stmt, Int32(index), value, UInt64(len(value)), TextEncoding.UTF8, destructor_callback
         )
     
     fn bind_blob(self, index: UInt, value: Span[Byte], destructor_callback: ResultDestructorFn) -> SQLite3Result:
@@ -176,9 +195,12 @@ struct RawStatement(Movable):
             index: The 1-based index of the parameter to bind.
             value: The blob value to bind.
             destructor_callback: The destructor function to call when SQLite is done with the blob.
+        
+        Returns:
+            The SQLite result code from binding the blob value.
         """
         return sqlite_ffi()[].bind_blob64(
-            self.stmt, Int32(index), value.unsafe_ptr().bitcast[NoneType](), len(value), destructor_callback
+            self.stmt, Int32(index), value.unsafe_ptr().bitcast[NoneType](), UInt64(len(value)), destructor_callback
         )
 
     fn sql(self) -> Optional[StringSlice[origin_of(self)]]:
@@ -272,12 +294,19 @@ struct RawStatement(Movable):
     fn is_explain(self) -> Int32:
         """Returns whether the prepared statement is an EXPLAIN statement.
 
-        * 1 if the prepared statement is an EXPLAIN statement,
-        * 2 if the statement is an EXPLAIN QUERY PLAN,
-        * 0 if it is an ordinary statement or a NULL pointer.
+        Returns:
+            * 0 if it is an ordinary statement or a NULL pointer.
+            * 1 if the prepared statement is an EXPLAIN statement.
+            * 2 if the statement is an EXPLAIN QUERY PLAN.
         """
         return sqlite_ffi()[].stmt_isexplain(self.stmt)
 
     fn is_read_only(self) -> Bool:
-        """Returns whether the prepared statement is read-only."""
+        """Returns whether the prepared statement is read-only.
+        
+        A read-only statement is one that does not modify the database (e.g., a SELECT statement).
+
+        Returns:
+            True if the statement is read-only, False otherwise.
+        """
         return sqlite_ffi()[].stmt_readonly(self.stmt) != 0

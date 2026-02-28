@@ -24,7 +24,11 @@ struct Sql(Movable, Stringable):
         self.buf = String()
     
     fn __str__(self) -> String:
-        """Get the current SQL statement."""
+        """Get the current SQL statement.
+        
+        Returns:
+            The current SQL statement as a string.
+        """
         return self.buf.copy()
     
     fn as_string_slice(self) -> StringSlice[origin_of(self.buf)]:
@@ -33,7 +37,7 @@ struct Sql(Movable, Stringable):
         Returns:
             A string slice containing the SQL statement.
         """
-        return self.buf.as_string_slice()
+        return StringSlice(self.buf)
     
     fn push_pragma(mut self, pragma: StringSlice, schema: Optional[String] = None) raises:
         """Push a PRAGMA statement prefix to the buffer.

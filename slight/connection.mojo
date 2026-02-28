@@ -57,7 +57,7 @@ struct Connection(Movable):
             flags: The flags to use when opening the database.
 
         Returns:
-            Self: The newly created connection.
+            The newly created connection.
 
         Raises:
             Will return an `Error` if the underlying SQLite open call fails.
@@ -78,6 +78,9 @@ struct Connection(Movable):
         Args:
             flags: The flags to use when opening the database. Defaults to
                    `SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_URI`.
+        
+        Returns:
+            The newly created in-memory connection.
 
         Raises:
             Error: If the underlying SQLite open call fails.
@@ -198,6 +201,9 @@ struct Connection(Movable):
 
         Returns:
             The prepared statement.
+        
+        Raises:
+            Error: If the underlying SQLite prepare call fails or if multiple statements are found in the SQL string.
         """
         var stmt, tail = self.db.prepare(sql.copy(), flags)
 
@@ -211,7 +217,7 @@ struct Connection(Movable):
 
         return Statement(Pointer(to=self), RawStatement(stmt))
     
-    fn execute[T: Params](self, var sql: String, params: T) raises -> Int64:
+    fn execute(self, var sql: String, params: Some[Params]) raises -> Int64:
         """Executes a SQL statement with the given parameters.
 
         Args:
@@ -220,6 +226,9 @@ struct Connection(Movable):
 
         Returns:
             The number of rows affected by the statement.
+        
+        Raises:
+            Error: If parameter binding fails or the underlying SQLite call fails.
         """
         var stmt = self.prepare(sql^)
         try:
@@ -227,8 +236,11 @@ struct Connection(Movable):
         finally:
             _ = stmt^.finalize()
 
-    fn execute[*Ts: ToSQL](self, var sql: String, *params: *Ts) raises -> Int64:
+    fn execute[*Ts: ToSQL](self, var sql: String, params: Tuple[*Ts] = ()) raises -> Int64:
         """Executes a SQL statement with the given parameters.
+
+        Parameters:
+            Ts: The types of the parameters to bind.
 
         Args:
             sql: The SQL statement to execute.
@@ -236,6 +248,9 @@ struct Connection(Movable):
 
         Returns:
             The number of rows affected by the statement.
+        
+        Raises:
+            Error: If parameter binding fails or the underlying SQLite call fails.
         """
         return self.prepare(sql^).execute(params)
 
@@ -266,7 +281,7 @@ struct Connection(Movable):
 
     fn query_row[
         T: Movable, //, transform: fn (Row) raises -> T, *Ts: ToSQL
-    ](self, var sql: String, *params: *Ts) raises -> T:
+    ](self, var sql: String, params: Tuple[*Ts] = ()) raises -> T:
         """Executes the query and returns a single row.
 
         This is a convenience method for queries that are expected to return exactly one row.
@@ -279,32 +294,7 @@ struct Connection(Movable):
 
         Args:
             sql: The SQL query to execute.
-            params: A list of parameters to bind to the statement.
-
-        Returns:
-            The single Row returned by the query.
-
-        Raises:
-            Error: If parameter binding fails, no rows are returned, or more than one row is returned.
-        """
-        return self.prepare(sql^).query_row[transform=transform](params)
-    
-    fn query_row[
-        T: Movable, //, transform: fn (Row) raises -> T, *Ts: ToSQL
-    ](self, var sql: String, params: VariadicPack[_, ToSQL, *Ts]) raises -> T:
-        """Executes the query and returns a single row.
-
-        This is a convenience method for queries that are expected to return exactly one row.
-        If the query returns more than one row, the rest are ignored.
-
-        Parameters:
-            T: The type that the row will be transformed into.
-            transform: A function that takes a Row and returns a value of type T.
-            Ts: The types of the parameters to bind.
-
-        Args:
-            sql: The SQL query to execute.
-            params: A variadic pack of parameters to bind to the statement.
+            params: A tuple of parameters to bind to the statement.
 
         Returns:
             The single Row returned by the query.
@@ -319,6 +309,9 @@ struct Connection(Movable):
 
         Args:
             sql: The batch of SQL statements to execute.
+        
+        Raises:
+            Error: If the underlying SQLite call fails or if any of the statements in the batch return results, which is not supported.
         """
         var current_sql = sql.copy()
         while len(current_sql) > 0:
@@ -342,11 +335,19 @@ struct Connection(Movable):
         return self.db.path()
 
     fn last_insert_row_id(self) -> Int64:
-        """Returns the row ID of the last inserted row."""
+        """Returns the row ID of the last inserted row.
+        
+        Returns:
+            The row ID of the last inserted row.
+        """
         return self.db.last_insert_row_id()
     
     fn one_column[P: Params, //, T: FromSQL](self, var sql: String, params: P) raises -> T:
         """Fetches a single column from the first row of the result set.
+
+        Parameters:
+            P: The type of the parameters to bind.
+            T: The type to retrieve the value as. Must be Copyable, Movable, and FromSQL.
 
         Args:
             sql: The SQL query to execute.
@@ -363,8 +364,12 @@ struct Connection(Movable):
 
         return self.query_row[get_item](sql, params)
 
-    fn one_column[T: FromSQL, *Ts: ToSQL](self, var sql: String, *params: *Ts) raises -> T:
+    fn one_column[T: FromSQL, *Ts: ToSQL](self, var sql: String, params: Tuple[*Ts] = ()) raises -> T:
         """Fetches a single column from the first row of the result set.
+
+        Parameters:
+            T: The type to retrieve the value as. Must be Copyable, Movable, and FromSQL.
+            Ts: The types of the parameters to bind.
 
         Args:
             sql: The SQL query to execute.
@@ -518,7 +523,16 @@ struct Connection(Movable):
         want the transaction to commit, you must call `commit()` or
         `set_drop_behavior(DropBehavior.COMMIT())`.
 
-        ## Example
+        Args:
+            behavior: The transaction behavior (DEFERRED, IMMEDIATE, or EXCLUSIVE).
+
+        Returns:
+            A new Transaction object.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        
+                #### Example:
 
         ```mojo
         from slight import Connection
@@ -531,12 +545,6 @@ struct Connection(Movable):
 
             tx.commit()
         ```
-
-        Returns:
-            A new Transaction object.
-
-        Raises:
-            Error: If the underlying SQLite call fails.
         """
         if behavior:
             return Transaction(Pointer(to=self), behavior.value())
@@ -550,7 +558,16 @@ struct Connection(Movable):
         the savepoint to commit, you must call `commit()` or
         `set_drop_behavior(DropBehavior.COMMIT())`.
 
-        ## Example
+        Args:
+            name: The name of the savepoint. If None, an unnamed savepoint is created.
+
+        Returns:
+            A new Savepoint object.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        
+        #### Example:
 
         ```mojo
         from slight import Connection
@@ -562,12 +579,6 @@ struct Connection(Movable):
 
             sp.commit()
         ```
-
-        Returns:
-            A new Savepoint object.
-
-        Raises:
-            Error: If the underlying SQLite call fails.
         """
         if name:
             return Savepoint(Pointer(to=self), name.value())
@@ -589,7 +600,21 @@ struct Connection(Movable):
         Prefer [PRAGMA function](https://sqlite.org/pragma.html#pragfunc) introduced in SQLite 3.20:
         `SELECT user_version FROM pragma_user_version;`
 
-        ## Example
+        Parameters:
+            T: The return type.
+            transform: A function to transform the row into the desired type.
+
+        Args:
+            pragma: The name of the pragma.
+            schema: Optional schema name (e.g., "main", "temp").
+
+        Returns:
+            The value returned by the pragma.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        
+        #### Example:
 
         ```mojo
         from slight import Connection
@@ -605,20 +630,6 @@ struct Connection(Movable):
             var user_version = db.pragma_query_value[transform=get_int]("user_version")
             print(user_version)
         ```
-
-        Parameters:
-            T: The return type.
-            transform: A function to transform the row into the desired type.
-
-        Args:
-            pragma: The name of the pragma.
-            schema: Optional schema name (e.g., "main", "temp").
-
-        Returns:
-            The value returned by the pragma.
-
-        Raises:
-            Error: If the underlying SQLite call fails.
         """
         var query = Sql()
         query.push_pragma(pragma, schema)
@@ -636,7 +647,17 @@ struct Connection(Movable):
         Prefer [PRAGMA function](https://sqlite.org/pragma.html#pragfunc) introduced in SQLite 3.20:
         `SELECT * FROM pragma_collation_list;`
 
-        ## Example
+        Parameters:
+            callback: A function to process each row.
+
+        Args:
+            schema: Optional schema name (e.g., "main", "temp").
+            pragma: The name of the pragma.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        
+        #### Example:
 
         ```mojo
         from slight import Connection
@@ -650,16 +671,6 @@ struct Connection(Movable):
             var db = Connection.open_in_memory()
             db.pragma_query[print_collation](None, "collation_list")
         ```
-
-        Parameters:
-            callback: A function to process each row.
-
-        Args:
-            schema: Optional schema name (e.g., "main", "temp").
-            pragma: The name of the pragma.
-
-        Raises:
-            Error: If the underlying SQLite call fails.
         """
         var query = Sql()
         query.push_pragma(pragma, schema)
@@ -683,7 +694,19 @@ struct Connection(Movable):
         Prefer [PRAGMA function](https://sqlite.org/pragma.html#pragfunc) introduced in SQLite 3.20:
         `SELECT * FROM pragma_table_info(?1);`
 
-        ## Example
+        Parameters:
+            T: The type of the value argument.
+            callback: A function to process each row.
+
+        Args:
+            pragma: The name of the pragma.
+            value: The value argument for the pragma.
+            schema: Optional schema name (e.g., "main", "temp").
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        
+        #### Example:
 
         ```mojo
         from slight import Connection
@@ -697,18 +720,6 @@ struct Connection(Movable):
             var db = Connection.open_in_memory()
             db.pragma[print_column]("table_info", "sqlite_master")
         ```
-
-        Parameters:
-            T: The type of the value argument.
-            callback: A function to process each row.
-
-        Args:
-            pragma: The name of the pragma.
-            value: The value argument for the pragma.
-            schema: Optional schema name (e.g., "main", "temp").
-
-        Raises:
-            Error: If the underlying SQLite call fails.
         """
         var sql = Sql()
         sql.push_pragma(pragma, schema)
@@ -719,10 +730,10 @@ struct Connection(Movable):
         for row in self.prepare(String(sql)).query():
             callback(row)
 
-    fn pragma_update[T: ToSQL, //](
+    fn pragma_update(
         self,
         pragma: StringSlice,
-        value: T,
+        value: Some[ToSQL],
         schema: Optional[String] = None,
     ) raises:
         """Set a new value to a pragma.
@@ -730,15 +741,8 @@ struct Connection(Movable):
         Some pragmas will return the updated value which cannot be retrieved
         with this method. Use `pragma_update_and_check()` for those cases.
 
-        ## Example
-
-        ```mojo
-        from slight import Connection
-
-        fn main() raises:
-            var db = Connection.open_in_memory()
-            db.pragma_update("user_version", 1)
-        ```
+        Parameters;
+            T: The type of the value argument.
 
         Args:
             pragma: The name of the pragma.
@@ -747,6 +751,16 @@ struct Connection(Movable):
 
         Raises:
             Error: If the underlying SQLite call fails.
+        
+        #### Example:
+
+        ```mojo
+        from slight import Connection
+
+        fn main() raises:
+            var db = Connection.open_in_memory()
+            db.pragma_update("user_version", 1)
+        ```
         """
         var sql = Sql()
         sql.push_pragma(pragma, schema)
@@ -767,23 +781,6 @@ struct Connection(Movable):
 
         Only a few pragmas automatically return the updated value.
 
-        ## Example
-
-        ```mojo
-        from slight import Connection
-        from slight.row import Row, String
-
-        fn get_string(r: Row) raises -> String:
-            return r.get[String](0)
-
-        fn main() raises:
-            var db = Connection.open_in_memory()
-            var mode = db.pragma_update_and_check[transform=get_string](
-                "journal_mode", "OFF"
-            )
-            print(mode)
-        ```
-
         Parameters:
             T: The return type.
             V: The type of the value argument.
@@ -799,6 +796,23 @@ struct Connection(Movable):
 
         Raises:
             Error: If the underlying SQLite call fails.
+        
+                #### Example:
+
+        ```mojo
+        from slight import Connection
+        from slight.row import Row, String
+
+        fn get_string(r: Row) raises -> String:
+            return r.get[String](0)
+
+        fn main() raises:
+            var db = Connection.open_in_memory()
+            var mode = db.pragma_update_and_check[transform=get_string](
+                "journal_mode", "OFF"
+            )
+            print(mode)
+        ```
         """
         var sql = Sql()
         sql.push_pragma(pragma, schema)

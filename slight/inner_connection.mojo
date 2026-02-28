@@ -16,6 +16,7 @@ struct InnerConnection(Movable):
     """A connection to a SQLite3 database."""
 
     var db: MutExternalPointer[sqlite3_connection]
+    """A pointer to the underlying sqlite3 connection. This is managed by the InnerConnection and should not be accessed directly."""
 
     # TODO: Enable zVfs support in the future.
     fn __init__(out self, var path: String, flags: OpenFlag) raises:
@@ -182,6 +183,9 @@ struct InnerConnection(Movable):
 
         Returns:
             True if the database is read-only, False otherwise.
+        
+        Raises:
+            Error: If the database name is invalid or if there is an error checking the database mode.
         """
         var result = sqlite_ffi()[].db_readonly(self.db, database)
         if result == SQLite3Result.OK:

@@ -16,7 +16,7 @@ struct Employee(Copyable, Movable, Writable):
     var salary: Float64
     var is_active: Bool
 
-    fn write_to[W: Writer, //](self, mut writer: W):
+    fn write_to(self, mut writer: Some[Writer]):
         writer.write("Employee(id=", self.id, ", name=", self.name, ", age=", self.age, ", address=", self.address, ", salary=", self.salary, ", is_active=", self.is_active, ")")
 
 

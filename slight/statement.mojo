@@ -1,6 +1,6 @@
-from sys import stderr
-from os import abort
-from utils.variant import Variant
+from std.sys import stderr
+from std.os import abort
+from std.utils.variant import Variant
 from slight.result import SQLite3Result
 from slight.c.raw_bindings import sqlite3_stmt
 from slight.c.sqlite_string import SQLiteMallocString
@@ -17,23 +17,38 @@ from slight.row import Row, Rows, TypedRows, MappedRows
 from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
 from slight.types.from_sql import FromSQL
 from slight.types.to_sql import ToSQL
+from slight.util import as_byte
 
 
 @fieldwise_init
-@register_passable("trivial")
-struct InvalidColumnIndexError(Movable, Writable):
+struct InvalidColumnIndexError(Movable, Writable, TrivialRegisterPassable):
+    """An error type for invalid column index indexing."""
     comptime msg = "InvalidColumnIndex: Index provided is greater than the number of columns."
+    """Error message."""
 
-    fn write_to[W: Writer, //](self, mut writer: W):
+    fn write_to(self, mut writer: Some[Writer]):
+        """Writes the error message to the provided writer.
+
+        Args:
+            writer: A mutable reference to a Writer where the error message will be written.
+        """
         writer.write_string(Self.msg)
 
 
 @fieldwise_init
 struct InvalidColumnNameError(Movable, Writable):
+    """An error type for invalid column name indexing."""
     comptime msg = "InvalidColumnNameError: Name provided does not match any column. Column name: "
+    """Error message."""
     var column: String
+    """The name of the column that was attempted to be accessed."""
 
-    fn write_to[W: Writer, //](self, mut writer: W):
+    fn write_to(self, mut writer: Some[Writer]):
+        """Writes the error message to the provided writer.
+
+        Args:
+            writer: A mutable reference to a Writer where the error message will be written.
+        """
         writer.write_string(Self.msg)
         writer.write_string(self.column)
 
@@ -41,22 +56,32 @@ struct InvalidColumnNameError(Movable, Writable):
 
 @fieldwise_init
 struct InvalidColumnError(Movable, Writable):
+    """An error type for invalid column indexing, encompassing both index and name errors."""
     comptime msg = "InvalidColumnNameError: Name provided does not match any column. Column name: "
+    """Error message."""
     var err: Variant[InvalidColumnNameError, InvalidColumnIndexError]
+    """The specific error that occurred."""
 
     @implicit
     fn __init__(out self, var e: InvalidColumnNameError):
+        """Initializes the InvalidColumnError.
+        
+        Args:
+            e: The original error.
+        """
         self.err = e^
     
     @implicit
     fn __init__(out self, e: InvalidColumnIndexError):
+        """Initializes the InvalidColumnError.
+        
+        Args:
+            e: The original error.
+        """
         self.err = e
-    # fn write_to[W: Writer, //](self, mut writer: W):
-    #     writer.write_string(self.err)
-    #     writer.write_string(self.column)
 
 
-fn eq_ignore_ascii_case(a: Span[Byte], b: Span[Byte]) -> Bool:
+fn eq_ignore_ascii_case(a: Span[mut=False, Byte], b: Span[mut=False, Byte]) -> Bool:
     """Compares two StringSlices for equality, ignoring ASCII case differences.
 
     Args:
@@ -73,10 +98,10 @@ fn eq_ignore_ascii_case(a: Span[Byte], b: Span[Byte]) -> Bool:
         var ac = a[i]
         var bc = b[i]
 
-        if ac >= ord("A") and ac <= ord("Z"):
+        if ac >= as_byte["A"]() and ac <= as_byte["Z"]():
             ac = ac + 32  # Convert to lowercase
 
-        if bc >= ord("A") and bc <= ord("Z"):
+        if bc >= as_byte["A"]() and bc <= as_byte["Z"]():
             bc = bc + 32  # Convert to lowercase
 
         if ac != bc:
@@ -91,6 +116,9 @@ struct Statement[conn: ImmutOrigin](Movable):
     This struct wraps a SQLite prepared statement and provides methods for binding parameters,
     executing queries, and retrieving results. It automatically manages the lifecycle of the
     underlying SQLite statement.
+
+    Parameters:
+        conn: The origin of the connection that created this statement, used for lifetime management.
     """
 
     var connection: Pointer[Connection, Self.conn]
@@ -120,7 +148,11 @@ struct Statement[conn: ImmutOrigin](Movable):
             print("Error finalizing statement:", e, file=stderr)
 
     fn __repr__(self) -> String:
-        """Returns a string representation of the statement for debugging purposes."""
+        """Returns a string representation of the statement for debugging purposes.
+        
+        Returns:
+            A string representation of the statement.
+        """
         var sql = String(self.sql().value()) if self.stmt else String("")
         return String("Statement(", sql, ")")
 
@@ -239,14 +271,14 @@ struct Statement[conn: ImmutOrigin](Movable):
             else:
                 raise Error("Unknown error occurred during step execution: ", r)
     
-    fn execute[T: Params, //](self, params: T) raises -> Int64:
+    fn execute(self, params: Some[Params]) raises -> Int64:
         """Executes the statement with the given parameters and returns the number of affected rows.
 
         This method is intended for statements that don't return rows (INSERT, UPDATE, DELETE).
         For SELECT statements, use query() instead.
 
         Args:
-            params: A list of parameters to bind to the statement.
+            params: Parameters to bind to the statement.
 
         Returns:
             The number of database rows that were changed, inserted, or deleted.
@@ -258,33 +290,17 @@ struct Statement[conn: ImmutOrigin](Movable):
         params.bind(self)
         return self._execute()
     
-    fn execute[*Ts: ToSQL](self, *params: *Ts) raises -> Int64:
+    fn execute[*Ts: ToSQL](self, params: Tuple[*Ts] = ()) raises -> Int64:
         """Executes the statement with the given parameters and returns the number of affected rows.
 
         This method is intended for statements that don't return rows (INSERT, UPDATE, DELETE).
         For SELECT statements, use query() instead.
 
-        Args:
-            params: A list of parameters to bind to the statement.
-
-        Returns:
-            The number of database rows that were changed, inserted, or deleted.
-
-        Raises:
-            Error: If the statement returns rows (use query() for SELECT statements),
-                   or if any other error occurs during execution.
-        """
-        self.bind_parameters(params)
-        return self._execute()
-    
-    fn execute[*Ts: ToSQL](self, params: VariadicPack[_, ToSQL, *Ts]) raises -> Int64:
-        """Executes the statement with the given parameters and returns the number of affected rows.
-
-        This method is intended for statements that don't return rows (INSERT, UPDATE, DELETE).
-        For SELECT statements, use query() instead.
+        Parameters:
+            Ts: The types of the parameters to bind. Each type must implement ToSQL.
 
         Args:
-            params: A list of parameters to bind to the statement.
+            params: A tuple of parameters to bind to the statement.
 
         Returns:
             The number of database rows that were changed, inserted, or deleted.
@@ -368,7 +384,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         """
         return self.stmt.bind_parameter_index(name^)
     
-    fn bind_parameter[T: ToSQL, //](self, parameter: T, index: UInt) raises:
+    fn bind_parameter(self, parameter: Some[ToSQL], index: UInt) raises:
         """Binds a parameter to a specific position in the statement.
 
         Args:
@@ -393,11 +409,14 @@ struct Statement[conn: ImmutOrigin](Movable):
         else:
             raise Error("Unsupported parameter type")
     
-    fn bind_parameters[*Ts: ToSQL](self, params: VariadicPack[_, ToSQL, *Ts]) raises -> None:
-        """Binds a list of parameters to the statement in order.
+    fn bind_parameters[*Ts: ToSQL](self, params: Tuple[*Ts]) raises -> None:
+        """Binds a tuple of parameters to the statement in order.
+
+        Parameters:
+            Ts: The types of the parameters to bind. Each type must implement ToSQL.
 
         Args:
-            params: List of parameter values to bind to the statement.
+            params: A tuple of parameter values to bind to the statement.
 
         Raises:
             Error: If the number of parameters doesn't match what the statement expects
@@ -406,9 +425,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         var expected = Int(self.stmt.bind_parameter_count())
         var index = 0
 
-        # for p in params:
-        @parameter
-        for i in range(params.__len__()):
+        comptime for i in range(Variadic.size(params.element_types)):
             index += 1  # The leftmost SQL parameter has an index of 1.
             if index > expected:
                 break
@@ -416,14 +433,14 @@ struct Statement[conn: ImmutOrigin](Movable):
         if index != expected:
             raise Error("Invalid parameter count: ", index, ", expected: ", expected)
     
-    fn query[T: Params, //](self, params: T) raises -> Rows[Self.conn, origin_of(self)]:
+    fn query(self, params: Some[Params]) raises -> Rows[Self.conn, origin_of(self)]:
         """Executes the statement as a query and returns an iterator over the result rows.
 
         This method is intended for SELECT statements that return data.
         For non-SELECT statements, use execute() instead.
 
         Args:
-            params: A list of parameters to bind to the statement.
+            params: Parameters to bind to the statement.
 
         Returns:
             A Rows iterator for iterating over the query results.
@@ -434,32 +451,17 @@ struct Statement[conn: ImmutOrigin](Movable):
         params.bind(self)
         return Rows(Pointer(to=self))
     
-    fn query[*Ts: ToSQL](self, *params: *Ts) raises -> Rows[Self.conn, origin_of(self)]:
+    fn query[*Ts: ToSQL](self, params: Tuple[*Ts] = ()) raises -> Rows[Self.conn, origin_of(self)]:
         """Executes the statement as a query and returns an iterator over the result rows.
 
         This method is intended for SELECT statements that return data.
         For non-SELECT statements, use execute() instead.
 
-        Args:
-            params: A list of parameters to bind to the statement.
-
-        Returns:
-            A Rows iterator for iterating over the query results.
-
-        Raises:
-            Error: If parameter binding fails or the query execution fails.
-        """
-        self.bind_parameters(params)
-        return Rows(Pointer(to=self))
-    
-    fn query[*Ts: ToSQL](self, params: VariadicPack[_, ToSQL, *Ts]) raises -> Rows[Self.conn, origin_of(self)]:
-        """Executes the statement as a query and returns an iterator over the result rows.
-
-        This method is intended for SELECT statements that return data.
-        For non-SELECT statements, use execute() instead.
+        Parameters:
+            Ts: The types of the parameters to bind. Each type must implement ToSQL.
 
         Args:
-            params: A list of parameters to bind to the statement.
+            params: A tuple of parameters to bind to the statement.
 
         Returns:
             A Rows iterator for iterating over the query results.
@@ -484,7 +486,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             transform: A function that takes a Row and returns a value of type T.
 
         Args:
-            params: A list of parameters to bind to the statement.
+            params: Parameters to bind to the statement.
 
         Returns:
             A MappedRows iterator that yields transformed values of type T.
@@ -496,7 +498,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
     fn query_map[
         T: Movable, //, transform: fn (Row) raises -> T, *Ts: ToSQL
-    ](self, *params: *Ts) raises -> MappedRows[Self.conn, origin_of(self), transform]:
+    ](self, params: Tuple[*Ts] = ()) raises -> MappedRows[Self.conn, origin_of(self), transform]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
         This method applies a transformation function to each row returned by the query,
@@ -508,7 +510,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Ts: The types of the parameters to bind.
 
         Args:
-            params: A list of parameters to bind to the statement.
+            params: A tuple of parameters to bind to the statement.
 
         Returns:
             A MappedRows iterator that yields transformed values of type T.
@@ -532,7 +534,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             transform: A function that takes a Row and returns a value of type T.
 
         Args:
-            params: A list of parameters to bind to the statement.
+            params: Parameters to bind to the statement.
 
         Returns:
             The single Row returned by the query.
@@ -551,7 +553,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
     fn query_row[
         T: Movable, //, transform: fn (Row) raises -> T, *Ts: ToSQL
-    ](self, *params: *Ts) raises -> T:
+    ](self, params: Tuple[*Ts] = ()) raises -> T:
         """Executes the query and returns a single row.
 
         This is a convenience method for queries that are expected to return exactly one row.
@@ -563,38 +565,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Ts: The types of the parameters to bind.
 
         Args:
-            params: A list of parameters to bind to the statement.
-
-        Returns:
-            The single Row returned by the query.
-
-        Raises:
-            Error: If parameter binding fails, no rows are returned, or more than one row is returned.
-        """
-        var rows = self.query(params)
-        var row: Row[Self.conn, origin_of(self)]
-        try:
-            row = rows.__next__()
-        except StopIteration:
-            raise Error("No rows returned by query.")
-        
-        return transform(row)
-    
-    fn query_row[
-        T: Movable, //, transform: fn (Row) raises -> T, *Ts: ToSQL
-    ](self, params: VariadicPack[_, ToSQL, *Ts]) raises -> T:
-        """Executes the query and returns a single row.
-
-        This is a convenience method for queries that are expected to return exactly one row.
-        If the query returns more than one row, the rest are ignored.
-
-        Parameters:
-            T: The type that the row will be transformed into.
-            transform: A function that takes a Row and returns a value of type T.
-            Ts: The types of the parameters to bind.
-        
-        Args:
-            params: A list of parameters to bind to the statement.
+            params: A tuple of parameters to bind to the statement.
 
         Returns:
             The single Row returned by the query.
@@ -624,7 +595,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             T: The type that each row will be transformed into.
 
         Args:
-            params: A list of parameters to bind to the statement.
+            params: Parameters to bind to the statement.
 
         Returns:
             A MappedRows iterator that yields transformed values of type T.
@@ -636,7 +607,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
     fn query_as_type[
         T: Defaultable & Movable, *Ts: ToSQL
-    ](self, *params: *Ts) raises -> TypedRows[Self.conn, origin_of(self), T]:
+    ](self, params: Tuple[*Ts] = ()) raises -> TypedRows[Self.conn, origin_of(self), T]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
         This method applies a transformation function to each row returned by the query,
@@ -647,7 +618,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Ts: The types of the parameters to bind.
 
         Args:
-            params: A list of parameters to bind to the statement.
+            params: A tuple of parameters to bind to the statement.
 
         Returns:
             A MappedRows iterator that yields transformed values of type T.
@@ -657,7 +628,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         """
         return TypedRows[Self.conn, origin_of(self), T](self.query(params))
 
-    fn exists[T: Params, //](self, params: T) raises -> Bool:
+    fn exists(self, params: Some[Params]) raises -> Bool:
         """Checks if the query returns at least one row.
 
         This is a convenience method that executes the query and returns True
@@ -665,7 +636,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         counting all rows when you only need to know if results exist.
 
         Args:
-            params: A list of parameters to bind to the statement.
+            params: Parameters to bind to the statement.
 
         Returns:
             True if the query returns at least one row, False otherwise.
@@ -680,15 +651,18 @@ struct Statement[conn: ImmutOrigin](Movable):
         except StopIteration:
             return False
 
-    fn exists[*Ts: ToSQL](self, *params: *Ts) raises -> Bool:
+    fn exists[*Ts: ToSQL](self, params: Tuple[*Ts] = ()) raises -> Bool:
         """Checks if the query returns at least one row.
 
         This is a convenience method that executes the query and returns True
         if any rows are found, False otherwise. It's more efficient than
         counting all rows when you only need to know if results exist.
 
+        Parameters:
+            Ts: The types of the parameters to bind. Each type must implement ToSQL.
+
         Args:
-            params: A list of parameters to bind to the statement.
+            params: A tuple of parameters to bind to the statement.
 
         Returns:
             True if the query returns at least one row, False otherwise.
@@ -770,17 +744,20 @@ struct Statement[conn: ImmutOrigin](Movable):
         for i in range(0, self.column_count()):
             # Note: `column_name` is only fallible if `i` is out of bounds,
             # which we've already checked.
-            if eq_ignore_ascii_case(name.as_bytes(), self.column_name(i).as_bytes()):
-                return i 
+            if eq_ignore_ascii_case(name.as_bytes(), self.column_name(UInt(i)).as_bytes()):
+                return UInt(i)
             
         raise Error("InvalidColumnNameError: no column with the specified name exists.")
     
-    fn insert[T: Params, //](self, params: T) raises -> Int64:
+    fn insert(self, params: Some[Params]) raises -> Int64:
         """Executes an INSERT statement and returns the last inserted row ID.
 
         This is a convenience method for executing INSERT statements that
         return the last inserted row ID. It ensures that exactly one row
         was inserted.
+
+        Args:
+            params: Parameters to bind to the statement.
 
         Returns:
             The last inserted row ID.
@@ -795,12 +772,18 @@ struct Statement[conn: ImmutOrigin](Movable):
         else:
             raise Error("StatementChangedRows: Expected 1 row to be inserted, but ", changes, " rows were affected.")
 
-    fn insert[*Ts: ToSQL](self, *params: *Ts) raises -> Int64:
+    fn insert[*Ts: ToSQL](self, params: Tuple[*Ts] = ()) raises -> Int64:
         """Executes an INSERT statement and returns the last inserted row ID.
 
         This is a convenience method for executing INSERT statements that
         return the last inserted row ID. It ensures that exactly one row
         was inserted.
+
+        Parameters:
+            Ts: The types of the parameters to bind. Each type must implement ToSQL.
+
+        Args:
+            params: A tuple of parameters to bind to the statement.
 
         Returns:
             The last inserted row ID.
@@ -818,14 +801,21 @@ struct Statement[conn: ImmutOrigin](Movable):
     fn is_explain(self) -> Int32:
         """Returns whether the prepared statement is an EXPLAIN statement.
 
-        * 1 if the prepared statement is an EXPLAIN statement,
-        * 2 if the statement is an EXPLAIN QUERY PLAN,
-        * 0 if it is an ordinary statement or a NULL pointer.
+        Returns:
+            * 0 if it is an ordinary statement or a NULL pointer.
+            * 1 if the prepared statement is an EXPLAIN statement.
+            * 2 if the statement is an EXPLAIN QUERY PLAN.
         """
         return self.stmt.is_explain()
 
     fn is_read_only(self) -> Bool:
-        """Returns whether the prepared statement is read-only."""
+        """Returns whether the prepared statement is read-only.
+        
+        A read-only statement is one that does not modify the database (e.g., SELECT).
+
+        Returns:
+            True if the statement is read-only, False otherwise.
+        """
         return self.stmt.is_read_only()
 
     fn column_names(self) raises -> List[StringSlice[origin_of(self)]]:
