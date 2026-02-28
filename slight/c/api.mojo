@@ -1,21 +1,21 @@
-from sys.ffi import _get_global
-
 from slight.c.bindings import sqlite3
+from slight.c.types import MutExternalPointer
+from std.ffi import _get_global
 
 
-fn _init_global() -> OpaquePointer[MutExternalOrigin]:
+fn _init_global() -> MutExternalPointer[NoneType]:
     var ptr = alloc[sqlite3](1)
     ptr[] = sqlite3()
     return ptr.bitcast[NoneType]()
 
 
-fn _destroy_global(lib: OpaquePointer[MutExternalOrigin]):
+fn _destroy_global(lib: MutExternalPointer[NoneType]):
     var p = lib.bitcast[sqlite3]()
     p.free()
 
 
 @always_inline
-fn sqlite_ffi() -> UnsafePointer[sqlite3, MutExternalOrigin]:
+fn sqlite_ffi() -> MutExternalPointer[sqlite3]:
     """Initializes or gets the global sqlite3 handle.
 
     DO NOT FREE THE POINTER MANUALLY. It will be freed automatically on program exit.

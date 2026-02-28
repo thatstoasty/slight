@@ -1,9 +1,7 @@
+from slight.bind import BindIndex, Int, String, StringSlice, UInt
 from slight.connection import Connection
+from slight.params import Dict, List, Params
+from slight.row import Int, MappedRows, Row, RowIndex, Rows, String, StringSlice, UInt
 from slight.statement import Statement
-from slight.row import Row, Rows, MappedRows
-
-from slight.types.from_sql import FromSQL, String, Int, Bool, SIMD
-from slight.types.to_sql import ToSQL, String, Int, Bool, SIMD
-from slight.row import RowIndex, Int, UInt, String, StringSlice
-from slight.bind import BindIndex, Int, UInt, String, StringSlice
-from slight.params import Params, List, Dict
+from slight.types.from_sql import SIMD, Bool, FromSQL, Int, List, NoneType, Optional, String
+from slight.types.to_sql import SIMD, Bool, Int, List, NoneType, Optional, Span, String, ToSQL

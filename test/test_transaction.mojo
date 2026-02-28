@@ -1,8 +1,9 @@
-from testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
-
 from slight.connection import Connection
-from slight.transaction import Transaction, Savepoint, TransactionBehavior, DropBehavior
-from slight import Row, String, Int, Bool, SIMD
+from slight.transaction import DropBehavior, Savepoint, Transaction, TransactionBehavior
+from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
+
+from slight import SIMD, Bool, Int, Params, Row, String
+
 
 comptime dummy_int: Int = 1
 
@@ -16,7 +17,7 @@ fn assert_current_sum(x: Int, conn: Connection) raises:
     fn get_int(r: Row) raises -> Int:
         return r.get[Int](0)
     
-    var result = conn.query_row[get_int]("SELECT SUM(x) FROM foo")
+    var result = conn.one_row[get_int]("SELECT SUM(x) FROM foo")
     assert_equal(result, x)
 
 
@@ -41,7 +42,7 @@ fn test_drop() raises:
         return r.get[Int](0)
     
     tx = db.transaction()
-    var sum = tx.conn[].query_row[get_sum]("SELECT SUM(x) FROM foo")
+    var sum = tx.conn[].one_row[get_sum]("SELECT SUM(x) FROM foo")
     assert_equal(sum, 2)
     tx^.finish()
 
@@ -67,7 +68,7 @@ fn test_explicit_rollback_commit() raises:
         return r.get[Int](0)
     
     with db.transaction() as tx:
-        var sum = tx.conn[].query_row[get_sum]("SELECT SUM(x) FROM foo")
+        var sum = tx.conn[].one_row[get_sum]("SELECT SUM(x) FROM foo")
         assert_equal(sum, 6)
 
 
@@ -207,7 +208,7 @@ fn test_transaction_behavior() raises:
     fn get_sum(r: Row) raises -> Int:
         return r.get[Int](0)
     
-    var sum = db.query_row[get_sum]("SELECT SUM(x) FROM foo")
+    var sum = db.one_row[get_sum]("SELECT SUM(x) FROM foo")
     assert_equal(sum, 6)
 
 
@@ -260,15 +261,14 @@ fn test_multiple_inserts_in_transaction() raises:
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
     
     with db.transaction() as tx:
-        @parameter
-        for i in range(10):
+        comptime for i in range(10):
             _ = tx.conn[].execute("INSERT INTO foo VALUES(?1)", [i])
         tx.commit()
     
     fn get_sum(r: Row) raises -> Int:
         return r.get[Int](0)
     
-    var sum = db.query_row[get_sum]("SELECT SUM(x) FROM foo")
+    var sum = db.one_row[get_sum]("SELECT SUM(x) FROM foo")
     assert_equal(sum, 45)  # 0+1+2+...+9 = 45
 
 

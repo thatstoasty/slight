@@ -1,40 +1,13 @@
-from testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
-import tempfile
-from pathlib import Path
-
-from slight.connection import Connection
-from slight.statement import eq_ignore_ascii_case
-from slight.row import Row
-from slight import String
-from slight.types.to_sql import Int, Bool, SIMD, Dict, List
-from slight.flags import OpenFlag
-from slight.c.raw_bindings import sqlite3_stmt, SQLITE_OK
+from std import tempfile
 from slight.c.api import sqlite_ffi
+from slight.c.raw_bindings import SQLITE_OK, sqlite3_stmt
+from slight.connection import Connection
+from slight.flags import OpenFlag
+from slight.row import Row
+from slight.statement import eq_ignore_ascii_case
+from std.pathlib import Path
+from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
-
-# # @fieldwise_init
-# # struct Employee(Copyable, Movable, Writable):
-# #     var id: Int
-# #     var name: String
-# #     var age: Int8
-# #     var address: String
-# #     var salary: Float64
-# #     var is_active: Bool
-
-# #     fn write_to[W: Writer](self, mut writer: W):
-# #         writer.write("Employee(id=", self.id, ", name=", self.name, ", age=", self.age, ", address=", self.address, ", salary=", self.salary, ", is_active=", self.is_active, ")")
-
-
-# # fn transform_row(row: Row) raises -> Employee:
-# #     return Employee(
-# #         id=row.get[Int]("id"),
-# #         name=row.get[String]("name"),
-# #         age=row.get[Int8]("age"),
-# #         address=row.get[String]("address"),
-# #         salary=row.get[Float64]("salary"),
-# #         is_active=row.get[Bool]("is_active")
-# #     )
-        
 
 fn test_eq_ignore_ascii_case_test() raises:
     assert_true(eq_ignore_ascii_case("hello".as_bytes(), "HELLO".as_bytes()))
@@ -58,7 +31,7 @@ fn test_path() raises:
 
 fn test_open_failure() raises:
     with assert_raises(contains="Unable to open the database file"):
-        _ = Connection.open("no_such_file.db", materialize[OpenFlag.READ_ONLY]())
+        _ = Connection.open("no_such_file.db", OpenFlag.READ_ONLY)
 
 
 # fn test_close_retry() raises:
@@ -143,7 +116,7 @@ fn test_open_failure() raises:
 #         assert_equal(row.get[String](1), "Alice")
 
 #     stmt = db.prepare(select_user_query)
-#     var employee = stmt.query_row[transform_row](["Bob"])
+#     var employee = stmt.one_row[transform_row](["Bob"])
 #     assert_equal(employee.id, 1)
 #     assert_equal(employee.name, "Bob")
 
@@ -218,7 +191,7 @@ fn test_execute() raises:
     db.execute_batch("CREATE TABLE foo(x INTEGER)")
     assert_equal(db.execute("INSERT INTO foo(x) VALUES (?1)", [1]), 1)
     assert_equal(db.execute("INSERT INTO foo(x) VALUES (?1)", [2]), 1)
-    assert_equal(db.query_row[get_int]("SELECT SUM(x) FROM foo"), 3)
+    assert_equal(db.one_row[get_int]("SELECT SUM(x) FROM foo"), 3)
 
 
 fn test_insert_bytes() raises:
@@ -309,7 +282,7 @@ fn test_query_map() raises:
     for row in query.query():
         results.append(row.get[String](1))
     
-    var concat = String("")
+    var concat = ""
     for i in range(len(results)):
         concat += results[i]
     assert_equal(concat, "hello, world!")
@@ -327,17 +300,17 @@ fn test_query_row() raises:
         return r.get[Int64](0)
 
     db.execute_batch(sql)
-    assert_equal(db.query_row[get_int64]("SELECT SUM(x) FROM foo"), 10)
+    assert_equal(db.one_row[get_int64]("SELECT SUM(x) FROM foo"), 10)
     
     # This should return no rows error
     with assert_raises(contains="No rows returned by query"):
-        _ = db.query_row[get_int64]("SELECT x FROM foo WHERE x > 5")
+        _ = db.one_row[get_int64]("SELECT x FROM foo WHERE x > 5")
     
     with assert_raises():
-        _ = db.query_row[get_int64]("NOT A PROPER QUERY; test123")
+        _ = db.one_row[get_int64]("NOT A PROPER QUERY; test123")
     
     with assert_raises():
-        _ = db.query_row[get_int64]("SELECT 1; SELECT 2;")
+        _ = db.one_row[get_int64]("SELECT 1; SELECT 2;")
 
 
 fn test_pragma_query_row() raises:
@@ -345,10 +318,10 @@ fn test_pragma_query_row() raises:
     fn get_string(r: Row) raises -> String:
         return r.get[String](0)
 
-    var mode = db.query_row[get_string]("PRAGMA journal_mode")
+    var mode = db.one_row[get_string]("PRAGMA journal_mode")
     assert_equal(mode, "memory")
     
-    var mode2 = db.query_row[get_string]("PRAGMA journal_mode=off")
+    var mode2 = db.one_row[get_string]("PRAGMA journal_mode=off")
     # Note: system SQLite behavior may vary
     assert_true(mode2 == "memory" or mode2 == "off")
 
@@ -485,7 +458,7 @@ fn test_get_raw() raises:
     var insert_stmt = db.prepare("INSERT INTO foo(i, x) VALUES(?1, ?2)")
     
     for i in range(len(vals)):
-        assert_equal(insert_stmt.execute(i, vals[i]), 1)
+        assert_equal(insert_stmt.execute((i, vals[i])), 1)
     
     # TODO: Add tests for get_ref and as_str methods when implemented
     var query = db.prepare("SELECT i, x FROM foo")
@@ -509,7 +482,7 @@ fn test_dynamic() raises:
         return None
     
     db.execute_batch(sql)
-    _ = db.query_row[check_columns]("SELECT * FROM foo")
+    _ = db.one_row[check_columns]("SELECT * FROM foo")
 
 
 fn test_params() raises:
@@ -518,7 +491,7 @@ fn test_params() raises:
     fn get_int(r: Row) raises -> Int:
         return r.get[Int](0)
     
-    var result = db.query_row[get_int]("""
+    var result = db.one_row[get_int]("""
     SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
     ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20,
     ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30,

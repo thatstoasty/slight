@@ -1,29 +1,50 @@
-from memory import OpaquePointer
-from utils import StaticTuple
+from std.ffi import c_char, c_int, c_uchar, c_uint
+from std.memory import OpaquePointer
+from std.utils import StaticTuple
 
-from sys.ffi import c_char, c_int
 
-comptime ImmutExternalPointer = ImmutUnsafePointer[origin = ImmutExternalOrigin]
+comptime ImmutExternalPointer = ImmutUnsafePointer[origin=ImmutExternalOrigin, address_space=AddressSpace.GENERIC, ...]
+"""Immutable External Pointer.
+
+Parameters:
+    type: The type of the data the pointer points to.
+"""
 comptime ImmutExternalOpaquePointer = ImmutExternalPointer[NoneType]
-comptime MutExternalPointer = MutUnsafePointer[origin = MutExternalOrigin]
+"""Immutable External Opaque Pointer.
+
+Parameters:
+    type: The type of the data the pointer points to.
+"""
+comptime MutExternalPointer = MutUnsafePointer[origin=MutExternalOrigin, address_space=AddressSpace.GENERIC,...]
+"""Mutable External Pointer.
+
+Parameters:
+    type: The type of the data the pointer points to.
+"""
 comptime MutExternalOpaquePointer = MutExternalPointer[NoneType]
+"""Mutable External Opaque Pointer.
+
+Parameters:
+    type: The type of the data the pointer points to.
+"""
 
 
 @fieldwise_init
-@register_passable("trivial")
-struct DataType(Movable, Equatable):
+struct DataType(Equatable, Movable, TrivialRegisterPassable):
     """Fundamental Datatypes.
-    
+
     Every value in SQLite has one of five fundamental datatypes:
     * 64-bit signed integer
     * 64-bit IEEE floating point number
     * string
     * BLOB
     * NULL
-    
+
     These constants are codes for each of those types.
     """
+
     var value: Int32
+    """Internal enum value."""
     comptime INTEGER = Self(1)
     """`SQLITE_INTEGER`: 64-bit signed integer."""
     comptime FLOAT = Self(2)
@@ -35,22 +56,39 @@ struct DataType(Movable, Equatable):
     comptime NULL = Self(5)
     """`SQLITE_NULL`: NULL."""
 
-    fn __eq__(self, other: DataType) -> Bool:
+    fn __eq__(self, other: Self) -> Bool:
+        """Checks if this value is equal to `other`.
+
+        Args:
+            other: The other `DataType` to compare against.
+
+        Returns:
+            True if both `DataType` instances have the same value, False otherwise.
+        """
         return self.value == other.value
-    
+
     fn __eq__(self, other: Int32) -> Bool:
+        """Checks if this value is equal to a raw integer value.
+
+        Args:
+            other: The raw integer value to compare against.
+
+        Returns:
+            True if the `DataType`'s value is equal to the raw integer value, False otherwise.
+        """
         return self.value == other
 
 
 @fieldwise_init
-@register_passable("trivial")
-struct TextEncoding(Movable):
+struct TextEncoding(Movable, TrivialRegisterPassable):
     """Text Encodings.
-    
+
     These constant define integer codes that represent the various
     text encodings supported by SQLite.
     """
+
     var value: UInt8
+    """Internal enum value."""
     comptime UTF8 = Self(1)
     """`SQLITE_UTF8`: UTF-8 encoding."""
 
@@ -86,7 +124,58 @@ struct sqlite3_file(Movable):
     pass
 
 
-comptime ResultDestructorFn = fn (MutExternalPointer[NoneType]) -> NoneType
+# ===----------------------------------------------------------------------=== #
+# Callback Type Aliases
+# ===----------------------------------------------------------------------=== #
+
+comptime ScalarFnCallback = fn(
+    MutExternalPointer[sqlite3_context],
+    c_int,
+    MutExternalPointer[MutExternalPointer[sqlite3_value]],
+) raises -> NoneType
+"""Callback type for scalar SQL functions.
+
+The callback receives:
+- The SQL function context pointer.
+- The number of arguments (argc).
+- A pointer to the array of argument values (argv).
+
+Use `Context` to conveniently access arguments and set results.
+"""
+
+comptime AggStepCallback = fn(
+    MutExternalPointer[sqlite3_context],
+    c_int,
+    MutExternalPointer[MutExternalPointer[sqlite3_value]],
+) -> NoneType
+"""Callback type for the step function of an aggregate SQL function.
+
+Called once for each row in an aggregate group.
+"""
+
+comptime AggFinalCallback = fn(MutExternalPointer[sqlite3_context],) -> NoneType
+"""Callback type for the finalize function of an aggregate SQL function.
+
+Called once after all rows have been processed to compute the final result.
+"""
+
+comptime WindowValueCallback = fn(MutExternalPointer[sqlite3_context],) -> NoneType
+"""Callback type for the value function of a window aggregate function.
+
+Returns the current value of the aggregate without finalizing.
+"""
+
+comptime WindowInverseCallback = fn(
+    MutExternalPointer[sqlite3_context],
+    c_int,
+    MutExternalPointer[MutExternalPointer[sqlite3_value]],
+) -> NoneType
+"""Callback type for the inverse function of a window aggregate function.
+
+Called when a row leaves the window frame.
+"""
+
+comptime ResultDestructorFn = fn(MutExternalPointer[NoneType]) -> NoneType
 """Constants Defining Special Destructor Behavior.
 
 These are special values for the destructor that is passed in as the
@@ -98,10 +187,62 @@ and will never change. It does not need to be destroyed. The
 the near future and that SQLite should make its own private copy of
 the content before returning."""
 
+comptime ExtensionEntrypointCallbackFn = fn(
+    MutExternalPointer[sqlite3_connection],
+    MutExternalPointer[MutExternalPointer[c_char]],
+    ImmutExternalPointer[sqlite3_api_routines],
+) -> c_int
+"""Callback type for registering SQLite extensions."""
+comptime CancelExtensionCallbackFn = fn() -> c_int
+"""Callback type for canceling the loading of an SQLite extension."""
+
+comptime TraceCallbackFn = fn(MutExternalPointer[NoneType], ImmutExternalPointer[c_char]) -> NoneType
+"""Callback type for SQLite trace callbacks."""
+comptime TraceV2CallbackFn = fn(c_uint, MutExternalPointer[NoneType], MutExternalPointer[NoneType], MutExternalPointer[NoneType]) -> c_int
+"""Callback type for SQLite trace v2 callbacks."""
+comptime ProfileCallbackFn = fn(MutExternalPointer[NoneType], ImmutExternalPointer[c_char], UInt64) -> NoneType
+"""Callback type for SQLite profile callbacks."""
+comptime QueryProgressCallbackFn = fn(MutExternalPointer[NoneType]) -> c_int
+"""Callback type for SQLite query progress callbacks."""
+comptime CollationCompareCallbackFn = fn(
+    MutExternalPointer[NoneType],
+    c_int,
+    ImmutExternalPointer[NoneType],
+    c_int,
+    ImmutExternalPointer[NoneType],
+) -> c_int
+"""Callback type for SQLite collation compare callbacks."""
+comptime CollationNeededCallbackFn =fn(
+    MutExternalPointer[NoneType],
+    MutExternalPointer[sqlite3_connection],
+    c_int,
+    ImmutExternalPointer[c_char],
+) -> NoneType
+"""Callback type for SQLite unknown collation needed callbacks."""
+comptime UpdateHookCallbackFn = fn(
+    MutExternalPointer[NoneType],
+    c_int,
+    MutExternalPointer[c_char],
+    MutExternalPointer[c_char],
+    Int64,
+)
+"""Callback type for SQLite update hook callbacks."""
+comptime CommitHookCallbackFn = fn(MutExternalPointer[NoneType]) -> c_int
+"""Callback type for SQLite commit hook callbacks."""
+comptime RollbackHookCallbackFn = fn(MutExternalPointer[NoneType]) -> NoneType
+"""Callback type for SQLite rollback hook callbacks."""
+comptime UnlockNotifyCallbackFn = fn(MutExternalPointer[MutExternalPointer[NoneType]], c_int) -> NoneType
+"""Callback type for SQLite unlock notify callbacks."""
+comptime WALHookCallbackFn = fn(
+    MutExternalPointer[NoneType],
+    MutExternalPointer[sqlite3_connection],
+    MutExternalPointer[c_char],
+    c_int,
+) -> c_int
+"""Callback type for SQLite WAL hook callbacks."""
 
 @fieldwise_init
-@register_passable("trivial")
-struct DestructorHint(Movable):
+struct DestructorHint(Movable, TrivialRegisterPassable):
     """If the destructor argument is `SQLITE_STATIC`, it means that the content pointer is constant
     and will never change. It does not need to be destroyed. The
     `SQLITE_TRANSIENT` value means that the content will likely change in
@@ -113,40 +254,68 @@ struct DestructorHint(Movable):
     `sqlite3_result_blob`, pass the dereferenced pointer as the destructor argument."""
 
     var value: Int
+    """Internal enum value."""
     comptime STATIC = Self(0)
     """`SQLITE_STATIC`: The content pointer is constant and will never change."""
     comptime TRANSIENT = Self(-1)
     """`SQLITE_TRANSIENT`: The content will likely change in the near future and SQLite should make its own private copy of the content before returning."""
-    
+
     # Why do I have to do this cursed conversion?
     @staticmethod
     fn static_destructor() -> ResultDestructorFn:
-        """Returns a function pointer representing the `SQLITE_STATIC` destructor."""
+        """Returns a function pointer representing the `SQLITE_STATIC` destructor.
+
+        Returns:
+            A function pointer representing the `SQLITE_STATIC` destructor.
+        """
         return UnsafePointer(to=Self.STATIC.value).bitcast[ResultDestructorFn]()[]
-    
+
     @staticmethod
     fn transient_destructor() -> ResultDestructorFn:
-        """Returns a function pointer representing the `SQLITE_TRANSIENT` destructor."""
+        """Returns a function pointer representing the `SQLITE_TRANSIENT` destructor.
+
+        Returns:
+            A function pointer representing the `SQLITE_TRANSIENT` destructor.
+        """
         return UnsafePointer(to=Self.TRANSIENT.value).bitcast[ResultDestructorFn]()[]
 
 
-comptime ExecCallbackFn = fn[argv_origin: MutOrigin, col_name_origin: MutOrigin] (
-    data: MutOpaquePointer,
-    argc: Int32,
-    argv: MutUnsafePointer[MutUnsafePointer[c_char, argv_origin]],
-    azColName: MutUnsafePointer[MutUnsafePointer[c_char, col_name_origin]],
+comptime ExecCallbackFn = fn(
+    data: MutExternalPointer[NoneType],
+    argc: c_int,
+    argv: MutExternalPointer[MutExternalPointer[c_char]],
+    azColName: MutExternalPointer[MutExternalPointer[c_char]],
 ) -> c_int
+"""Callback Function Type for `sqlite3_exec()`."""
 
-comptime AuthCallbackFn = fn[
-    origin: MutOrigin, origin2: ImmutOrigin, origin3: ImmutOrigin, origin4: ImmutOrigin, origin5: ImmutOrigin
-] (
-    MutOpaquePointer[origin],
+comptime AuthCallbackFn = fn(
+    MutExternalPointer[NoneType],
     c_int,
-    ImmutUnsafePointer[c_char, origin2],
-    ImmutUnsafePointer[c_char, origin3],
-    ImmutUnsafePointer[c_char, origin4],
-    ImmutUnsafePointer[c_char, origin5],
+    ImmutExternalPointer[c_char],
+    ImmutExternalPointer[c_char],
+    ImmutExternalPointer[c_char],
+    ImmutExternalPointer[c_char],
 ) -> c_int
+"""Callback Function Type for `sqlite3_set_authorizer()`."""
+
+comptime BusyHandlerFn = fn (c_int) -> Bool
+"""A busy handler callback function.
+
+The argument is the number of times the busy handler has been invoked
+previously for the same locking event. Return `True` to retry,
+`False` to stop retrying (which causes `SQLITE_BUSY` to be returned).
+"""
+
+
+struct sqlite3_api_routines(Movable):
+    """SQLite API Routines.
+
+    This struct contains function pointers for all the SQLite C API routines.
+    It is used when registering extensions with `sqlite3_auto_extension()`.
+    """
+
+    pass
+
 
 
 struct sqlite3_backup(Movable):
@@ -154,7 +323,7 @@ struct sqlite3_backup(Movable):
 
     The sqlite3_backup object records state information about an ongoing
     online backup operation.
-    
+
     The sqlite3_backup object is created by a call to `sqlite3_backup_init()` and is destroyed by a call to
     `sqlite3_backup_finish()`."""
 
@@ -182,6 +351,7 @@ struct sqlite3_snapshot(Movable):
     """
 
     var hidden: StaticTuple[UInt8, 48]
+    """Opaque data used internally by SQLite to represent the snapshot. The actual contents are not exposed."""
 
 
 struct sqlite3_stmt(Movable):
@@ -212,7 +382,7 @@ struct sqlite3_value(Movable):
     SQLite uses the `sqlite3_value` object to represent all values
     that can be stored in a database table. SQLite uses dynamic typing
     for the values it stores.
-    
+
     Values stored in `sqlite3_value` objects
     can be integers, floating point values, strings, BLOBs, or NULL.
     An sqlite3_value object may be either "protected" or "unprotected".
@@ -234,19 +404,19 @@ struct sqlite3_value(Movable):
     for maximum code portability it is recommended that applications
     still make the distinction between protected and unprotected
     `sqlite3_value` objects even when not strictly required.
-    
+
     The `sqlite3_value` objects that are passed as parameters into the
     implementation of `application-defined SQL functions` are protected.
-    
+
     The `sqlite3_value` objects returned by `sqlite3_vtab_rhs_value()`
     are protected.
-    
+
     The `sqlite3_value` object returned by
     `sqlite3_column_value()` is unprotected.
     Unprotected `sqlite3_value` objects may only be used as arguments
     to `sqlite3_result_value()`, `sqlite3_bind_value()`, and
     `sqlite3_value_dup()`.
-    
+
     The `sqlite3_value_blob | sqlite3_value_type()` family of
     interfaces require protected `sqlite3_value` objects."""
 
@@ -255,7 +425,7 @@ struct sqlite3_value(Movable):
 
 struct sqlite3_context(Movable):
     """SQL Function Context Object.
-    
+
     The context in which an SQL function executes is stored in an
     sqlite3_context object.  ^A pointer to an sqlite3_context object
     is always first parameter to `application-defined SQL functions`.
@@ -268,120 +438,206 @@ struct sqlite3_context(Movable):
     pass
 
 
+comptime VtabCreateCallbackFn = fn (
+    MutExternalPointer[sqlite3_connection],
+    MutExternalPointer[NoneType],
+    c_int,
+    MutExternalPointer[MutExternalPointer[c_char]],
+    MutExternalPointer[MutExternalPointer[sqlite3_vtab]],
+    MutExternalPointer[MutExternalPointer[c_char]],
+) -> c_int
+"""Called to create a new virtual table. It should create a new instance of the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabConnectCallbackFn = fn (
+    MutExternalPointer[sqlite3_connection],
+    MutExternalPointer[NoneType],
+    c_int,
+    MutExternalPointer[MutExternalPointer[c_char]],
+    MutExternalPointer[MutExternalPointer[sqlite3_vtab]],
+    MutExternalPointer[MutExternalPointer[c_char]],
+) -> c_int
+"""Called to connect to an existing virtual table. It should initialize a new instance of the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabBestIndexCallbackFn = fn (MutExternalPointer[sqlite3_vtab], MutExternalPointer[sqlite3_index_info]) -> c_int
+"""Called to determine the best way to access a virtual table. It should analyze the query constraints and return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabDisconnectCallbackFn = fn (MutExternalPointer[sqlite3_vtab]) -> c_int
+"""Called to disconnect from a virtual table. It should clean up any resources associated with the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabDestroyCallbackFn = fn (MutExternalPointer[sqlite3_vtab]) -> c_int
+"""Called to destroy a virtual table. It should clean up any resources associated with the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabOpenCallbackFn = fn (MutExternalPointer[sqlite3_vtab], MutExternalPointer[MutExternalPointer[sqlite3_vtab_cursor]]) -> c_int
+"""Called to open a new cursor on a virtual table. It should create a new instance of the cursor and return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabCloseCallbackFn = fn (MutExternalPointer[sqlite3_vtab_cursor]) -> c_int
+"""Called to close a cursor on a virtual table. It should clean up any resources associated with the cursor and return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabFilterCallbackFn = fn (MutExternalPointer[sqlite3_vtab], MutExternalPointer[MutExternalPointer[sqlite3_vtab_cursor]]) -> c_int
+"""Called to begin a search of a virtual table. It should initialize the cursor to point to the first row of the result set and return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabNextCallbackFn = fn (MutExternalPointer[sqlite3_vtab_cursor]) -> c_int
+"""Called to advance a cursor to the next row of the result set. It should move the cursor to the next row and return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabEofCallbackFn = fn (MutExternalPointer[sqlite3_vtab_cursor]) -> c_int
+"""Called to determine if a cursor has reached the end of the result set. It should return 1 if the cursor is at the end of the result set and 0 otherwise."""
+comptime VtabColumnCallbackFn = fn (MutExternalPointer[sqlite3_vtab_cursor], MutExternalPointer[sqlite3_context], c_int) -> c_int
+"""Called to retrieve a column value from the current row of the result set. It should use the sqlite3_result_*() interfaces to return the value of the specified column and return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabRowidCallbackFn = fn (MutExternalPointer[sqlite3_vtab_cursor], MutExternalPointer[Int64]) -> c_int
+"""Called to retrieve the rowid of the current row of the result set. It should store the rowid in the provided pointer and return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabUpdateCallbackFn = fn (
+    MutExternalPointer[sqlite3_vtab],
+    c_int,
+    MutExternalPointer[MutExternalPointer[sqlite3_value]],
+    MutExternalPointer[Int64],
+) -> c_int
+"""Called to update the virtual table. It should perform the specified update operation (insert, update, or delete) and return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabBeginCallbackFn = fn (MutExternalPointer[sqlite3_vtab]) -> c_int
+"""Called to begin a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabSyncCallbackFn = fn (MutExternalPointer[sqlite3_vtab]) -> c_int
+"""Called to sync the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabCommitCallbackFn = fn (MutExternalPointer[sqlite3_vtab]) -> c_int
+"""Called to commit a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabRollbackCallbackFn = fn (MutExternalPointer[sqlite3_vtab]) -> c_int
+"""Called to roll back a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabFindFunctionCallbackFn = fn (
+    MutExternalPointer[sqlite3_vtab],
+    c_int,
+    ImmutExternalPointer[c_char],
+    fn (
+        MutExternalPointer[sqlite3_context], c_int, MutExternalPointer[MutExternalPointer[sqlite3_value]]
+    ) -> MutExternalPointer[MutExternalPointer[NoneType]],
+    MutExternalPointer[MutExternalPointer[NoneType]],
+) -> c_int
+"""Called to find an application-defined SQL function. It should search for the specified function and return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabRenameCallbackFn = fn (
+    MutExternalPointer[sqlite3_vtab], MutExternalPointer[c_char]
+) -> c_int
+"""Called to rename a virtual table. It should rename the virtual table to the specified name and return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabSavepointCallbackFn = fn (MutExternalPointer[sqlite3_vtab], c_int) -> c_int
+"""Called to create a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabReleaseCallbackFn = fn (MutExternalPointer[sqlite3_vtab], c_int) -> c_int
+"""Called to release a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabRollbackToCallbackFn = fn (MutExternalPointer[sqlite3_vtab], c_int) -> c_int
+"""Called to roll back to a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabShadowNameCallbackFn = fn (ImmutExternalPointer[c_char]) -> c_int
+"""Called to retrieve the shadow name of a virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+comptime VtabIntegrityCallbackFn = fn (
+    MutExternalPointer[sqlite3_vtab],
+    MutExternalPointer[MutExternalPointer[c_char]],
+    MutExternalPointer[MutExternalPointer[c_char]],
+) -> c_int
+"""Called to check the integrity of a virtual table. It should perform the integrity check and return SQLITE_OK on success or an appropriate error code on failure."""
+
 struct sqlite3_module(Movable):
-    var iVersion: Int32
-    var xCreate: fn (
-        MutExternalPointer[sqlite3_connection],
-        OpaquePointer,
-        Int32,
-        MutExternalPointer[MutExternalPointer[Int8]],
-        MutExternalPointer[MutExternalPointer[sqlite3_vtab]],
-        MutExternalPointer[MutExternalPointer[Int8]],
-    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an comptime since it doesn't have a value.
-    var xConnect: fn (
-        MutExternalPointer[sqlite3_connection],
-        OpaquePointer,
-        Int32,
-        MutExternalPointer[MutExternalPointer[Int8]],
-        MutExternalPointer[MutExternalPointer[sqlite3_vtab]],
-        MutExternalPointer[MutExternalPointer[Int8]],
-    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an comptime since it doesn't have a value.
-    var xBestIndex: fn (MutExternalPointer[sqlite3_vtab], MutExternalPointer[sqlite3_index_info]) -> Int32
-    var xDisconnect: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
-    var xDestroy: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
-    var xOpen: fn (MutExternalPointer[sqlite3_vtab], MutExternalPointer[MutExternalPointer[sqlite3_vtab_cursor]]) -> Int32
-    var xClose: fn (MutExternalPointer[sqlite3_vtab_cursor]) -> Int32
-    var xFilter: fn (
-        MutExternalPointer[sqlite3_vtab_cursor],
-        Int32,
-        MutExternalPointer[Int8],
-        Int32,
-        MutExternalPointer[MutExternalPointer[sqlite3_value]],
-    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an comptime since it doesn't have a value.
-    var xNext: fn (MutExternalPointer[sqlite3_vtab_cursor]) -> Int32
-    var xEof: fn (MutExternalPointer[sqlite3_vtab_cursor]) -> Int32
-    var xColumn: fn (MutExternalPointer[sqlite3_vtab_cursor], MutExternalPointer[sqlite3_context], Int32) -> Int32
-    var xRowid: fn (MutExternalPointer[sqlite3_vtab_cursor], MutExternalPointer[Int64]) -> Int32
-    var xUpdate: fn (
-        MutExternalPointer[sqlite3_vtab],
-        Int32,
-        MutExternalPointer[MutExternalPointer[sqlite3_value]],
-        MutExternalPointer[Int64],
-    ) -> Int32
-    var xBegin: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
-    var xSync: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
-    var xCommit: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
-    var xRollback: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
-    var xFindFunction: fn (
-        MutExternalPointer[sqlite3_vtab],
-        Int32,
-        ImmutExternalPointer[Int8],
-        fn (
-            MutExternalPointer[sqlite3_context], Int32, MutExternalPointer[MutExternalPointer[sqlite3_value]]
-        ) -> MutExternalPointer[MutExternalPointer[NoneType]],
-        MutExternalPointer[MutExternalPointer[NoneType]],
-    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an comptime since it doesn't have a value.
-    var xRename: fn (
-        MutExternalPointer[sqlite3_vtab], MutExternalPointer[Int8]
-    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an comptime since it doesn't have a value.
-    var xSavepoint: fn (MutExternalPointer[sqlite3_vtab], Int32) -> Int32
-    var xRelease: fn (MutExternalPointer[sqlite3_vtab], Int32) -> Int32
-    var xRollbackTo: fn (MutExternalPointer[sqlite3_vtab], Int32) -> Int32
-    var xShadowName: fn (ImmutExternalPointer[Int8]) -> Int32
-    var xIntegrity: fn (
-        MutExternalPointer[sqlite3_vtab],
-        MutExternalPointer[Int8],
-        MutExternalPointer[Int8],
-        Int32,
-        MutExternalPointer[MutExternalPointer[Int8]],
-    ) -> Int32  # FieldDeclNode: This is a const param, but shouldn't be assigned as an comptime since it doesn't have a value.
+    """Virtual Table Module."""
+    var iVersion: c_int
+    """The version number of the virtual table module. This should be set to 0 for the initial version of the module. Future versions may add new methods to the module, and the version number can be used to indicate which version of the module is being used."""
+    var xCreate: VtabCreateCallbackFn
+    """Called to create a new virtual table. It should create a new instance of the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
+    var xConnect: VtabConnectCallbackFn
+    """Called to connect to an existing virtual table. It should initialize a new instance of the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
+    var xBestIndex: VtabBestIndexCallbackFn
+    """Called to determine the best way to access a virtual table. It should analyze the query constraints and return SQLITE_OK on success or an appropriate error code on failure."""
+    var xDisconnect: VtabDisconnectCallbackFn
+    """Called to disconnect from a virtual table. It should clean up any resources associated with the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
+    var xDestroy: VtabDestroyCallbackFn
+    """Called to destroy a virtual table. It should clean up any resources associated with the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
+    var xOpen: VtabOpenCallbackFn
+    """Called to open a new cursor on a virtual table. It should create a new instance of the cursor and return SQLITE_OK on success or an appropriate error code on failure."""
+    var xClose: VtabCloseCallbackFn
+    """Called to close a cursor on a virtual table. It should clean up any resources associated with the cursor and return SQLITE_OK on success or an appropriate error code on failure."""
+    var xFilter: VtabFilterCallbackFn
+    """Called to begin a search of a virtual table. It should initialize the cursor to point to the first row of the result set and return SQLITE_OK on success or an appropriate error code on failure."""
+    var xNext: VtabNextCallbackFn
+    """Called to advance a cursor to the next row of the result set. It should move the cursor to the next row and return SQLITE_OK on success or an appropriate error code on failure."""
+    var xEof: VtabEofCallbackFn
+    """Called to determine if a cursor has reached the end of the result set. It should return 1 if the cursor is at the end of the result set and 0 otherwise."""
+    var xColumn: VtabColumnCallbackFn
+    """Called to retrieve a column value from the current row of the result set. It should use the sqlite3_result_*() interfaces to return the value of the specified column and return SQLITE_OK on success or an appropriate error code on failure."""
+    var xRowid: VtabRowidCallbackFn
+    """Called to retrieve the rowid of the current row of the result set. It should store the rowid in the provided pointer and return SQLITE_OK on success or an appropriate error code on failure."""
+    var xUpdate: VtabUpdateCallbackFn
+    """Called to update the virtual table. It should perform the specified update operation (insert, update, or delete) and return SQLITE_OK on success or an appropriate error code on failure."""
+    var xBegin: VtabBeginCallbackFn
+    """Called to begin a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+    var xSync: VtabSyncCallbackFn
+    """Called to sync the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+    var xCommit: VtabCommitCallbackFn
+    """Called to commit a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+    var xRollback: VtabRollbackCallbackFn
+    """Called to roll back a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+    var xFindFunction: VtabFindFunctionCallbackFn
+    """Called to find an application-defined SQL function. It should search for the specified function and return SQLITE_OK on success or an appropriate error code on failure."""
+    var xRename: VtabRenameCallbackFn
+    """Called to rename a virtual table. It should rename the virtual table to the specified name and return SQLITE_OK on success or an appropriate error code on failure."""
+    var xSavepoint: VtabSavepointCallbackFn
+    """Called to create a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+    var xRelease: VtabReleaseCallbackFn
+    """Called to release a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+    var xRollbackTo: VtabRollbackToCallbackFn
+    """Called to roll back to a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+    var xShadowName: VtabShadowNameCallbackFn
+    """Called to determine if a shadow table name is reserved. It should return 1 if the name is reserved and 0 otherwise."""
+    var xIntegrity: VtabIntegrityCallbackFn
+    """Called to perform an integrity check on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
 
 
 struct _sqlite3_index_info_sqlite3_index_constraint_usage(Movable):
-    var argvIndex: Int32
-    var omit: UInt8
+    var argvIndex: c_int
+    var omit: c_uchar
 
 
 struct _sqlite3_index_info_sqlite3_index_orderby(Movable):
-    var iColumn: Int32
-    var desc: UInt8
+    var iColumn: c_int
+    var desc: c_uchar
 
 
 struct _sqlite3_index_info_sqlite3_index_constraint(Movable):
-    var iColumn: Int32
-    var op: UInt8
-    var usable: UInt8
-    var iTermOffset: Int32
+    var iColumn: c_int
+    var op: c_uchar
+    var usable: c_uchar
+    var iTermOffset: c_int
 
 
 struct sqlite3_index_info(Movable):
-    var nConstraint: Int32
+    """Information about query constraints passed to the xBestIndex method of a virtual table module."""
+
+    var nConstraint: c_int
+    """The number of entries in the aConstraint array."""
     var aConstraint: MutExternalPointer[_sqlite3_index_info_sqlite3_index_constraint]
-    var nOrderBy: Int32
+    """The array of query constraints."""
+    var nOrderBy: c_int
+    """The number of entries in the aOrderBy array."""
     var aOrderBy: MutExternalPointer[_sqlite3_index_info_sqlite3_index_orderby]
+    """The array of order by clauses."""
     var aConstraintUsage: MutExternalPointer[_sqlite3_index_info_sqlite3_index_constraint_usage]
-    var idxNum: Int32
-    var idxStr: MutExternalPointer[Int8]
-    var needToFreeIdxStr: Int32
-    var orderByConsumed: Int32
+    """The array of constraint usage information."""
+    var idxNum: c_int
+    """An integer that the xBestIndex method can use to pass information."""
+    var idxStr: MutExternalPointer[c_char]
+    """A string that the xBestIndex method can use to pass information to the xFilter method. The string is not interpreted by SQLite and is only used for communication between the xBestIndex and xFilter methods."""
+    var needToFreeIdxStr: c_int
+    """A flag that indicates whether the idxStr string needs to be freed by SQLite. If the xBestIndex method sets this flag to 1, then SQLite will free the idxStr string after it is used. If the flag is set to 0, then the xBestIndex method is responsible for managing the memory of the idxStr string."""
+    var orderByConsumed: c_int
+    """An integer that the xBestIndex method can set to indicate that the order by clauses are satisfied by an index. If this value is set to 1, then SQLite will not require the xFilter method to satisfy the order by clauses. If it is set to 0, then the xFilter method must satisfy the order by clauses."""
     var estimatedCost: Float64
+    """An estimate of the cost of using the query plan. The xBestIndex method can set this value to indicate the estimated cost of using the query plan. SQLite uses this value to compare different query plans and choose the one with the lowest estimated cost. The cost is an arbitrary number that is only used for comparison purposes, so it does not have a specific unit or meaning outside of the context of comparing query plans."""
     var estimatedRows: Int64
-    var idxFlags: Int32
+    """An estimate of the number of rows returned by the query plan. The xBestIndex method can set this value to indicate the estimated number of rows that will be returned by the query plan. SQLite uses this value to compare different query plans and choose the one with the lowest estimated cost. The number of rows is an arbitrary number that is only used for comparison purposes, so it does not have a specific unit or meaning outside of the context of comparing query plans."""
+    var idxFlags: c_int
+    """An integer that the xBestIndex method can use to pass information to the xFilter method. The xBestIndex method can set this value to indicate certain properties of the query plan. For example, it can set the `SQLITE_INDEX_SCAN_UNIQUE` flag to indicate that the query plan will only return a single row. The xFilter method can then use this information to optimize the execution of the query."""
     var colUsed: UInt64
+    """A bitmask that indicates which columns of the virtual table are used by the query. The xBestIndex method can set this value to indicate which columns of the virtual table are used by the query. Each bit in the bitmask corresponds to a column of the virtual table, with the least significant bit corresponding to the first column. If a bit is set to 1, it indicates that the corresponding column is used by the query. This information can be used by SQLite to optimize the execution of the query."""
 
 
 struct sqlite3_vtab(Movable):
     """Structures used by the virtual table interface."""
 
-    var pModule: MutExternalPointer[
-        sqlite3_module
-    ]  # FieldDeclNode: This is a const param, but shouldn't be assigned as an comptime since it doesn't have a value.
-    var nRef: Int32
-    var zErrMsg: MutExternalPointer[Int8]
+    var pModule: MutExternalPointer[sqlite3_module]
+    """A pointer to the module that implements the virtual table. This is set by the xCreate or xConnect method of the module and is used by SQLite to call the appropriate methods on the module when executing queries against the virtual table."""
+    var nRef: c_int
+    """The number of references to this virtual table. SQLite uses this value to manage the lifetime of the virtual table. When the reference count drops to zero, SQLite will call the xDisconnect or xDestroy method of the module to clean up the virtual table."""
+    var zErrMsg: MutExternalPointer[c_char]
+    """A pointer to an error message string. If an error occurs in the xCreate, xConnect, xBestIndex, xDisconnect, or xDestroy methods of the module, the module can set this pointer to point to a string that describes the error. SQLite will free the memory associated with this string when it is no longer needed."""
 
 
 struct sqlite3_vtab_cursor(Movable):
+    """Cursor Object for Virtual Tables."""
+
     var pVtab: MutExternalPointer[sqlite3_vtab]
+    """A pointer to the virtual table that this cursor is associated with. This is set by the xOpen method of the module and is used by SQLite to call the appropriate methods on the module when executing queries against the virtual table."""
 
 
 struct sqlite3_blob(Movable):
@@ -395,4 +651,5 @@ struct sqlite3_blob(Movable):
     * The `sqlite3_blob_read()` and `sqlite3_blob_write()` interfaces
     can be used to read or write small subsections of the BLOB.
     * The `sqlite3_blob_bytes()` interface returns the size of the BLOB in bytes."""
+
     pass

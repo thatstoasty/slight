@@ -1,8 +1,5 @@
 from slight.connection import Connection
 from slight.row import Row
-from slight import Int, Bool, SIMD, Dict, List
-
-comptime dummy_int: Int = 1
 
 
 fn main() raises:

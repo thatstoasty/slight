@@ -1,8 +1,5 @@
 from slight.connection import Connection
 from slight.row import Row
-from slight import Int, Bool, SIMD, Dict, List
-
-comptime dummy_int: Int = 1
 
 
 fn main() raises:
@@ -23,7 +20,7 @@ fn main() raises:
 
     _ = db.execute("""
     INSERT INTO COMPANY (ID, NAME, AGE, ADDRESS, SALARY, IS_ACTIVE) VALUES 
-    (1, 'Bob', 30, '123 Main St', 45000.0, False),
+    (1, 'Bob', 30, null, 45000.0, False),
     (2, 'Alice', 30, '123 Main St', 50000.0, True);
     """)
 
@@ -38,6 +35,7 @@ fn main() raises:
         print("Row ID:", row.get[Int](0))
         print("Name:", row.get[String](1))
         print("Age:", row.get[Int](2))
+        print("Address:", row.get[Optional[String]](3))
         print("Salary:", row.get[Float64](4))
         print("Active:", row.get[Bool](5))
         print("---")
