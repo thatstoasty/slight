@@ -1,31 +1,31 @@
 from slight.c.raw_bindings import (
-    SQLITE_OPEN_READONLY,
-    SQLITE_OPEN_READWRITE,
+    SQLITE_OPEN_AUTOPROXY,
     SQLITE_OPEN_CREATE,
     SQLITE_OPEN_DELETEONCLOSE,
     SQLITE_OPEN_EXCLUSIVE,
-    SQLITE_OPEN_AUTOPROXY,
-    SQLITE_OPEN_URI,
-    SQLITE_OPEN_MEMORY,
+    SQLITE_OPEN_EXRESCODE,
+    SQLITE_OPEN_FULLMUTEX,
     SQLITE_OPEN_MAIN_DB,
-    SQLITE_OPEN_TEMP_DB,
-    SQLITE_OPEN_TRANSIENT_DB,
     SQLITE_OPEN_MAIN_JOURNAL,
-    SQLITE_OPEN_TEMP_JOURNAL,
+    SQLITE_OPEN_MEMORY,
+    SQLITE_OPEN_NOFOLLOW,
+    SQLITE_OPEN_NOMUTEX,
+    SQLITE_OPEN_PRIVATECACHE,
+    SQLITE_OPEN_READONLY,
+    SQLITE_OPEN_READWRITE,
+    SQLITE_OPEN_SHAREDCACHE,
     SQLITE_OPEN_SUBJOURNAL,
     SQLITE_OPEN_SUPER_JOURNAL,
-    SQLITE_OPEN_NOMUTEX,
-    SQLITE_OPEN_FULLMUTEX,
-    SQLITE_OPEN_SHAREDCACHE,
-    SQLITE_OPEN_PRIVATECACHE,
+    SQLITE_OPEN_TEMP_DB,
+    SQLITE_OPEN_TEMP_JOURNAL,
+    SQLITE_OPEN_TRANSIENT_DB,
+    SQLITE_OPEN_URI,
     SQLITE_OPEN_WAL,
-    SQLITE_OPEN_NOFOLLOW,
-    SQLITE_OPEN_EXRESCODE,
 )
 
 
 @fieldwise_init
-struct PrepFlag(Copyable, Movable, ImplicitlyCopyable):
+struct PrepFlag(Copyable, ImplicitlyCopyable, Movable):
     """Flags for preparing a SQLite statement."""
 
     var value: UInt32
@@ -38,13 +38,23 @@ struct PrepFlag(Copyable, Movable, ImplicitlyCopyable):
     """Prevents SQL compiler errors from being sent to the error log."""
 
     fn __or__(self, other: Self) -> Self:
+        """Combines two PrepFlags using a bitwise OR operation.
+
+        This allows multiple flags to be set at once when preparing a SQLite statement.
+
+        Args:
+            other: The second PrepFlag to combine with the first.
+
+        Returns:
+            A new PrepFlag that is the result of combining the two flags with a bitwise OR operation.
+        """
         return Self(self.value | other.value)
 
 
 @fieldwise_init
-struct OpenFlag(Copyable, Movable, ImplicitlyCopyable):
+struct OpenFlag(Copyable, ImplicitlyCopyable, Movable):
     """Flags for opening a SQLite database connection.
-    
+
     Defaults to READ_WRITE | CREATE | URI.
     """
 
@@ -52,7 +62,7 @@ struct OpenFlag(Copyable, Movable, ImplicitlyCopyable):
     """The integer value of the flags."""
 
     comptime READ_ONLY = Self(SQLITE_OPEN_READONLY)
-     """Open the database in read-only mode. The database must already exist."""
+    """Open the database in read-only mode. The database must already exist."""
     comptime CREATE = Self(SQLITE_OPEN_CREATE)
     """Create the database file if it does not already exist."""
     comptime READ_WRITE = Self(SQLITE_OPEN_READWRITE)
@@ -102,9 +112,22 @@ struct OpenFlag(Copyable, Movable, ImplicitlyCopyable):
 
     # Default flags
     fn __init__(out self):
-        self.value = Self.READ_WRITE.value |
-            Self.CREATE.value |
-            Self.URI.value
+        """Constructor with the default flags for opening a SQLite database connection.
+
+        Returns:
+            A flag with the default flags set (`READ_WRITE` | `CREATE` | `URI`).
+        """
+        self.value = Self.READ_WRITE.value | Self.CREATE.value | Self.URI.value
 
     fn __or__(self, other: Self) -> Self:
+        """Combines two OpenFlags using a bitwise OR operation.
+
+        This allows multiple flags to be set at once when opening a SQLite database connection.
+
+        Args:
+            other: The second OpenFlag to combine with the first.
+
+        Returns:
+            A new OpenFlag that is the result of combining the two flags with a bitwise OR operation.
+        """
         return Self(self.value | other.value)

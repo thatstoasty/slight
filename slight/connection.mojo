@@ -1,19 +1,36 @@
-from pathlib import Path
-
-from memory import Pointer
+from slight.busy import BusyHandlerFn
 from slight.c.api import sqlite_ffi
-from slight.result import SQLite3Result
-from slight.inner_connection import InnerConnection
-from slight.flags import PrepFlag, OpenFlag
-from slight.params import Params
-from slight.raw_statement import RawStatement
-from slight.statement import Statement
-from slight.row import Row, Int  # RowIndex extension for Int
-from slight.types.to_sql import ToSQL
-from slight.types.from_sql import FromSQL
+from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
+from slight.trace import TraceFn, TraceEventCodes
 from slight.column import ColumnMetadata
-from slight.transaction import Transaction, Savepoint, TransactionBehavior
+from slight.context import Context
+from slight.flags import OpenFlag, PrepFlag
+from slight.functions import FunctionFlags
+from slight.inner_connection import InnerConnection
+from slight.limits import Limit
+from slight.params import Params
 from slight.pragma import Sql
+from slight.raw_statement import RawStatement
+from slight.result import SQLite3Result
+from slight.row import Int, Row, RowTransformFn # RowIndex extension for Int
+from slight.statement import Statement
+from slight.transaction import Savepoint, Transaction, TransactionBehavior
+from slight.types.from_sql import FromSQL
+from slight.types.to_sql import ToSQL
+from slight.load_extension import ExtensionLoadGuard
+from slight.util import CopyDestructible, MoveDestructible
+from slight.functions import (
+    ScalarUDF,
+    AggregateInitUDF,
+    AggregateStepUDF,
+    AggregateFinalUDF,
+    WindowAggregateValueUDF,
+    WindowAggregateInverseUDF,
+)
+from std.ffi import c_int
+from std.memory import Pointer
+from std.pathlib import Path
+from std.reflection import get_type_name
 
 
 struct Connection(Movable):
@@ -57,7 +74,7 @@ struct Connection(Movable):
             flags: The flags to use when opening the database.
 
         Returns:
-            Self: The newly created connection.
+            The newly created connection.
 
         Raises:
             Will return an `Error` if the underlying SQLite open call fails.
@@ -78,6 +95,9 @@ struct Connection(Movable):
         Args:
             flags: The flags to use when opening the database. Defaults to
                    `SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_URI`.
+
+        Returns:
+            The newly created in-memory connection.
 
         Raises:
             Error: If the underlying SQLite open call fails.
@@ -109,7 +129,7 @@ struct Connection(Movable):
         """Closes the connection when it is deleted."""
         if self.db:
             _ = self^.close()
-    
+
     fn __enter__(var self) -> Self:
         """Enter the context manager.
 
@@ -198,6 +218,9 @@ struct Connection(Movable):
 
         Returns:
             The prepared statement.
+
+        Raises:
+            Error: If the underlying SQLite prepare call fails or if multiple statements are found in the SQL string.
         """
         var stmt, tail = self.db.prepare(sql.copy(), flags)
 
@@ -210,122 +233,49 @@ struct Connection(Movable):
                 )
 
         return Statement(Pointer(to=self), RawStatement(stmt))
-    
-    fn execute[T: Params](self, var sql: String, params: T) raises -> Int64:
+
+    fn execute[P: AnyType](self, var sql: String, params: P = ()) raises -> Int64:
         """Executes a SQL statement with the given parameters.
+
+        Parameters:
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
 
         Args:
             sql: The SQL statement to execute.
-            params: The parameters to bind to the SQL statement.
+            params: The parameters to bind to the SQL statement. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
 
         Returns:
             The number of rows affected by the statement.
+
+        Raises:
+            Error: If parameter binding fails or the underlying SQLite call fails.
         """
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ",
+            get_type_name[P](),
+            " does not implement `Params`. Try a tuple or a list of parameters.",
+        )
         var stmt = self.prepare(sql^)
         try:
             return stmt.execute(params)
         finally:
             _ = stmt^.finalize()
 
-    fn execute[*Ts: ToSQL](self, var sql: String, *params: *Ts) raises -> Int64:
-        """Executes a SQL statement with the given parameters.
-
-        Args:
-            sql: The SQL statement to execute.
-            params: The parameters to bind to the SQL statement.
-
-        Returns:
-            The number of rows affected by the statement.
-        """
-        return self.prepare(sql^).execute(params)
-
-    fn query_row[
-        T: Movable, P: Params, //, transform: fn (Row) raises -> T
-    ](self, var sql: String, params: P) raises -> T:
-        """Executes the query and returns a single row.
-
-        This is a convenience method for queries that are expected to return exactly one row.
-        If the query returns more than one row, the rest are ignored.
-
-        Parameters:
-            T: The type that the row will be transformed into.
-            P: The type of the parameters to bind.
-            transform: A function that takes a Row and returns a value of type T.
-
-        Args:
-            sql: The SQL query to execute.
-            params: A list of parameters to bind to the statement.
-
-        Returns:
-            The single Row returned by the query.
-
-        Raises:
-            Error: If parameter binding fails, no rows are returned, or more than one row is returned.
-        """
-        return self.prepare(sql^).query_row[transform=transform](params)
-
-    fn query_row[
-        T: Movable, //, transform: fn (Row) raises -> T, *Ts: ToSQL
-    ](self, var sql: String, *params: *Ts) raises -> T:
-        """Executes the query and returns a single row.
-
-        This is a convenience method for queries that are expected to return exactly one row.
-        If the query returns more than one row, the rest are ignored.
-
-        Parameters:
-            T: The type that the row will be transformed into.
-            transform: A function that takes a Row and returns a value of type T.
-            Ts: The types of the parameters to bind.
-
-        Args:
-            sql: The SQL query to execute.
-            params: A list of parameters to bind to the statement.
-
-        Returns:
-            The single Row returned by the query.
-
-        Raises:
-            Error: If parameter binding fails, no rows are returned, or more than one row is returned.
-        """
-        return self.prepare(sql^).query_row[transform=transform](params)
-    
-    fn query_row[
-        T: Movable, //, transform: fn (Row) raises -> T, *Ts: ToSQL
-    ](self, var sql: String, params: VariadicPack[_, ToSQL, *Ts]) raises -> T:
-        """Executes the query and returns a single row.
-
-        This is a convenience method for queries that are expected to return exactly one row.
-        If the query returns more than one row, the rest are ignored.
-
-        Parameters:
-            T: The type that the row will be transformed into.
-            transform: A function that takes a Row and returns a value of type T.
-            Ts: The types of the parameters to bind.
-
-        Args:
-            sql: The SQL query to execute.
-            params: A variadic pack of parameters to bind to the statement.
-
-        Returns:
-            The single Row returned by the query.
-
-        Raises:
-            Error: If parameter binding fails, no rows are returned, or more than one row is returned.
-        """
-        return self.prepare(sql^).query_row[transform=transform](params)
-
     fn execute_batch(self, sql: String) raises:
         """Executes a batch of SQL statements.
 
         Args:
             sql: The batch of SQL statements to execute.
+
+        Raises:
+            Error: If the underlying SQLite call fails or if any of the statements in the batch return results, which is not supported.
         """
         var current_sql = sql.copy()
         while len(current_sql) > 0:
             # Is it possible to copy the sql string less here? I don't want to keep allocating strings.
             var stmt, tail = self.db.prepare(current_sql.copy(), PrepFlag.PREPARE_PERSISTENT)
             if stmt and Statement(Pointer(to=self), RawStatement(stmt)).step():
-                pass # some pragmas return results
+                pass  # some pragmas return results
                 # raise Error("ExecuteReturnedResults: The executed batch returned results, which is not supported.")
 
             if tail == 0 or Int(tail) >= len(current_sql):
@@ -342,44 +292,67 @@ struct Connection(Movable):
         return self.db.path()
 
     fn last_insert_row_id(self) -> Int64:
-        """Returns the row ID of the last inserted row."""
+        """Returns the row ID of the last inserted row.
+
+        Returns:
+            The row ID of the last inserted row.
+        """
         return self.db.last_insert_row_id()
-    
-    fn one_column[P: Params, //, T: FromSQL](self, var sql: String, params: P) raises -> T:
-        """Fetches a single column from the first row of the result set.
+
+    # fn one_column[P: AnyType, //, T: FromSQL](self, var sql: String, params: P = ()) raises -> T:
+    #     """Fetches a single column from the first row of the result set.
+
+    #     Parameters:
+    #         P: The type of the parameters to bind.
+    #         T: The type to retrieve the value as. Must be Copyable, Movable, and FromSQL.
+
+    #     Args:
+    #         sql: The SQL query to execute.
+    #         params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+    #     Returns:
+    #         The value of the first column in the first row of the result set.
+
+    #     Raises:
+    #         Error: If the query fails or no rows are returned.
+    #     """
+    #     comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
+    #     fn get_item(row: Row) raises -> T:
+    #         return row.get[T](0)
+
+    #     return self.prepare(sql^).query[get_item](params)
+
+    fn one_row[
+        T: Movable, P: AnyType, //, transform: RowTransformFn[T],
+    ](self, var sql: String, params: P = ()) raises -> T:
+        """Executes a SQL query and returns a single row.
+
+        Parameters:
+            T: The type to transform the row into.
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+            transform: A function to transform the row into the desired type.
 
         Args:
             sql: The SQL query to execute.
-            params: The parameters to bind to the SQL query.
-        
-        Returns:
-            The value of the first column in the first row of the result set.
-        
-        Raises:
-            Error: If the query fails or no rows are returned.
-        """
-        fn get_item(row: Row) raises -> T:
-            return row.get[T](0)
-
-        return self.query_row[get_item](sql, params)
-
-    fn one_column[T: FromSQL, *Ts: ToSQL](self, var sql: String, *params: *Ts) raises -> T:
-        """Fetches a single column from the first row of the result set.
-
-        Args:
-            sql: The SQL query to execute.
-            params: The parameters to bind to the SQL query.
+            params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
 
         Returns:
-            The value of the first column in the first row of the result set.
+            The single row returned by the query.
 
         Raises:
-            Error: If the query fails or no rows are returned.
+            Error: If the query fails or does not return exactly one row.
         """
-        fn get_item(row: Row) raises -> T:
-            return row.get[T](0)
-
-        return self.query_row[get_item](sql, params)
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ",
+            get_type_name[P](),
+            " does not implement `Params`. Try a tuple or a list of parameters.",
+        )
+        var stmt = self.prepare(sql^)
+        var rows = stmt.query[transform](params)
+        try:
+            return next(rows)
+        except StopIteration:
+            raise Error("No rows returned by query.")
 
     fn column_exists(
         self,
@@ -518,7 +491,16 @@ struct Connection(Movable):
         want the transaction to commit, you must call `commit()` or
         `set_drop_behavior(DropBehavior.COMMIT())`.
 
-        ## Example
+        Args:
+            behavior: The transaction behavior (DEFERRED, IMMEDIATE, or EXCLUSIVE).
+
+        Returns:
+            A new Transaction object.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+
+                #### Example:
 
         ```mojo
         from slight import Connection
@@ -531,12 +513,6 @@ struct Connection(Movable):
 
             tx.commit()
         ```
-
-        Returns:
-            A new Transaction object.
-
-        Raises:
-            Error: If the underlying SQLite call fails.
         """
         if behavior:
             return Transaction(Pointer(to=self), behavior.value())
@@ -550,7 +526,16 @@ struct Connection(Movable):
         the savepoint to commit, you must call `commit()` or
         `set_drop_behavior(DropBehavior.COMMIT())`.
 
-        ## Example
+        Args:
+            name: The name of the savepoint. If None, an unnamed savepoint is created.
+
+        Returns:
+            A new Savepoint object.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+
+        #### Example:
 
         ```mojo
         from slight import Connection
@@ -562,12 +547,6 @@ struct Connection(Movable):
 
             sp.commit()
         ```
-
-        Returns:
-            A new Savepoint object.
-
-        Raises:
-            Error: If the underlying SQLite call fails.
         """
         if name:
             return Savepoint(Pointer(to=self), name.value())
@@ -575,12 +554,10 @@ struct Connection(Movable):
             return Savepoint(Pointer(to=self))
 
     fn pragma_query_value[
-        T: Movable, //, transform: fn (Row) raises -> T,
-    ](
-        self,
-        pragma: String,
-        schema: Optional[String] = None,
-    ) raises -> T:
+        T: Movable,
+        //,
+        transform: fn(Row) raises -> T,
+    ](self, pragma: String, schema: Optional[String] = None,) raises -> T:
         """Query the current value of a pragma.
 
         Some pragmas will return multiple rows/values which cannot be retrieved
@@ -588,23 +565,6 @@ struct Connection(Movable):
 
         Prefer [PRAGMA function](https://sqlite.org/pragma.html#pragfunc) introduced in SQLite 3.20:
         `SELECT user_version FROM pragma_user_version;`
-
-        ## Example
-
-        ```mojo
-        from slight import Connection
-        from slight.row import Row, Int
-
-        comptime dummy: Int = 0
-
-        fn get_int(r: Row) raises -> Int:
-            return r.get[Int](0)
-
-        fn main() raises:
-            var db = Connection.open_in_memory()
-            var user_version = db.pragma_query_value[transform=get_int]("user_version")
-            print(user_version)
-        ```
 
         Parameters:
             T: The return type.
@@ -619,24 +579,45 @@ struct Connection(Movable):
 
         Raises:
             Error: If the underlying SQLite call fails.
+
+        #### Example:
+
+        ```mojo
+        from slight import Connection
+        from slight.row import Row
+
+        fn get_int(r: Row) raises -> Int:
+            return r.get[Int](0)
+
+        fn main() raises:
+            var db = Connection.open_in_memory()
+            var user_version = db.pragma_query_value[get_int]("user_version")
+            print(user_version)
+        ```
         """
         var query = Sql()
         query.push_pragma(pragma, schema)
-        return self.query_row[transform](String(query))
+        return self.one_row[transform](String(query))
 
     fn pragma_query[
-        callback: fn (Row) raises -> None
-    ](
-        self,
-        schema: Optional[String],
-        pragma: String,
-    ) raises:
+        callback: fn(Row) raises -> None
+    ](self, schema: Optional[String], pragma: String,) raises:
         """Query the current rows/values of a pragma.
 
         Prefer [PRAGMA function](https://sqlite.org/pragma.html#pragfunc) introduced in SQLite 3.20:
         `SELECT * FROM pragma_collation_list;`
 
-        ## Example
+        Parameters:
+            callback: A function to process each row.
+
+        Args:
+            schema: Optional schema name (e.g., "main", "temp").
+            pragma: The name of the pragma.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+
+        #### Example:
 
         ```mojo
         from slight import Connection
@@ -650,30 +631,15 @@ struct Connection(Movable):
             var db = Connection.open_in_memory()
             db.pragma_query[print_collation](None, "collation_list")
         ```
-
-        Parameters:
-            callback: A function to process each row.
-
-        Args:
-            schema: Optional schema name (e.g., "main", "temp").
-            pragma: The name of the pragma.
-
-        Raises:
-            Error: If the underlying SQLite call fails.
         """
         var query = Sql()
         query.push_pragma(pragma, schema)
-        for row in self.prepare(String(query)).query():
+        for row in self.prepare(String(query)).query(()):
             callback(row)
 
     fn pragma[
-        T: ToSQL, //, callback: fn (Row) raises -> None
-    ](
-        self,
-        pragma: StringSlice,
-        value: T,
-        schema: Optional[String] = None,
-    ) raises:
+        T: AnyType, //, callback: fn(Row) raises -> None
+    ](self, pragma: StringSlice, value: T, schema: Optional[String] = None,) raises:
         """Query the current value(s) of a pragma associated with a value.
 
         This method can be used with query-only pragmas which need an argument
@@ -683,7 +649,19 @@ struct Connection(Movable):
         Prefer [PRAGMA function](https://sqlite.org/pragma.html#pragfunc) introduced in SQLite 3.20:
         `SELECT * FROM pragma_table_info(?1);`
 
-        ## Example
+        Parameters:
+            T: The type of the value argument. Must conform to `ToSQL`.
+            callback: A function to process each row.
+
+        Args:
+            pragma: The name of the pragma.
+            value: The value argument for the pragma.
+            schema: Optional schema name (e.g., "main", "temp").
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+
+        #### Example:
 
         ```mojo
         from slight import Connection
@@ -697,40 +675,39 @@ struct Connection(Movable):
             var db = Connection.open_in_memory()
             db.pragma[print_column]("table_info", "sqlite_master")
         ```
-
-        Parameters:
-            T: The type of the value argument.
-            callback: A function to process each row.
-
-        Args:
-            pragma: The name of the pragma.
-            value: The value argument for the pragma.
-            schema: Optional schema name (e.g., "main", "temp").
-
-        Raises:
-            Error: If the underlying SQLite call fails.
         """
+        comptime assert conforms_to(T, ToSQL), String(
+            "`value` must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+        )
         var sql = Sql()
         sql.push_pragma(pragma, schema)
         # The argument may be either in parentheses or separated by an equal sign
         sql.open_brace()
         sql.push_value(value)
         sql.close_brace()
-        for row in self.prepare(String(sql)).query():
+        for row in self.prepare(String(sql)).query(()):
             callback(row)
 
-    fn pragma_update[T: ToSQL, //](
-        self,
-        pragma: StringSlice,
-        value: T,
-        schema: Optional[String] = None,
-    ) raises:
+    fn pragma_update[
+        T: AnyType, //
+    ](self, pragma: StringSlice, value: T, schema: Optional[String] = None,) raises:
         """Set a new value to a pragma.
 
         Some pragmas will return the updated value which cannot be retrieved
         with this method. Use `pragma_update_and_check()` for those cases.
 
-        ## Example
+        Parameters;
+            T: The type of the value argument. Must conform to the `ToSQL` trait.
+
+        Args:
+            pragma: The name of the pragma.
+            value: The new value for the pragma. Must conform to `ToSQL`.
+            schema: Optional schema name (e.g., "main", "temp").
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+
+        #### Example:
 
         ```mojo
         from slight import Connection
@@ -739,14 +716,6 @@ struct Connection(Movable):
             var db = Connection.open_in_memory()
             db.pragma_update("user_version", 1)
         ```
-
-        Args:
-            pragma: The name of the pragma.
-            value: The new value for the pragma.
-            schema: Optional schema name (e.g., "main", "temp").
-
-        Raises:
-            Error: If the underlying SQLite call fails.
         """
         var sql = Sql()
         sql.push_pragma(pragma, schema)
@@ -756,18 +725,29 @@ struct Connection(Movable):
         self.execute_batch(String(sql))
 
     fn pragma_update_and_check[
-        T: Movable, V: ToSQL, //, transform: fn (Row) raises -> T
-    ](
-        self,
-        pragma: StringSlice,
-        value: V,
-        schema: Optional[String] = None,
-    ) raises -> T:
+        T: Movable, V: AnyType, //, transform: fn(Row) raises -> T
+    ](self, pragma: StringSlice, value: V, schema: Optional[String] = None,) raises -> T:
         """Set a new value to a pragma and return the updated value.
 
         Only a few pragmas automatically return the updated value.
 
-        ## Example
+        Parameters:
+            T: The return type.
+            V: The type of the value argument. Must conform to the `ToSQL` trait.
+            transform: A function to transform the row into the desired type.
+
+        Args:
+            pragma: The name of the pragma.
+            value: The new value for the pragma. Must conform to `ToSQL`.
+            schema: Optional schema name (e.g., "main", "temp").
+
+        Returns:
+            The value returned by the pragma after update.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+
+                #### Example:
 
         ```mojo
         from slight import Connection
@@ -778,32 +758,495 @@ struct Connection(Movable):
 
         fn main() raises:
             var db = Connection.open_in_memory()
-            var mode = db.pragma_update_and_check[transform=get_string](
+            var mode = db.pragma_update_and_check[get_string](
                 "journal_mode", "OFF"
             )
             print(mode)
         ```
-
-        Parameters:
-            T: The return type.
-            V: The type of the value argument.
-            transform: A function to transform the row into the desired type.
-
-        Args:
-            pragma: The name of the pragma.
-            value: The new value for the pragma.
-            schema: Optional schema name (e.g., "main", "temp").
-
-        Returns:
-            The value returned by the pragma after update.
-
-        Raises:
-            Error: If the underlying SQLite call fails.
         """
+        comptime assert conforms_to(V, ToSQL), String(
+            "`value` must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`."
+        )
         var sql = Sql()
         sql.push_pragma(pragma, schema)
         # The argument may be either in parentheses or separated by an equal sign
         sql.push_equal_sign()
         sql.push_value(value)
-        return self.query_row[transform](String(sql))
+        return self.one_row[transform](String(sql))
+
+    # TODO: V should be constrained to ToSQL.
+    fn create_scalar_function[
+        P: CopyDestructible, V: MoveDestructible, //, x_func: ScalarUDF[V]
+    ](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        user_data: P,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    ) raises:
+        """Attach a user-defined scalar function to a database connection.
+
+        The function will remain available until the connection is closed or
+        until it is explicitly removed via `remove_function`.
+
+        For scalar functions, only `x_func` is used. The xStep and xFinal
+        callbacks are set to NULL internally, as required by SQLite.
+
+        Parameters:
+            P: The type of the application data to pass to the callback. Must be Copyable and ImplicitlyDestructible.
+            V: The return type of the scalar function. Must conform to `ToSQL`.
+            x_func: The scalar function callback implementation.
+
+        Args:
+            fn_name: Name of the SQL function to create.
+            n_arg: Number of arguments the function accepts (-1 for variable number).
+            user_data: Data that is passed to the callback when the function is called. Can be used to store context or state for the function.
+            flags: Function flags (encoding, determinism, etc.). Defaults to UTF-8 encoding and deterministic behavior.
+
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        # For scalar functions, SQLite requires xFunc to be non-NULL and
+        # xStep/xFinal to be NULL. We call the raw C API directly to pass
+        # NULL for the unused callbacks.
+        var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags, user_data.copy())
+        self.raise_if_error(result)
+
+    # TODO: When extensions work, switch to ToSQL
+    fn create_scalar_function[
+        V: MoveDestructible, //, x_func: ScalarUDF[V]
+    ](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    ) raises:
+        """Attach a user-defined scalar function to a database connection.
+
+        The function will remain available until the connection is closed or
+        until it is explicitly removed via `remove_function`.
+
+        For scalar functions, only `x_func` is used. The xStep and xFinal
+        callbacks are set to NULL internally, as required by SQLite.
+
+        Parameters:
+            V: The return type of the scalar function. Must conform to `ToSQL`.
+            x_func: The scalar function callback implementation.
+
+        Args:
+            fn_name: Name of the SQL function to create.
+            n_arg: Number of arguments the function accepts (-1 for variable number).
+            flags: Function flags (encoding, determinism, etc.).
+
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        # For scalar functions, SQLite requires xFunc to be non-NULL and
+        # xStep/xFinal to be NULL. We call the raw C API directly to pass
+        # NULL for the unused callbacks.
+        comptime assert conforms_to(V, ToSQL), String(
+            "Return type V must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`."
+        )
+        var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags)
+        self.raise_if_error(result)
+
+    fn create_aggregate_function[
+        A: MoveDestructible,
+        T: MoveDestructible,
+        P: CopyDestructible,
+        //,
+        init_fn: AggregateInitUDF[A],
+        step_fn: AggregateStepUDF[A],
+        final_fn: AggregateFinalUDF[A, T],
+    ](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        user_data: P,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    ) raises:
+        """Attach a user-defined aggregate function to a database connection.
+
+        Aggregate functions process multiple rows and produce a single result.
+        The `x_step` callback is called once per row, and `x_final` is called
+        once at the end to produce the result.
+
+        Use `FunctionContext.aggregate_context()` inside the callbacks to manage
+        per-group state.
+
+        Parameters:
+            A: The type of the aggregate state. Must be Movable.
+            T: The return type of the aggregate function. Must conform to `ToSQL`.
+            P: The type of the application data to pass to the callbacks.
+            init_fn: The callback to initialize the aggregate state for a new group.
+            step_fn: The callback to update the aggregate state for each row in the group.
+            final_fn: The callback to compute the final result from the aggregate state.
+
+        Args:
+            fn_name: Name of the SQL aggregate function to create.
+            n_arg: Number of arguments (-1 for variable number).
+            user_data: Data that is passed to the callbacks when the function is called. Can be used to store context or state for the function.
+            flags: Function flags.
+
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        # For aggregate functions, SQLite requires xFunc to be NULL and
+        # xStep/xFinal to be non-NULL.
+        comptime assert conforms_to(T, ToSQL), String(
+            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+        )
+        var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags, user_data)
+        self.raise_if_error(result)
+
+    fn create_aggregate_function[
+        A: MoveDestructible,
+        T: MoveDestructible,
+        //,
+        init_fn: AggregateInitUDF[A],
+        step_fn: AggregateStepUDF[A],
+        final_fn: AggregateFinalUDF[A, T],
+    ](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    ) raises:
+        """Attach a user-defined aggregate function to a database connection.
+
+        Aggregate functions process multiple rows and produce a single result.
+        The `x_step` callback is called once per row, and `x_final` is called
+        once at the end to produce the result.
+
+        Use `FunctionContext.aggregate_context()` inside the callbacks to manage
+        per-group state.
+
+        Parameters:
+            A: The type of the aggregate state. Must be Movable.
+            T: The return type of the aggregate function. Must conform to `ToSQL`.
+            init_fn: The callback to initialize the aggregate state for a new group.
+            step_fn: The callback to update the aggregate state for each row in the group.
+            final_fn: The callback to compute the final result from the aggregate state.
+
+        Args:
+            fn_name: Name of the SQL aggregate function to create.
+            n_arg: Number of arguments (-1 for variable number).
+            flags: Function flags.
+
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        # For aggregate functions, SQLite requires xFunc to be NULL and
+        # xStep/xFinal to be non-NULL.
+        comptime assert conforms_to(T, ToSQL), String(
+            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+        )
+        var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags)
+        self.raise_if_error(result)
+
+    fn create_window_function[
+        A: CopyDestructible,
+        T: MoveDestructible,
+        P: CopyDestructible,
+        //,
+        init_fn: AggregateInitUDF[A],
+        step_fn: AggregateStepUDF[A],
+        final_fn: AggregateFinalUDF[A, T],
+        value_fn: WindowAggregateValueUDF[A, T],
+        inverse_fn: WindowAggregateInverseUDF[A],
+    ](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        user_data: P,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    ) raises:
+        """Attach a user-defined aggregate window function to a database connection.
+
+        Window functions operate over a sliding window of rows. In addition to
+        the `x_step` and `x_final` callbacks (like aggregate functions), they require
+        `x_value` (to return the current aggregate value without finalizing) and
+        `x_inverse` (to remove a row leaving the window frame).
+
+        See https://sqlite.org/windowfunctions.html#udfwinfunc for more information.
+
+        Parameters:
+            A: The type of the aggregate state. Must be Movable.
+            T: The return type of the aggregate function. Must conform to `ToSQL`.
+            P: The type of the application data to pass to the callbacks.
+            init_fn: The callback to initialize the aggregate state for a new group.
+            step_fn: The callback to update the aggregate state for each row in the group.
+            final_fn: The callback to compute the final result from the aggregate state.
+            value_fn: The callback to compute the current aggregate value without finalizing.
+            inverse_fn: The callback to update the aggregate state when a row leaves the window frame.
+
+        Args:
+            fn_name: Name of the SQL aggregate function to create.
+            n_arg: Number of arguments (-1 for variable number).
+            user_data: Data that is passed to the callbacks when the function is called. Can be used to store context or state for the function.
+            flags: Function flags.
+
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        comptime assert conforms_to(T, ToSQL), String(
+            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+        )
+        var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
+            fn_name, n_arg, flags, user_data
+        )
+        self.raise_if_error(result)
+
+    fn create_window_function[
+        A: CopyDestructible,
+        T: MoveDestructible,
+        //,
+        init_fn: AggregateInitUDF[A],
+        step_fn: AggregateStepUDF[A],
+        final_fn: AggregateFinalUDF[A, T],
+        value_fn: WindowAggregateValueUDF[A, T],
+        inverse_fn: WindowAggregateInverseUDF[A],
+    ](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    ) raises:
+        """Attach a user-defined aggregate window function to a database connection.
+
+        Window functions operate over a sliding window of rows. In addition to
+        the `x_step` and `x_final` callbacks (like aggregate functions), they require
+        `x_value` (to return the current aggregate value without finalizing) and
+        `x_inverse` (to remove a row leaving the window frame).
+
+        See https://sqlite.org/windowfunctions.html#udfwinfunc for more information.
+
+        Parameters:
+            A: The type of the aggregate state. Must be Movable.
+            T: The return type of the aggregate function. Must conform to `ToSQL`.
+            init_fn: The callback to initialize the aggregate state for a new group.
+            step_fn: The callback to update the aggregate state for each row in the group.
+            final_fn: The callback to compute the final result from the aggregate state.
+            value_fn: The callback to compute the current aggregate value without finalizing.
+            inverse_fn: The callback to update the aggregate state when a row leaves the window frame.
+
+        Args:
+            fn_name: Name of the SQL aggregate function to create.
+            n_arg: Number of arguments (-1 for variable number).
+            flags: Function flags.
+
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        comptime assert conforms_to(T, ToSQL), String(
+            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+        )
+        var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
+            fn_name, n_arg, flags
+        )
+        self.raise_if_error(result)
+
+    fn remove_function(self, fn_name: String, n_arg: Int) raises:
+        """Remove a user-defined function from a database connection.
+
+        `fn_name` and `n_arg` should match the name and number of arguments
+        given to `create_scalar_function`, `create_aggregate_function`, or
+        `create_window_function`.
+
+        Args:
+            fn_name: Name of the SQL function to remove.
+            n_arg: Number of arguments the function was registered with.
+
+        Raises:
+            Error: If the function could not be removed.
+        """
+        # To delete a function, pass NULL for all callbacks and pApp,
+        # with UTF8 encoding.
+        var result = self.db.remove_function(fn_name, n_arg)
+        self.raise_if_error(result)
+
+    fn busy_timeout(self, ms: Int) raises:
+        """Set a busy handler that sleeps for a specified amount of time when a
+        table is locked.
+
+        The handler will sleep multiple times until at least `ms` milliseconds
+        of sleeping have accumulated. Calling this with an argument equal to
+        zero turns off all busy handlers.
+
+        There can only be a single busy handler for a particular database
+        connection at any given moment. If another busy handler was defined
+        (using `busy_handler`) prior to calling this routine, that other busy
+        handler is cleared.
+
+        Newly created connections currently have a default busy timeout of
+        5000ms, but this may be subject to change.
+
+        Args:
+            ms: Maximum time to wait in milliseconds. Pass 0 to disable.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        self.raise_if_error(self.db.busy_timeout(c_int(ms)))
+
+    fn register_busy_handler[callback: Optional[BusyHandlerFn]](self) raises:
+        """Register a callback to handle `SQLITE_BUSY` errors.
+
+        If `callback` is `None`, then `SQLITE_BUSY` is returned immediately
+        upon encountering the lock. The argument to the busy handler callback
+        is the number of times that the busy handler has been invoked
+        previously for the same locking event. If the busy callback returns
+        `False`, then no additional attempts are made to access the database
+        and `SQLITE_BUSY` is returned to the application. If the callback
+        returns `True`, then another attempt is made to access the database
+        and the cycle repeats.
+
+        There can only be a single busy handler defined for each database
+        connection. Setting a new busy handler clears any previously set
+        handler. Note that calling `busy_timeout()` or evaluating
+        `PRAGMA busy_timeout=N` will change the busy handler and thus clear
+        any previously set busy handler.
+
+        Newly created connections default to a `busy_timeout()` handler with a
+        timeout of 5000ms, although this is subject to change.
+
+        Parameters:
+            callback: Busy handler callback function.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        self.raise_if_error(self.db.busy_handler[callback]())
+    
+    fn clear_busy_handler(self) raises:
+        """Clear the busy handler, if any."""
+        self.raise_if_error(self.db.busy_handler[None]())
+
+    fn limit(self, limit: Limit) raises -> Int32:
+        """Returns the current value of a run-time `Limit`.
+
+        Args:
+            limit: The limit category to query.
+
+        Returns:
+            The current value of the limit.
+
+        Raises:
+            Error: If the limit category is invalid.
+        """
+        var rc = self.db.limit(limit)
+        if rc < 0:
+            raise Error(t"{limit} is invalid")
+        return rc
+
+    fn set_limit(self, limit: Limit, new_val: Int32) raises -> Int32:
+        """Changes a run-time `Limit`, returning the prior value.
+
+        Args:
+            limit: The limit category to change.
+            new_val: The new value for the limit. Must be non-negative.
+
+        Returns:
+            The previous value of the limit.
+
+        Raises:
+            Error: If `new_val` is negative or the limit category is invalid.
+        """
+        if new_val < 0:
+            raise Error(t"{new_val} is invalid")
+        var rc = self.db.set_limit(limit, new_val)
+        if rc < 0:
+            raise Error(t"{limit} is invalid")
+        return rc
+
+    fn register_trace_function[trace_fn: TraceFn](self, mask: TraceEventCodes) raises:
+        """Register or clear a trace callback.
+
+        When `trace_fn` is provided, it will be called for each trace event
+        whose type is selected by `mask`. Pass `None` to disable tracing.
+
+        There can only be a single tracer per connection. Setting a new tracer
+        replaces the previous one.
+
+        Parameters:
+            trace_fn: A `TraceFn` callback.
+
+        Args:
+            mask: Bitmask of `TraceEventCodes` to monitor.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        self.raise_if_error(self.db.trace_v2[trace_fn](mask))
+    
+    fn clear_trace_function(self) raises:
+        """Clear the trace callback, if any."""
+        self.raise_if_error(self.db.trace_v2[None](TraceEventCodes.empty()))
+
+    fn log(self, err_code: Int32, mut msg: String):
+        """Write a message to the SQLite error log.
+
+        Args:
+            err_code: An SQLite error code to associate with the message.
+            msg: The log message text.
+        """
+        self.db.log(err_code, msg)
+
+    fn enable_extension_loading(mut self) raises -> ExtensionLoadGuard[origin_of(self)]:
+        """Enable extension loading for this connection.
+
+        Returns:
+            An `ExtensionLoadGuard` which will require explicitly disabling extension loading.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        self.raise_if_error(self.db.set_extension_loading(enable=True))
+        return ExtensionLoadGuard(Pointer(to=self))
+
+    fn disable_extension_loading(mut self) raises:
+        """Disable extension loading for this connection.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        self.raise_if_error(self.db.set_extension_loading(enable=False))
+
+    fn load_extension(mut self, dylib_path: String, entry_point: Optional[String] = None) raises:
+        """Load an SQLite extension library.
+
+        Extension loading must first be enabled via `enable_extension_loading()`.
+
+        Args:
+            dylib_path: File path to the shared library containing the extension.
+            entry_point: Name of the entry point function. If None, SQLite uses
+                the default entry point.
+
+        Raises:
+            Error: If the extension cannot be loaded.
+        """
+        self.db.load_extension(dylib_path, entry_point)
+
+    fn is_locked(self, rc: SQLite3Result) -> Bool:
+        """Check whether a result code indicates shared-cache lock contention.
+
+        Args:
+            rc: The result code returned by a recent SQLite API call.
+
+        Returns:
+            True if the error is SQLITE_LOCKED due to shared-cache contention.
+        """
+        return self.db.is_locked(rc)
+
+    fn wait_for_unlock_notify(self) -> SQLite3Result:
+        """Block until an unlock-notify callback fires, then return SQLITE_OK.
+
+        Should only be called after a `SQLITE_LOCKED` result in shared-cache mode.
+        If registering the notification would cause deadlock, returns SQLITE_LOCKED
+        immediately; the caller should roll back the current transaction.
+
+        Returns:
+            SQLITE_OK when the lock is released, or an error code.
+        """
+        return self.db.wait_for_unlock_notify()
 

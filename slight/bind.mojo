@@ -10,9 +10,17 @@ from slight.statement import Statement
 
 @fieldwise_init
 struct BindIndexError(Movable, Writable):
-    var msg: String
+    """An error type for invalid bind parameter indexing."""
 
-    fn write_to[W: Writer, //](self, mut writer: W):
+    var msg: String
+    """A message describing the error."""
+
+    fn write_to(self, mut writer: Some[Writer]):
+        """Writes the error message to the provided writer.
+
+        Args:
+            writer: A mutable reference to a Writer where the error message will be written.
+        """
         writer.write_string(self.msg)
 
 
@@ -42,6 +50,7 @@ __extension Int(BindIndex):
         """Returns the index directly without validation.
 
         Args:
+            self: Temporary docstring due to extension bug.
             stmt: The statement (unused for Int indexing).
 
         Returns:
@@ -56,17 +65,18 @@ __extension String(BindIndex):
         """Returns the index of the parameter with the given name.
 
         Args:
+            self: Temporary docstring due to extension bug.
             stmt: The statement to search for the parameter name.
 
         Returns:
             The 1-based index of the parameter.
 
         Raises:
-            Error: If the parameter name is not found in the statement.
+            BindIndexError: If the parameter name is not found in the statement.
         """
         var result = stmt.parameter_index(self)
         if not result:
-            raise BindIndexError(String("Received an invalid parameter name: ", self))
+            raise BindIndexError(t"Received an invalid parameter name: {self}")
         return result.value()
 
 
@@ -75,6 +85,7 @@ __extension StringSlice(BindIndex):
         """Returns the index of the parameter with the given name.
 
         Args:
+            self: Temporary docstring due to extension bug.
             stmt: The statement to search for the parameter name.
 
         Returns:
@@ -86,5 +97,5 @@ __extension StringSlice(BindIndex):
         var name = String(self)
         var result = stmt.parameter_index(name)
         if not result:
-            raise BindIndexError(String("Received an invalid parameter name: ", name))
+            raise BindIndexError(t"Received an invalid parameter name: {name}")
         return result.value()

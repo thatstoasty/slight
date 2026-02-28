@@ -1,29 +1,42 @@
-from reflection import (
-    struct_field_count,
-    struct_field_names,
-    struct_field_types,
-    get_type_name,
-    is_struct_type,
-)
-from memory import Pointer
 from slight.statement import Statement
-from slight.types.value_ref import (
-    ValueRef,
-    SQLite3Blob,
-    SQLite3Integer,
-    SQLite3Null,
-    SQLite3Real,
-    SQLite3Text,
-)
+from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
+from std.builtin.rebind import downcast, trait_downcast
+from std.memory import Pointer
+from std.reflection import get_type_name, is_struct_type, struct_field_count, struct_field_names, struct_field_types
 
 
 trait RowIndex:
+    """A trait for types that can be used to index columns in a Row."""
+
     fn idx(self, stmt: Statement) raises -> UInt:
+        """Convert this index type to a UInt column index.
+
+        Args:
+            stmt: The statement to index into.
+
+        Returns:
+            A UInt representing the column index (0-based).
+
+        Raises:
+            Error: If the index cannot be converted to a valid column index.
+        """
         ...
 
 
 __extension Int(RowIndex):
     fn idx(self, stmt: Statement) raises -> UInt:
+        """Convert this index type to a UInt column index.
+
+        Args:
+            self: Temporary docstring due to extension bug.
+            stmt: The statement to index into.
+
+        Returns:
+            A UInt representing the column index (0-based).
+
+        Raises:
+            Error: If the index cannot be converted to a valid column index.
+        """
         if self < 0 or UInt(self) >= stmt.column_count():
             raise Error("Invalid column index: ", self)
 
@@ -32,22 +45,76 @@ __extension Int(RowIndex):
 
 __extension String(RowIndex):
     fn idx(self, stmt: Statement) raises -> UInt:
+        """Convert this index type to a UInt column index.
+
+        Args:
+            self: Temporary docstring due to extension bug.
+            stmt: The statement to index into.
+
+        Returns:
+            A UInt representing the column index (0-based).
+
+        Raises:
+            Error: If the index cannot be converted to a valid column index.
+        """
         return stmt.column_index(self)
 
 
 __extension StringSlice(RowIndex):
     fn idx(self, stmt: Statement) raises -> UInt:
+        """Convert this index type to a UInt column index.
+
+        Args:
+            self: Temporary docstring due to extension bug.
+            stmt: The statement to index into.
+
+        Returns:
+            A UInt representing the column index (0-based).
+
+        Raises:
+            Error: If the index cannot be converted to a valid column index.
+        """
         return stmt.column_index(self)
 
+# comptime RowTransformFn[T: Movable, conn: ImmutOrigin, statement: ImmutOrigin] = fn(Row[conn, statement]) raises -> T
+# """A type alias for a function that transforms a Row into a value of type T.
+
+# Parameters:
+#     T: The target type to transform the Row into.
+#     conn: The connection associated with the Row.
+#     statement: The statement associated with the Row.
+# """
+
+# TODO: I tried to include the connection and statement origins in the RowTransformFn type alias,
+# but it causes parameter binding issues in the connection class.
+# And I don't want to constrain functionality more.
+comptime RowTransformFn[T: Movable] = fn[conn: ImmutOrigin, statement: ImmutOrigin](Row[conn, statement]) raises -> T
+"""A type alias for a function that transforms a Row into a value of type T.
+
+Parameters:
+    T: The target type to transform the Row into.
+"""
+comptime BoundRowTransformFn[T: Movable, conn: ImmutOrigin, statement: ImmutOrigin] = fn(Row[conn, statement]) raises -> T
+"""A type alias for a function that transforms a Row into a value of type T."""
 
 @fieldwise_init
 struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
-    """Represents a single row in the result set of a SQL query."""
+    """Represents a single row in the result set of a SQL query.
+
+    Parameters:
+        conn: The connection that produced this row.
+        statement: The statement that produced this row.
+    """
 
     var stmt: Pointer[Statement[Self.conn], Self.statement]
     """A pointer to the statement that produced this row."""
 
-    fn write_to[W: Writer, //](self, mut writer: W):
+    fn write_to(self, mut writer: Some[Writer]):
+        """Writes a string representation of the row to the provided writer.
+
+        Args:
+            writer: A mutable reference to a Writer where the row representation will be written.
+        """
         writer.write_string("(")
         var column_count = self.stmt[].column_count()
         for i in range(column_count):
@@ -55,7 +122,7 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
                 writer.write_string(", ")
             writer.write(self.stmt[].value_ref(i))
         writer.write_string(")")
-        
+
     fn get_int64(self, idx: Some[RowIndex]) raises -> Optional[Int]:
         """Gets an Int64 value from the specified column.
 
@@ -138,7 +205,7 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
             return None
         elif value.isa[SQLite3Real]():
             return Float64(value[SQLite3Real].value)
-        
+
         raise Error("InvalidColumnTypeError: column is not of type REAL")
 
     fn get_string_slice(self, idx: Some[RowIndex]) raises -> Optional[StringSlice[Self.conn]]:
@@ -163,11 +230,36 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
             return None
         elif value.isa[SQLite3Text[Self.conn]]():
             return value[SQLite3Text[Self.conn]].value
-    
+
         raise Error("InvalidColumnTypeError: column is not of type TEXT")
 
     # TODO: Parameter inference breaks if I try to put RowIndex first in the parameter list.
-    fn get[S: FromSQL, I: RowIndex](self, idx: I) raises -> S:
+    # TODO: Re-enable when exposing users to extensions is less buggy and more ergonomic.
+    # fn get[S: FromSQL, I: RowIndex](self, idx: I) raises -> S:
+    #     """Gets a value of type S from the specified column using generic type conversion.
+
+    #     This is a generic method that can retrieve values of any supported type,
+    #     making the API more ergonomic by eliminating the need for type-specific methods.
+
+    #     Parameters:
+    #         S: The type to convert the column value to. Supported types are:
+    #            Int, SIMD types (Int8/UInt8 to Int64/UInt64, Float16 to Float64, Int), String, Bool, and NoneType.
+    #         I: The type used to specify the column index (0-based). Can be Int, UInt, String, or StringSlice.
+
+    #     Args:
+    #         idx: The column index (0-based).
+
+    #     Returns:
+    #         An Optional containing the value of type T, or None if the column is NULL.
+
+    #     Raises:
+    #         InvalidColumnIndexError: If the column index is out of bounds.
+    #         Error: If the column value cannot be converted to type T.
+    #     """
+    #     var i = idx.idx(self.stmt[])
+    #     return S(self.stmt[].value_ref(i))
+
+    fn get[S: Movable, I: AnyType](self, idx: I) raises -> S:
         """Gets a value of type S from the specified column using generic type conversion.
 
         This is a generic method that can retrieve values of any supported type,
@@ -175,7 +267,7 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
 
         Parameters:
             S: The type to convert the column value to. Supported types are:
-               Int, Float64, String, and Bool.
+               Int, SIMD types (Int8/UInt8 to Int64/UInt64, Float16 to Float64, Int), String, Bool, and NoneType.
             I: The type used to specify the column index (0-based). Can be Int, UInt, String, or StringSlice.
 
         Args:
@@ -188,22 +280,43 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
             InvalidColumnIndexError: If the column index is out of bounds.
             Error: If the column value cannot be converted to type T.
         """
-        var i = idx.idx(self.stmt[])
-        return S(self.stmt[].value_ref(i))
+        comptime assert conforms_to(S, FromSQL), String(
+            "S must implement `FromSQL`. ", get_type_name[S](), " does not implement `FromSQL`."
+        )
+        comptime assert conforms_to(I, RowIndex), String(
+            "I must implement `RowIndex`. ", get_type_name[I](), " does not implement `RowIndex`."
+        )
+
+        var i = trait_downcast[RowIndex](idx).idx(self.stmt[])
+        return downcast[S, FromSQL](self.stmt[].value_ref(i))
 
 
 @fieldwise_init
 struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator):
-    """An iterator over rows returned by a SQL query."""
+    """An iterator over rows returned by a SQL query.
+
+    Parameters:
+        conn: The connection that produced these rows.
+        statement: The statement that produces these rows.
+    """
 
     comptime Element = Row[Self.conn, Self.statement]
+    """The type of elements produced by this iterator."""
 
     var stmt: Pointer[Statement[Self.conn], Self.statement]
     """A pointer to the statement that produces rows."""
-    
+
     fn __next__(
         mut self,
     ) raises StopIteration -> Self.Element:
+        """Returns the next row in the result set.
+
+        Returns:
+            The next Row in the result set.
+
+        Raises:
+            StopIteration: If there are no more rows to return.
+        """
         try:
             if self.stmt[].step():
                 return Row(self.stmt)
@@ -233,10 +346,10 @@ struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator):
             print("Error resetting statement:", e)
             # TODO: come back to resetting this to avoid infinite loops
             # raise
-    
-    fn map[T: Movable, //, transform: fn (Row) raises -> T](
+
+    fn map[T: Movable, //, transform: RowTransformFn[T]](
         self,
-    ) -> MappedRows[Self.conn, Self.statement, transform]:
+    ) -> MappedRows[transform[Self.conn, Self.statement]]:
         """Returns an iterator that transforms each row using the provided function.
 
         Parameters:
@@ -246,11 +359,11 @@ struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator):
         Returns:
             An iterator that yields transformed rows.
         """
-        return MappedRows[Self.conn, Self.statement, transform](self)
-    
-    fn as_type[T: Movable & Defaultable](
-        self,
-    ) -> TypedRows[Self.conn, Self.statement, T]:
+        return MappedRows[transform[Self.conn, Self.statement]](self)
+
+    fn as_type[
+        T: Movable & Defaultable
+    ](self,) -> TypedRows[Self.conn, Self.statement, T]:
         """Returns an iterator that transforms each row using the provided function.
 
         Parameters:
@@ -262,12 +375,20 @@ struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator):
         return TypedRows[Self.conn, Self.statement, T](self)
 
 
-struct MappedRows[T: Movable, //, conn: ImmutOrigin, statement: ImmutOrigin, transform: fn (Row) raises -> T](
+struct MappedRows[T: Movable, conn: ImmutOrigin, statement: ImmutOrigin, //, transform: BoundRowTransformFn[T, conn, statement]](
     Copyable, Iterator
 ):
-    """An iterator that transforms rows using a mapping function."""
+    """An iterator that transforms rows using a mapping function.
+
+    Parameters:
+        T: The target type to map each row to.
+        conn: The connection that produced these rows.
+        statement: The statement that produces these rows.
+        transform: The function to apply to each row.
+    """
 
     comptime Element = Self.T
+    """The type of elements produced by this iterator."""
 
     var rows: Rows[Self.conn, Self.statement]
     """The underlying rows iterator."""
@@ -285,6 +406,9 @@ struct MappedRows[T: Movable, //, conn: ImmutOrigin, statement: ImmutOrigin, tra
 
         Returns:
             The next row transformed by the mapping function.
+
+        Raises:
+            StopIteration: If there are no more rows to return or if the transformation fails.
         """
         var result = self.rows.__next__()
         try:
@@ -309,12 +433,17 @@ struct MappedRows[T: Movable, //, conn: ImmutOrigin, statement: ImmutOrigin, tra
         self.rows.reset()
 
 
-struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: Movable & Defaultable](
-    Copyable, Iterator
-):
-    """An iterator that transforms rows using a mapping function."""
+struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: Movable & Defaultable](Copyable, Iterator):
+    """An iterator that transforms rows using a mapping function.
+
+    Parameters:
+        conn: The connection that produced these rows.
+        statement: The statement that produces these rows.
+        T: The target struct type to map each row to. Must be a struct type where each field implements FromSQL.
+    """
 
     comptime Element = Self.T
+    """The type of elements produced by this iterator."""
 
     var rows: Rows[Self.conn, Self.statement]
     """The underlying rows iterator."""
@@ -326,7 +455,7 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: Movable & Default
             rows: The underlying rows iterator to transform.
         """
         self.rows = rows.copy()
-    
+
     fn _transform(self, row: Row[Self.conn, Self.statement], out result: Self.T) raises:
         """Transforms a Row into the target type T.
 
@@ -339,7 +468,7 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: Movable & Default
         Raises:
             Error: If the transformation fails.
         """
-        __comptime_assert is_struct_type[Self.T](), "TypedRows can only transform to struct types."
+        comptime assert is_struct_type[Self.T](), "TypedRows can only transform to struct types."
 
         comptime field_count = struct_field_count[Self.T]()
         comptime field_names = struct_field_names[Self.T]()
@@ -354,22 +483,17 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: Movable & Default
                 Int(field_count),
                 " fields, but query returned ",
                 Int(column_count),
-                " columns."
+                " columns.",
             )
 
         result = Self.T()
         try:
-            @parameter
-            for i in range(field_count):
+            comptime for i in range(field_count):
                 comptime field_name = field_names[i]
                 comptime field_type = field_types[i]
                 if not conforms_to(field_type, FromSQL):
                     raise Error(
-                        "Field '",
-                        field_name,
-                        "' of struct '",
-                        get_type_name[Self.T](),
-                        "' does not implement FromSQL."
+                        "Field '", field_name, "' of struct '", get_type_name[Self.T](), "' does not implement FromSQL."
                     )
                 ref field = __struct_field_ref(i, result)
                 field = row.get[type_of(trait_downcast[FromSQL](field))](i)
@@ -383,6 +507,9 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: Movable & Default
 
         Returns:
             The next row transformed by the mapping function.
+
+        Raises:
+            StopIteration: If there are no more rows to return or if the transformation fails.
         """
         var result = self.rows.__next__()
         try:

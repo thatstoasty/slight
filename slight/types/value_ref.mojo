@@ -1,4 +1,5 @@
-from utils.variant import Variant
+from std.os import abort
+from std.utils import Variant
 
 
 trait SQLType(Copyable):
@@ -37,7 +38,7 @@ struct SQLite3Integer(SQLType):
             value: The value to wrap.
         """
         self.value = value
-    
+
     @implicit
     fn __init__(out self, value: Int):
         """Initialize a `SQLite3Integer` with the given `Int` value.
@@ -45,7 +46,7 @@ struct SQLite3Integer(SQLType):
         Args:
             value: The value to wrap.
         """
-        self.value = value
+        self.value = Int64(value)
 
 
 struct SQLite3Real(SQLType):
@@ -119,10 +120,12 @@ struct SQLite3Blob[stmt: ImmutOrigin](SQLType):
 struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
     """A non-owning dynamic type value. Typically, the memory backing this value is var by SQLite.
 
-    See `Value`for an owning dynamic type value.
+    Parameters:
+        stmt: The origin of the statement that owns the value memory.
     """
 
-    var value: Variant[SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text[Self.stmt], SQLite3Blob[Self.stmt]]
+    comptime _type = Variant[SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text[Self.stmt], SQLite3Blob[Self.stmt]]
+    var value: Self._type
     """The actual value stored in the variant."""
 
     @implicit
@@ -169,16 +172,32 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
             value: The SQLite3Blob value to store.
         """
         self.value = value^
-    
-    fn write_to[W: Writer, //](self, mut writer: W):
+
+    fn __init__(out self, value: Self._type):
+        """Initialize a ValueRef by copying another ValueRef.
+
+        Args:
+            value: The ValueRef to copy.
+        """
+        if value.isa[SQLite3Null]():
+            self.value = value[SQLite3Null].copy()
+        elif value.isa[SQLite3Integer]():
+            self.value = value[SQLite3Integer].copy()
+        elif value.isa[SQLite3Real]():
+            self.value = value[SQLite3Real].copy()
+        elif value.isa[SQLite3Text[Self.stmt]]():
+            self.value = value[SQLite3Text[Self.stmt]].copy()
+        elif value.isa[SQLite3Blob[Self.stmt]]():
+            self.value = value[SQLite3Blob[Self.stmt]].copy()
+        else:
+            abort("UNREACHABLE: invalid variant type for ValueRef initialization")
+
+    fn write_to(self, mut writer: Some[Writer]):
         """Write the string representation of the SQL value to the given writer.
 
         This method provides a way to serialize the SQL value into a human-readable
         format, suitable for logging or debugging purposes.
 
-        Parameters:
-            W: The type of the writer to write to. Must implement the Writer trait.
-        
         Args:
             writer: The writer to which the string representation will be written.
         """
@@ -209,7 +228,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         """
         return self.value.isa[T]()
 
-    fn __getitem__[T: SQLType](self) -> ref [self.value] T:
+    fn __getitem__[T: SQLType](self) -> ref[self.value] T:
         """Get the value as the specified type T.
 
         This method provides type-safe access to the stored SQL value. The type T
@@ -231,6 +250,9 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A String representing the SQL value.
+
+        Raises:
+            Error: If the value is not of type TEXT.
         """
         if self.isa[SQLite3Text[Self.stmt]]():
             return self[SQLite3Text[Self.stmt]].value
@@ -245,6 +267,9 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A String representing the SQL value, or None if the value is NULL.
+
+        Raises:
+            Error: If the value is not of type TEXT or NULL.
         """
         if self.isa[SQLite3Text[Self.stmt]]():
             return self[SQLite3Text[Self.stmt]].value
@@ -261,6 +286,9 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             An Int64 representing the SQL value.
+
+        Raises:
+            Error: If the value is not of type INTEGER.
         """
         if self.isa[SQLite3Integer]():
             return self[SQLite3Integer].value
@@ -275,6 +303,9 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             An Int64 representing the SQL value, or None if the value is NULL.
+
+        Raises:
+            Error: If the value is not of type INTEGER or NULL.
         """
         if self.isa[SQLite3Integer]():
             return self[SQLite3Integer].value
@@ -291,6 +322,9 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A Float64 representing the SQL value, or None if the value is NULL.
+
+        Raises:
+            Error: If the value is not of type REAL.
         """
         if self.isa[SQLite3Real]():
             return self[SQLite3Real].value
@@ -305,6 +339,9 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A Float64 representing the SQL value, or None if the value is NULL.
+
+        Raises:
+            Error: If the value is not of type REAL or NULL.
         """
         if self.isa[SQLite3Real]():
             return self[SQLite3Real].value
@@ -321,6 +358,9 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A Span of Bytes representing the SQL value.
+
+        Raises:
+            Error: If the value is not of type BLOB.
         """
         if self.isa[SQLite3Blob[Self.stmt]]():
             return self[SQLite3Blob[Self.stmt]].value
@@ -335,6 +375,9 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A Span of Bytes representing the SQL value, or None if the value is NULL.
+
+        Raises:
+            Error: If the value is not of type BLOB or NULL.
         """
         if self.isa[SQLite3Blob[Self.stmt]]():
             return self[SQLite3Blob[Self.stmt]].value
@@ -350,6 +393,9 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A Span of Bytes representing the SQL value.
+
+        Raises:
+            Error: If the value is not of type BLOB or TEXT.
         """
         if self.isa[SQLite3Blob[Self.stmt]]():
             return self[SQLite3Blob[Self.stmt]].value
@@ -365,6 +411,9 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A Span of Bytes representing the SQL value, or None if the value is NULL.
+
+        Raises:
+            Error: If the value is not of type BLOB, TEXT, or NULL.
         """
         if self.isa[SQLite3Blob[Self.stmt]]():
             return self[SQLite3Blob[Self.stmt]].value
