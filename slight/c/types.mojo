@@ -313,99 +313,104 @@ struct sqlite3_context(Movable):
     pass
 
 
+# TODO: Implement this later
 struct sqlite3_module(Movable):
-    """Virtual Table Module."""
-    var iVersion: Int32
-    """The version number of the virtual table module. This should be set to 0 for the initial version of the module. Future versions may add new methods to the module, and the version number can be used to indicate which version of the module is being used."""
-    var xCreate: fn (
-        MutExternalPointer[sqlite3_connection],
-        OpaquePointer,
-        Int32,
-        MutExternalPointer[MutExternalPointer[Int8]],
-        MutExternalPointer[MutExternalPointer[sqlite3_vtab]],
-        MutExternalPointer[MutExternalPointer[Int8]],
-    ) -> Int32
-    """Called to create a new virtual table. It should create a new instance of the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
-    var xConnect: fn (
-        MutExternalPointer[sqlite3_connection],
-        OpaquePointer,
-        Int32,
-        MutExternalPointer[MutExternalPointer[Int8]],
-        MutExternalPointer[MutExternalPointer[sqlite3_vtab]],
-        MutExternalPointer[MutExternalPointer[Int8]],
-    ) -> Int32
-    """Called to connect to an existing virtual table. It should initialize a new instance of the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
-    var xBestIndex: fn (MutExternalPointer[sqlite3_vtab], MutExternalPointer[sqlite3_index_info]) -> Int32
-    """Called to determine the best way to access a virtual table. It should analyze the query constraints and return SQLITE_OK on success or an appropriate error code on failure."""
-    var xDisconnect: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
-    """Called to disconnect from a virtual table. It should clean up any resources associated with the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
-    var xDestroy: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
-    """Called to destroy a virtual table. It should clean up any resources associated with the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
-    var xOpen: fn (MutExternalPointer[sqlite3_vtab], MutExternalPointer[MutExternalPointer[sqlite3_vtab_cursor]]) -> Int32
-    """Called to open a new cursor on a virtual table. It should create a new instance of the cursor and return SQLITE_OK on success or an appropriate error code on failure."""
-    var xClose: fn (MutExternalPointer[sqlite3_vtab_cursor]) -> Int32
-    """Called to close a cursor on a virtual table. It should clean up any resources associated with the cursor and return SQLITE_OK on success or an appropriate error code on failure."""
-    var xFilter: fn (
-        MutExternalPointer[sqlite3_vtab_cursor],
-        Int32,
-        MutExternalPointer[Int8],
-        Int32,
-        MutExternalPointer[MutExternalPointer[sqlite3_value]],
-    ) -> Int32
-    """Called to begin a search of a virtual table. It should initialize the cursor to point to the first row of the result set and return SQLITE_OK on success or an appropriate error code on failure."""
-    var xNext: fn (MutExternalPointer[sqlite3_vtab_cursor]) -> Int32
-    """Called to advance a cursor to the next row of the result set. It should move the cursor to the next row and return SQLITE_OK on success or an appropriate error code on failure."""
-    var xEof: fn (MutExternalPointer[sqlite3_vtab_cursor]) -> Int32
-    """Called to determine if a cursor has reached the end of the result set. It should return 1 if the cursor is at the end of the result set and 0 otherwise."""
-    var xColumn: fn (MutExternalPointer[sqlite3_vtab_cursor], MutExternalPointer[sqlite3_context], Int32) -> Int32
-    """Called to retrieve a column value from the current row of the result set. It should use the sqlite3_result_*() interfaces to return the value of the specified column and return SQLITE_OK on success or an appropriate error code on failure."""
-    var xRowid: fn (MutExternalPointer[sqlite3_vtab_cursor], MutExternalPointer[Int64]) -> Int32
-    """Called to retrieve the rowid of the current row of the result set. It should store the rowid in the provided pointer and return SQLITE_OK on success or an appropriate error code on failure."""
-    var xUpdate: fn (
-        MutExternalPointer[sqlite3_vtab],
-        Int32,
-        MutExternalPointer[MutExternalPointer[sqlite3_value]],
-        MutExternalPointer[Int64],
-    ) -> Int32
-    """Called to update the virtual table. It should perform the specified update operation (insert, update, or delete) and return SQLITE_OK on success or an appropriate error code on failure."""
-    var xBegin: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
-    """Called to begin a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-    var xSync: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
-    """Called to sync the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-    var xCommit: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
-    """Called to commit a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-    var xRollback: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
-    """Called to roll back a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-    var xFindFunction: fn (
-        MutExternalPointer[sqlite3_vtab],
-        Int32,
-        ImmutExternalPointer[Int8],
-        fn (
-            MutExternalPointer[sqlite3_context], Int32, MutExternalPointer[MutExternalPointer[sqlite3_value]]
-        ) -> MutExternalPointer[MutExternalPointer[NoneType]],
-        MutExternalPointer[MutExternalPointer[NoneType]],
-    ) -> Int32
-    """Called to find an application-defined SQL function. It should search for the specified function and return SQLITE_OK on success or an appropriate error code on failure."""
-    var xRename: fn (
-        MutExternalPointer[sqlite3_vtab], MutExternalPointer[Int8]
-    ) -> Int32
-    """Called to rename a virtual table. It should rename the virtual table to the specified name and return SQLITE_OK on success or an appropriate error code on failure."""
-    var xSavepoint: fn (MutExternalPointer[sqlite3_vtab], Int32) -> Int32
-    """Called to create a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-    var xRelease: fn (MutExternalPointer[sqlite3_vtab], Int32) -> Int32
-    """Called to release a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-    var xRollbackTo: fn (MutExternalPointer[sqlite3_vtab], Int32) -> Int32
-    """Called to roll back to a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-    var xShadowName: fn (ImmutExternalPointer[Int8]) -> Int32
-    """Called to determine if a shadow table name is reserved. It should return 1 if the name is reserved and 0 otherwise."""
-    var xIntegrity: fn (
-        MutExternalPointer[sqlite3_vtab],
-        MutExternalPointer[Int8],
-        MutExternalPointer[Int8],
-        Int32,
-        MutExternalPointer[MutExternalPointer[Int8]],
-    ) -> Int32
-    """Called to perform an integrity check on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+    pass
+
+
+# struct sqlite3_module(Movable):
+#     """Virtual Table Module."""
+#     var iVersion: Int32
+#     """The version number of the virtual table module. This should be set to 0 for the initial version of the module. Future versions may add new methods to the module, and the version number can be used to indicate which version of the module is being used."""
+#     var xCreate: fn (
+#         MutExternalPointer[sqlite3_connection],
+#         OpaquePointer,
+#         Int32,
+#         MutExternalPointer[MutExternalPointer[Int8]],
+#         MutExternalPointer[MutExternalPointer[sqlite3_vtab]],
+#         MutExternalPointer[MutExternalPointer[Int8]],
+#     ) -> Int32
+#     """Called to create a new virtual table. It should create a new instance of the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xConnect: fn (
+#         MutExternalPointer[sqlite3_connection],
+#         OpaquePointer,
+#         Int32,
+#         MutExternalPointer[MutExternalPointer[Int8]],
+#         MutExternalPointer[MutExternalPointer[sqlite3_vtab]],
+#         MutExternalPointer[MutExternalPointer[Int8]],
+#     ) -> Int32
+#     """Called to connect to an existing virtual table. It should initialize a new instance of the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xBestIndex: fn (MutExternalPointer[sqlite3_vtab], MutExternalPointer[sqlite3_index_info]) -> Int32
+#     """Called to determine the best way to access a virtual table. It should analyze the query constraints and return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xDisconnect: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
+#     """Called to disconnect from a virtual table. It should clean up any resources associated with the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xDestroy: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
+#     """Called to destroy a virtual table. It should clean up any resources associated with the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xOpen: fn (MutExternalPointer[sqlite3_vtab], MutExternalPointer[MutExternalPointer[sqlite3_vtab_cursor]]) -> Int32
+#     """Called to open a new cursor on a virtual table. It should create a new instance of the cursor and return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xClose: fn (MutExternalPointer[sqlite3_vtab_cursor]) -> Int32
+#     """Called to close a cursor on a virtual table. It should clean up any resources associated with the cursor and return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xFilter: fn (
+#         MutExternalPointer[sqlite3_vtab_cursor],
+#         Int32,
+#         MutExternalPointer[Int8],
+#         Int32,
+#         MutExternalPointer[MutExternalPointer[sqlite3_value]],
+#     ) -> Int32
+#     """Called to begin a search of a virtual table. It should initialize the cursor to point to the first row of the result set and return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xNext: fn (MutExternalPointer[sqlite3_vtab_cursor]) -> Int32
+#     """Called to advance a cursor to the next row of the result set. It should move the cursor to the next row and return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xEof: fn (MutExternalPointer[sqlite3_vtab_cursor]) -> Int32
+#     """Called to determine if a cursor has reached the end of the result set. It should return 1 if the cursor is at the end of the result set and 0 otherwise."""
+#     var xColumn: fn (MutExternalPointer[sqlite3_vtab_cursor], MutExternalPointer[sqlite3_context], Int32) -> Int32
+#     """Called to retrieve a column value from the current row of the result set. It should use the sqlite3_result_*() interfaces to return the value of the specified column and return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xRowid: fn (MutExternalPointer[sqlite3_vtab_cursor], MutExternalPointer[Int64]) -> Int32
+#     """Called to retrieve the rowid of the current row of the result set. It should store the rowid in the provided pointer and return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xUpdate: fn (
+#         MutExternalPointer[sqlite3_vtab],
+#         Int32,
+#         MutExternalPointer[MutExternalPointer[sqlite3_value]],
+#         MutExternalPointer[Int64],
+#     ) -> Int32
+#     """Called to update the virtual table. It should perform the specified update operation (insert, update, or delete) and return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xBegin: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
+#     """Called to begin a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xSync: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
+#     """Called to sync the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xCommit: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
+#     """Called to commit a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xRollback: fn (MutExternalPointer[sqlite3_vtab]) -> Int32
+#     """Called to roll back a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xFindFunction: fn (
+#         MutExternalPointer[sqlite3_vtab],
+#         Int32,
+#         ImmutExternalPointer[Int8],
+#         fn (
+#             MutExternalPointer[sqlite3_context], Int32, MutExternalPointer[MutExternalPointer[sqlite3_value]]
+#         ) -> MutExternalPointer[MutExternalPointer[NoneType]],
+#         MutExternalPointer[MutExternalPointer[NoneType]],
+#     ) -> Int32
+#     """Called to find an application-defined SQL function. It should search for the specified function and return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xRename: fn (
+#         MutExternalPointer[sqlite3_vtab], MutExternalPointer[Int8]
+#     ) -> Int32
+#     """Called to rename a virtual table. It should rename the virtual table to the specified name and return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xSavepoint: fn (MutExternalPointer[sqlite3_vtab], Int32) -> Int32
+#     """Called to create a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xRelease: fn (MutExternalPointer[sqlite3_vtab], Int32) -> Int32
+#     """Called to release a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xRollbackTo: fn (MutExternalPointer[sqlite3_vtab], Int32) -> Int32
+#     """Called to roll back to a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
+#     var xShadowName: fn (ImmutExternalPointer[Int8]) -> Int32
+#     """Called to determine if a shadow table name is reserved. It should return 1 if the name is reserved and 0 otherwise."""
+#     var xIntegrity: fn (
+#         MutExternalPointer[sqlite3_vtab],
+#         MutExternalPointer[Int8],
+#         MutExternalPointer[Int8],
+#         Int32,
+#         MutExternalPointer[MutExternalPointer[Int8]],
+#     ) -> Int32
+#     """Called to perform an integrity check on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
 
 
 struct _sqlite3_index_info_sqlite3_index_constraint_usage(Movable):

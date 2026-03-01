@@ -1,4 +1,4 @@
-from std.sys.intrinsics import _type_is_eq_parse_time
+from std.sys.intrinsics import _type_is_eq, _type_is_eq_parse_time
 from slight.types.value_ref import ValueRef
 
 
@@ -100,9 +100,10 @@ __extension SIMD(FromSQL):
 
 
 __extension List(FromSQL):
-    fn __init__(out self, value: ValueRef) raises where _type_is_eq_parse_time[
-        Self.T, Byte
-    ]():
+    # fn __init__(out self, value: ValueRef) raises where _type_is_eq_parse_time[
+    #     Self.T, Byte
+    # ]():
+    fn __init__(out self, value: ValueRef) raises:
         """Initializes the type from a SQL value.
 
         Args:
@@ -111,4 +112,7 @@ __extension List(FromSQL):
         Raises:
             Error: If the value cannot be converted to the type.
         """
-        self = Self(value.as_blob())
+        comptime assert _type_is_eq[Self.T, Byte]()
+        self = rebind_var[List[Self.T]](
+            List[Byte](value.as_blob())
+        )

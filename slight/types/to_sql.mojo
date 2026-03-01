@@ -3,7 +3,7 @@
 This module provides the ToSQL trait which allows converting Mojo types
 into SQLite-compatible values for binding to prepared statements.
 """
-from std.sys.intrinsics import _type_is_eq_parse_time
+from std.sys.intrinsics import _type_is_eq_parse_time, _type_is_eq
 from std.utils.variant import Variant
 from slight.types.value_ref import SQLType, ValueRef, SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text, SQLite3Blob
 
@@ -66,6 +66,9 @@ trait ToSQL(Copyable):
         
         Returns:
             A Parameter containing the SQLite-compatible value.
+        
+        Raises:
+            Error: If the value cannot be converted to a SQLite-compatible value.
         """
         ...
 
@@ -91,15 +94,17 @@ __extension Int(ToSQL):
 
 
 __extension SIMD(ToSQL):
-    fn to_sql(ref self) raises -> ValueRef[origin_of(self)] where size == 1:
+    # fn to_sql(ref self) raises -> ValueRef[origin_of(self)] where size == 1:
+    fn to_sql(ref self) raises -> ValueRef[origin_of(self)]:
         """Convert a SIMD scalar to a SQL parameter.
         
         Returns:
             A ValueRef containing the SQLite-compatible value.
         """
+        comptime assert self.size == 1, "Only SIMD vectors of size 1 can be converted to SQL parameters"
         comptime if dtype in (DType.float16, DType.float32, DType.float64):
             return ValueRef[origin_of(self)](SQLite3Real(Float64(self._refine[self.dtype, 1]())))
-        elif dtype in (DType.int8, DType.int16, DType.int32, DType.int64,
+        elif dtype in (DType.int, DType.int8, DType.int16, DType.int32, DType.int64,
                        DType.uint, DType.uint8, DType.uint16, DType.uint32, DType.uint64):
             return ValueRef[origin_of(self)](SQLite3Integer(Int64(self._refine[self.dtype, 1]())))
         else:
@@ -127,9 +132,10 @@ __extension NoneType(ToSQL):
 
 
 __extension List(ToSQL):
-    fn to_sql(ref self) raises -> ValueRef[origin_of(self)] where _type_is_eq_parse_time[
-        Self.T, Byte
-    ]():
+    # fn to_sql(ref self) raises -> ValueRef[origin_of(self)] where _type_is_eq_parse_time[
+    #     Self.T, Byte
+    # ]():
+    fn to_sql(ref self) raises -> ValueRef[origin_of(self)]:
         """Convert Bytes to a SQL Blob parameter.
 
         Returns:
@@ -139,12 +145,14 @@ __extension List(ToSQL):
 
 
 __extension Span(ToSQL):
-    fn to_sql(ref self) raises -> ValueRef[origin_of(self)] where _type_is_eq_parse_time[
-        Self.T, Byte
-    ]():
+    # fn to_sql(ref self) raises -> ValueRef[origin_of(self)] where _type_is_eq_parse_time[
+    #     Self.T, Byte
+    # ]():
+    fn to_sql(ref self) raises -> ValueRef[origin_of(self)]:
         """Convert Bytes to a SQL Blob parameter.
 
         Returns:
             A ValueRef containing the SQLite-compatible value.
         """
+        comptime assert _type_is_eq[Self.T, Byte]()
         return ValueRef[origin_of(self)](SQLite3Blob(rebind[Span[Byte, self.origin]](self)))

@@ -3,6 +3,7 @@ from slight.row import Row
 from slight import Int, Bool, SIMD, Dict, List
 
 comptime dummy_int: Int = 1
+comptime dummy_bool: Bool = True
 
 
 fn main() raises:

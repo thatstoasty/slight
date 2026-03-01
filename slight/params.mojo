@@ -20,7 +20,7 @@ trait Params:
 
 __extension List(Params):
 
-    fn bind(self, stmt: Statement) raises where conforms_to(Self.T, ToSQL):
+    fn bind(self, stmt: Statement) raises:
         """Binds the parameters to the given statement.
 
         Args:
@@ -31,9 +31,9 @@ __extension List(Params):
             Error: If the parameters cannot be bound to the statement.
         """
         _constrained_conforms_to[
-            conforms_to(T, ToSQL),
+            conforms_to(Self.T, ToSQL),
             Parent=Self,
-            Element=T,
+            Element=Self.T,
             ParentConformsTo="Params",
             ElementConformsTo="ToSQL",
         ]()

@@ -41,12 +41,12 @@ fn example_basic_transaction() raises:
         # Deduct from Alice
         _ = tx.conn[].execute(
             "UPDATE accounts SET balance = balance - ?1 WHERE name = ?2",
-            200.0, "Alice"
+            (200.0, "Alice")
         )
         # Add to Bob
         _ = tx.conn[].execute(
             "UPDATE accounts SET balance = balance + ?1 WHERE name = ?2",
-            200.0, "Bob"
+            (200.0, "Bob")
         )
         tx.commit()
 
@@ -70,7 +70,7 @@ fn example_transaction_rollback() raises:
     with db.transaction() as tx:
         _ = tx.conn[].execute(
             "UPDATE accounts SET balance = balance + ?1 WHERE name = ?2",
-            9999.0, "Alice"
+            (9999.0, "Alice")
         )
         print("Inside transaction (before rollback):")
         print_account_balances(tx.conn[])
@@ -99,20 +99,20 @@ fn example_savepoints() raises:
 
     with db.transaction() as tx:
         # First operation: Add oranges
-        _ = tx.conn[].execute("INSERT INTO inventory VALUES (?1, ?2)", "Oranges", 50)
+        _ = tx.conn[].execute("INSERT INTO inventory VALUES (?1, ?2)", ("Oranges", 50))
         print("\nAfter adding Oranges:")
         print_inventory(tx.conn[])
 
         # Savepoint for a risky operation
         with tx.savepoint() as sp:
-            _ = sp.conn[].execute("UPDATE inventory SET quantity = ?1 WHERE item = ?2", 0, "Apples")
+            _ = sp.conn[].execute("UPDATE inventory SET quantity = ?1 WHERE item = ?2", (0, "Apples"))
             print("\nInside savepoint (set Apples to 0):")
             print_inventory(sp.conn[])
             # Oops! We don't want to zero out apples, rollback this savepoint
             sp.rollback()
 
             # Try again with a smaller reduction
-            _ = sp.conn[].execute("UPDATE inventory SET quantity = quantity - ?1 WHERE item = ?2", 10, "Apples")
+            _ = sp.conn[].execute("UPDATE inventory SET quantity = quantity - ?1 WHERE item = ?2", (10, "Apples"))
             sp.commit()
 
         print("\nAfter savepoint (Apples reduced by 10 instead of zeroed):")
@@ -131,19 +131,19 @@ fn example_nested_savepoints() raises:
     db.execute_batch("CREATE TABLE log (level INTEGER, message TEXT)")
 
     with db.transaction() as tx:
-        _ = tx.conn[].execute("INSERT INTO log VALUES (?1, ?2)", 1, "Transaction started")
+        _ = tx.conn[].execute("INSERT INTO log VALUES (?1, ?2)", (1, "Transaction started"))
 
         with tx.savepoint() as sp1:
-            _ = sp1.conn[].execute("INSERT INTO log VALUES (?1, ?2)", 2, "Savepoint 1")
+            _ = sp1.conn[].execute("INSERT INTO log VALUES (?1, ?2)", (2, "Savepoint 1"))
 
             with sp1.savepoint() as sp2:
-                _ = sp2.conn[].execute("INSERT INTO log VALUES (?1, ?2)", 3, "Savepoint 2")
+                _ = sp2.conn[].execute("INSERT INTO log VALUES (?1, ?2)", (3, "Savepoint 2"))
 
                 with sp2.savepoint() as sp3:
-                    _ = sp3.conn[].execute("INSERT INTO log VALUES (?1, ?2)", 4, "Savepoint 3 - will rollback")
+                    _ = sp3.conn[].execute("INSERT INTO log VALUES (?1, ?2)", (4, "Savepoint 3 - will rollback"))
                     # Rollback sp3 only
                     sp3.rollback()
-                    _ = sp3.conn[].execute("INSERT INTO log VALUES (?1, ?2)", 4, "Savepoint 3 - after rollback")
+                    _ = sp3.conn[].execute("INSERT INTO log VALUES (?1, ?2)", (4, "Savepoint 3 - after rollback"))
                     sp3.commit()
 
                 sp2.commit()
