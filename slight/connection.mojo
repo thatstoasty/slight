@@ -216,7 +216,7 @@ struct Connection(Movable):
 
         return Statement(Pointer(to=self), RawStatement(stmt))
     
-    fn execute(self, var sql: String, params: Some[Params]) raises -> Int64:
+    fn execute[P: Params](self, var sql: String, params: P = ()) raises -> Int64:
         """Executes a SQL statement with the given parameters.
 
         Args:
@@ -235,27 +235,27 @@ struct Connection(Movable):
         finally:
             _ = stmt^.finalize()
 
-    fn execute[*Ts: ToSQL](self, var sql: String, params: Tuple[*Ts] = ()) raises -> Int64:
-        """Executes a SQL statement with the given parameters.
+    # fn execute[*Ts: ToSQL](self, var sql: String, params: Tuple[*Ts] = ()) raises -> Int64:
+    #     """Executes a SQL statement with the given parameters.
 
-        Parameters:
-            Ts: The types of the parameters to bind.
+    #     Parameters:
+    #         Ts: The types of the parameters to bind.
 
-        Args:
-            sql: The SQL statement to execute.
-            params: The parameters to bind to the SQL statement.
+    #     Args:
+    #         sql: The SQL statement to execute.
+    #         params: The parameters to bind to the SQL statement.
 
-        Returns:
-            The number of rows affected by the statement.
+    #     Returns:
+    #         The number of rows affected by the statement.
         
-        Raises:
-            Error: If parameter binding fails or the underlying SQLite call fails.
-        """
-        return self.prepare(sql^).execute(params)
+    #     Raises:
+    #         Error: If parameter binding fails or the underlying SQLite call fails.
+    #     """
+    #     return self.prepare(sql^).execute(params)
 
     fn query_row[
         T: Movable, P: Params, //, transform: fn (Row) raises -> T
-    ](self, var sql: String, params: P) raises -> T:
+    ](self, var sql: String, params: P = ()) raises -> T:
         """Executes the query and returns a single row.
 
         This is a convenience method for queries that are expected to return exactly one row.
@@ -278,30 +278,30 @@ struct Connection(Movable):
         """
         return self.prepare(sql^).query_row[transform](params)
 
-    fn query_row[
-        T: Movable, //, transform: fn (Row) raises -> T, *Ts: ToSQL
-    ](self, var sql: String, params: Tuple[*Ts] = ()) raises -> T:
-        """Executes the query and returns a single row.
+    # fn query_row[
+    #     T: Movable, //, transform: fn (Row) raises -> T, *Ts: ToSQL
+    # ](self, var sql: String, params: Tuple[*Ts] = ()) raises -> T:
+    #     """Executes the query and returns a single row.
 
-        This is a convenience method for queries that are expected to return exactly one row.
-        If the query returns more than one row, the rest are ignored.
+    #     This is a convenience method for queries that are expected to return exactly one row.
+    #     If the query returns more than one row, the rest are ignored.
 
-        Parameters:
-            T: The type that the row will be transformed into.
-            transform: A function that takes a Row and returns a value of type T.
-            Ts: The types of the parameters to bind.
+    #     Parameters:
+    #         T: The type that the row will be transformed into.
+    #         transform: A function that takes a Row and returns a value of type T.
+    #         Ts: The types of the parameters to bind.
 
-        Args:
-            sql: The SQL query to execute.
-            params: A tuple of parameters to bind to the statement.
+    #     Args:
+    #         sql: The SQL query to execute.
+    #         params: A tuple of parameters to bind to the statement.
 
-        Returns:
-            The single Row returned by the query.
+    #     Returns:
+    #         The single Row returned by the query.
 
-        Raises:
-            Error: If parameter binding fails, no rows are returned, or more than one row is returned.
-        """
-        return self.prepare(sql^).query_row[transform](params)
+    #     Raises:
+    #         Error: If parameter binding fails, no rows are returned, or more than one row is returned.
+    #     """
+    #     return self.prepare(sql^).query_row[transform](params)
 
     fn execute_batch(self, sql: String) raises:
         """Executes a batch of SQL statements.
@@ -341,7 +341,7 @@ struct Connection(Movable):
         """
         return self.db.last_insert_row_id()
     
-    fn one_column[P: Params, //, T: FromSQL](self, var sql: String, params: P) raises -> T:
+    fn one_column[P: Params, //, T: FromSQL](self, var sql: String, params: P = ()) raises -> T:
         """Fetches a single column from the first row of the result set.
 
         Parameters:
@@ -363,27 +363,27 @@ struct Connection(Movable):
 
         return self.query_row[get_item](sql, params)
 
-    fn one_column[T: FromSQL, *Ts: ToSQL](self, var sql: String, params: Tuple[*Ts] = ()) raises -> T:
-        """Fetches a single column from the first row of the result set.
+    # fn one_column[T: FromSQL, *Ts: ToSQL](self, var sql: String, params: Tuple[*Ts] = ()) raises -> T:
+    #     """Fetches a single column from the first row of the result set.
 
-        Parameters:
-            T: The type to retrieve the value as. Must be Copyable, Movable, and FromSQL.
-            Ts: The types of the parameters to bind.
+    #     Parameters:
+    #         T: The type to retrieve the value as. Must be Copyable, Movable, and FromSQL.
+    #         Ts: The types of the parameters to bind.
 
-        Args:
-            sql: The SQL query to execute.
-            params: The parameters to bind to the SQL query.
+    #     Args:
+    #         sql: The SQL query to execute.
+    #         params: The parameters to bind to the SQL query.
 
-        Returns:
-            The value of the first column in the first row of the result set.
+    #     Returns:
+    #         The value of the first column in the first row of the result set.
 
-        Raises:
-            Error: If the query fails or no rows are returned.
-        """
-        fn get_item(row: Row) raises -> T:
-            return row.get[T](0)
+    #     Raises:
+    #         Error: If the query fails or no rows are returned.
+    #     """
+    #     fn get_item(row: Row) raises -> T:
+    #         return row.get[T](0)
 
-        return self.query_row[get_item](sql, params)
+    #     return self.query_row[get_item](sql, params)
 
     fn column_exists(
         self,
@@ -673,7 +673,7 @@ struct Connection(Movable):
         """
         var query = Sql()
         query.push_pragma(pragma, schema)
-        for row in self.prepare(String(query)).query():
+        for row in self.prepare(String(query)).query(()):
             callback(row)
 
     fn pragma[
@@ -726,7 +726,7 @@ struct Connection(Movable):
         sql.open_brace()
         sql.push_value(value)
         sql.close_brace()
-        for row in self.prepare(String(sql)).query():
+        for row in self.prepare(String(sql)).query(()):
             callback(row)
 
     fn pragma_update(

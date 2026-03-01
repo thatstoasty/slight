@@ -30,10 +30,10 @@ __extension Int(FromSQL):
         self = Self(value.as_int64())
 
 
-__extension Optional(FromSQL):
-    fn __init__(out self: Self, value: ValueRef) raises:
-        comptime assert conforms_to(Self.T, FromSQL), "Optional can only be used with types that implement FromSQL."
-        self = Optional(take=Self.T(value.as_int64()))
+# __extension Optional(FromSQL):
+#     fn __init__(out self: Self, value: ValueRef) raises:
+#         comptime assert conforms_to(Self.T, FromSQL), "Optional can only be used with types that implement FromSQL."
+#         self = Optional(take=Self.T(value.as_int64()))
 
 
 __extension String(FromSQL):

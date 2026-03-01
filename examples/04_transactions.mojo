@@ -7,8 +7,9 @@ for atomic database operations with rollback capabilities.
 from slight.connection import Connection
 from slight.transaction import Transaction, Savepoint, TransactionBehavior, DropBehavior
 from slight.row import Row
-from slight import Int, Bool, SIMD, Dict, List
-from slight.types.to_sql import SIMD
+from slight import Params
+# from slight import Int, Bool, SIMD, Dict, List
+# from slight.types.to_sql import SIMD
 
 
 fn print_account_balances(db: Connection) raises:
@@ -87,7 +88,7 @@ fn example_savepoints() raises:
 
     fn print_inventory(conn: Connection) raises:
         var stmt = conn.prepare("SELECT item, quantity FROM inventory")
-        for row in stmt.query():
+        for row in stmt.query(()):
             print("  ", row.get[String](0), ":", row.get[Int](1))
 
     print("Initial inventory:")
@@ -148,7 +149,7 @@ fn example_nested_savepoints() raises:
 
     print("Log entries (notice level 4 'will rollback' is gone):")
     var stmt = db.prepare("SELECT level, message FROM log ORDER BY rowid")
-    for row in stmt.query():
+    for row in stmt.query(()):
         print("  Level", row.get[Int](0), ":", row.get[String](1))
 
 
@@ -205,7 +206,7 @@ fn example_drop_behavior() raises:
 
     print("Items in table (only 'will_commit' should appear):")
     var stmt = db.prepare("SELECT name FROM items")
-    for row in stmt.query():
+    for row in stmt.query(()):
         print("  ", row.get[String](0))
 
 
