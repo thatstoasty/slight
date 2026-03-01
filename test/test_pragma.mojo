@@ -1,8 +1,7 @@
-from testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
+from std.testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
 
 from slight.connection import Connection
-from slight import Row, String, Int
-from slight.types.to_sql import Int
+from slight import Row, String, Int, ToSQL, Params
 from slight.pragma import Sql, is_identifier
 
 comptime dummy: Int = 0
@@ -102,7 +101,7 @@ fn test_pragma_update_and_check() raises:
     # Result may be "off" or "memory" depending on SQLite version and build
     assert_true(
         journal_mode == "off" or journal_mode == "memory",
-        "Unexpected journal mode: " + journal_mode
+        t"Unexpected journal mode: {journal_mode}"
     )
     
     # Second call to ensure consistency
@@ -111,7 +110,7 @@ fn test_pragma_update_and_check() raises:
     )
     assert_true(
         mode2 == "off" or mode2 == "memory",
-        "Unexpected journal mode: " + mode2
+        t"Unexpected journal mode: {mode2}"
     )
 
 

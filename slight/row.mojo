@@ -1,11 +1,11 @@
-from reflection import (
+from std.reflection import (
     struct_field_count,
     struct_field_names,
     struct_field_types,
     get_type_name,
     is_struct_type,
 )
-from memory import Pointer
+from std.memory import Pointer
 from slight.statement import Statement
 from slight.types.value_ref import (
     ValueRef,
@@ -233,7 +233,7 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
 
         Parameters:
             S: The type to convert the column value to. Supported types are:
-               Int, Float64, String, and Bool.
+               Int, SIMD types (Int8/UInt8 to Int64/UInt64, Float16 to Float64, Int), String, Bool, and NoneType.
             I: The type used to specify the column index (0-based). Can be Int, UInt, String, or StringSlice.
 
         Args:

@@ -1,12 +1,12 @@
-from testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
-import tempfile
-from pathlib import Path
+from std.testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
+import std.tempfile
+from std.pathlib import Path
 
 from slight.connection import Connection
 from slight.statement import eq_ignore_ascii_case
 from slight.row import Row
-from slight import String
-from slight.types.to_sql import Int, Bool, SIMD, Dict, List
+from slight import String, Int, Bool, SIMD, Dict, List
+from slight.types.to_sql import ToSQL
 from slight.flags import OpenFlag
 from slight.c.raw_bindings import sqlite3_stmt, SQLITE_OK
 from slight.c.api import sqlite_ffi
@@ -309,7 +309,7 @@ fn test_query_map() raises:
     for row in query.query():
         results.append(row.get[String](1))
     
-    var concat = String("")
+    var concat = ""
     for i in range(len(results)):
         concat += results[i]
     assert_equal(concat, "hello, world!")
@@ -485,7 +485,7 @@ fn test_get_raw() raises:
     var insert_stmt = db.prepare("INSERT INTO foo(i, x) VALUES(?1, ?2)")
     
     for i in range(len(vals)):
-        assert_equal(insert_stmt.execute(i, vals[i]), 1)
+        assert_equal(insert_stmt.execute((i, vals[i])), 1)
     
     # TODO: Add tests for get_ref and as_str methods when implemented
     var query = db.prepare("SELECT i, x FROM foo")

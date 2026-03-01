@@ -1,5 +1,5 @@
-from memory import Pointer
-from os import abort
+from std.memory import Pointer
+from std.os import abort
 from slight.connection import Connection
 
 
@@ -297,7 +297,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
         self.drop_behavior = DropBehavior.ROLLBACK
         self.committed = False
         try:
-            conn[].execute_batch(String("SAVEPOINT ", name))
+            conn[].execute_batch(t"SAVEPOINT {name}")
         except e:
             self^.finish()
             raise e^
@@ -345,7 +345,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
         Raises:
             Error: If the commit fails.
         """
-        self.conn[].execute_batch(String("RELEASE ", self.name))
+        self.conn[].execute_batch(t"RELEASE {self.name}")
         self.committed = True
 
     fn rollback(mut self) raises:
@@ -359,7 +359,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
         Raises:
             Error: If the rollback fails.
         """
-        self.conn[].execute_batch(String("ROLLBACK TO ", self.name))
+        self.conn[].execute_batch(t"ROLLBACK TO {self.name}")
     
     fn finish(deinit self) raises:
         """Consumes the savepoint, committing or rolling back according to the

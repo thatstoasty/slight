@@ -1,8 +1,8 @@
-from testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
+from std.testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
 
 from slight.connection import Connection
 from slight.transaction import Transaction, Savepoint, TransactionBehavior, DropBehavior
-from slight import Row, String, Int, Bool, SIMD
+from slight import Row, String, Int, Bool, SIMD, Params
 
 comptime dummy_int: Int = 1
 
@@ -260,8 +260,7 @@ fn test_multiple_inserts_in_transaction() raises:
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
     
     with db.transaction() as tx:
-        @parameter
-        for i in range(10):
+        comptime for i in range(10):
             _ = tx.conn[].execute("INSERT INTO foo VALUES(?1)", [i])
         tx.commit()
     

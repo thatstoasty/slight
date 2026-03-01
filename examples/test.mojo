@@ -68,7 +68,7 @@ fn main() raises:
         )
 
     stmt = db.prepare("SELECT * FROM COMPANY;")
-    for row in stmt.query_map[transform=transform_row]():
+    for row in stmt.query_map[transform_row]():
         print(row)
 
     db^.close()

@@ -3,9 +3,7 @@ from testing import assert_equal, assert_true, assert_false, assert_not_equal, T
 from slight.connection import Connection
 from slight.statement import eq_ignore_ascii_case
 from slight.row import Row
-from slight import String, Int, Bool, SIMD, Dict, List
-from slight.types.to_sql import ToSQL
-from slight.types.from_sql import NoneType
+from slight import String, Int, Bool, SIMD, Dict, List, ToSQL, NoneType
 
 comptime dummy_int: Int = 0
 comptime dummy_str: String = ""
@@ -64,7 +62,7 @@ fn test_stmt_execute_named() raises:
 
     var stmt2 = db.prepare("SELECT COUNT(*) FROM test WHERE name = :name")
     assert_equal(
-        stmt2.query_row[transform=get_count]({":name": "one"}),
+        stmt2.query_row[get_count]({":name": "one"}),
         2
     )
 
@@ -104,7 +102,7 @@ fn test_query_map_named() raises:
             return 0
 
     var stmt = db.prepare("SELECT id FROM test where name = :name")
-    for row in stmt.query_map[transform=get_doubled_id]({":name": "one"}):
+    for row in stmt.query_map[get_doubled_id]({":name": "one"}):
         assert_equal(row, 2)
 
 
@@ -224,24 +222,24 @@ fn test_dict_params() raises:
     )
 
 
-fn test_variadic_params() raises:
+fn test_tuple_params() raises:
     var db = Connection.open_in_memory()
 
     fn get_string(r: Row) raises -> String:
         return r.get[String](0)
 
-    var s = db.query_row[get_string]("SELECT printf('[%s]', ?1)", "abc")
+    var s = db.query_row[get_string]("SELECT printf('[%s]', ?1)", ("abc",))
     assert_equal(s, "[abc]")
 
     var s2 = db.query_row[get_string](
         "SELECT printf('%d %s %d', ?1, ?2, ?3)",
-        1, "abc", 2
+        (1, "abc", 2)
     )
     assert_equal(s2, "1 abc 2")
 
     var s3 = db.query_row[get_string](
         "SELECT printf('%d %s %d %d', ?1, ?2, ?3, ?4)",
-        1, "abc", 2, 4,
+        (1, "abc", 2, 4)
     )
     assert_equal(s3, "1 abc 2 4")
     
@@ -255,7 +253,7 @@ fn test_variadic_params() raises:
     )"""
     var s4 = db.query_row[get_string](
         query,
-        0, "a", 1, "b", 2, "c", 3, "d", 4, "e", 5, "f", 6, "g", 7, "h"
+        (0, "a", 1, "b", 2, "c", 3, "d", 4, "e", 5, "f", 6, "g", 7, "h")
     )
     assert_equal(s4, "0 a | 1 b | 2 c | 3 d || 4 e | 5 f | 6 g | 7 h")
 
@@ -270,7 +268,7 @@ fn test_query_row() raises:
     INSERT INTO foo VALUES(1, 3);
     INSERT INTO foo VALUES(2, 4);""")
     var stmt = db.prepare("SELECT y FROM foo WHERE x = ?1")
-    var y = stmt.query_row[transform=get_int64]([1])
+    var y = stmt.query_row[get_int64]([1])
     assert_equal(y, 3)
 
 
@@ -285,17 +283,17 @@ fn query_one() raises:
     
     # This should return no rows error
     with assert_raises(contains="Query returned no rows"):
-        _ = stmt.query_row[transform=get_int64]([1])
+        _ = stmt.query_row[get_int64]([1])
     
     db.execute_batch("INSERT INTO foo VALUES(1, 3);")
-    var y2 = stmt.query_row[transform=get_int64]([1])
+    var y2 = stmt.query_row[get_int64]([1])
     assert_equal(y2, 3)
     
     db.execute_batch("INSERT INTO foo VALUES(1, 3);")
     # This should return more than one row error
     # TODO: Implement query_one method that validates single row
     # with assert_raises(contains="Query returned more than one row"):
-    #     _ = stmt.query_one[transform=get_int64]([1])
+    #     _ = stmt.query_one[get_int64]([1])
 
 
 fn test_query_by_column_name() raises:
@@ -309,7 +307,7 @@ fn test_query_by_column_name() raises:
     INSERT INTO foo VALUES(1, 3);
     END;""")
     var stmt = db.prepare("SELECT y FROM foo")
-    var y = stmt.query_row[transform=get_string]()
+    var y = stmt.query_row[get_string]()
     assert_equal(y, 3)
 
 
@@ -324,7 +322,7 @@ fn test_query_by_column_name_ignore_case() raises:
     INSERT INTO foo VALUES(1, 3);
     END;""")
     var stmt = db.prepare("SELECT y as Y FROM foo")
-    var y = stmt.query_row[transform=get_int]()
+    var y = stmt.query_row[get_int]()
     assert_equal(y, 3)
 
 
@@ -408,7 +406,7 @@ fn test_utf16_conversion() raises:
     
     # TODO: pragma_update and pragma_query_value are not yet implemented
     # db.execute("PRAGMA encoding = 'UTF-16le'")
-    # var encoding = db.query_row[transform=get_string]("PRAGMA encoding")
+    # var encoding = db.query_row[get_string]("PRAGMA encoding")
     # assert_equal(encoding, "UTF-16le")
     
     db.execute_batch("CREATE TABLE foo(x TEXT)")

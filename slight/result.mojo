@@ -164,7 +164,7 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, Writable, Stringabl
         Returns:
             A string representation of the SQLite3Result.
         """
-        return String("SQLite3Result(", self.value, ")")
+        return t"SQLite3Result({self.value})"
     
     fn __str__(self) -> String:
         """Returns a human-readable string representation of the SQLite3Result, including a description of the result code.
@@ -235,4 +235,4 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, Writable, Stringabl
         elif self.value == SQLITE_DONE:
             return "[SQLITE_DONE] sqlite3_step() has finished executing"
         else:
-            return String("UNKNOWN SQLITE RESULT CODE: ", self.value)
+            return t"UNKNOWN SQLITE RESULT CODE: {self.value}"

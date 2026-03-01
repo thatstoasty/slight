@@ -1,11 +1,10 @@
-from testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
+from std.testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
 
 from slight.connection import Connection
 from slight.statement import eq_ignore_ascii_case
 from slight.row import Row
-from slight import String, Int, Bool, SIMD, Dict, List
+from slight import String, Int, Bool, SIMD, Dict, List, NoneType
 from slight.types.to_sql import ToSQL
-from slight.types.from_sql import NoneType
 from slight.bind import BindIndex, BindIndexError
 
 
@@ -24,7 +23,7 @@ fn test_bind_index_with_int() raises:
     assert_equal(index2.bind_idx(stmt), UInt(2))
 
     # Test with actual execution to verify it works end-to-end
-    _ = stmt.execute(42, "test_value")
+    _ = stmt.execute((42, "test_value"))
 
     fn get_id(r: Row) raises -> Int:
         return r.get[Int](0)
@@ -41,8 +40,8 @@ fn test_bind_index_with_string() raises:
     var stmt = db.prepare("INSERT INTO test (id, name) VALUES (:id, :name)")
 
     # Test that String.bind_idx returns the correct index for valid parameter names
-    var param_id = String(":id")
-    var param_name = String(":name")
+    var param_id = ":id"
+    var param_name = ":name"
 
     var id_index = param_id.bind_idx(stmt)
     var name_index = param_name.bind_idx(stmt)
@@ -69,7 +68,7 @@ fn test_bind_index_with_string_invalid_name() raises:
 
     var stmt = db.prepare("INSERT INTO test (id) VALUES (:id)")
 
-    var invalid_param = String(":nonexistent")
+    var invalid_param = ":nonexistent"
 
     with assert_raises(contains="invalid parameter name"):
         _ = invalid_param.bind_idx(stmt)
@@ -116,9 +115,9 @@ fn test_bind_index_with_different_param_prefixes() raises:
     # SQLite supports different parameter prefixes
     var stmt = db.prepare("INSERT INTO test (a, b, c) VALUES (:a, @b, $c)")
 
-    var param_a = String(":a")
-    var param_b = String("@b")
-    var param_c = String("$c")
+    var param_a = ":a"
+    var param_b = "@b"
+    var param_c = "$c"
 
     var a_index = param_a.bind_idx(stmt)
     var b_index = param_b.bind_idx(stmt)
@@ -157,16 +156,12 @@ fn test_bind_index_string_vs_string_slice_consistency() raises:
     db.execute_batch("CREATE TABLE test (x INTEGER, y TEXT)")
 
     var stmt = db.prepare("SELECT * FROM test WHERE x = :x AND y = :y")
-
-    var param_x_string = String(":x")
-    var param_x_slice = ":x"
-
-    var param_y_string = String(":y")
-    var param_y_slice = ":y"
+    var param_x= ":x"
+    var param_y = ":y"
 
     # Both should return the same index for the same parameter name
-    assert_equal(param_x_string.bind_idx(stmt), StringSlice(param_x_slice).bind_idx(stmt))
-    assert_equal(param_y_string.bind_idx(stmt), StringSlice(param_y_slice).bind_idx(stmt))
+    assert_equal(param_x.bind_idx(stmt), StringSlice(param_x).bind_idx(stmt))
+    assert_equal(param_y.bind_idx(stmt), StringSlice(param_y).bind_idx(stmt))
 
 
 fn main() raises:

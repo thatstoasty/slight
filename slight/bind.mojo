@@ -71,11 +71,11 @@ __extension String(BindIndex):
             The 1-based index of the parameter.
 
         Raises:
-            Error: If the parameter name is not found in the statement.
+            BindIndexError: If the parameter name is not found in the statement.
         """
         var result = stmt.parameter_index(self)
         if not result:
-            raise BindIndexError(String("Received an invalid parameter name: ", self))
+            raise BindIndexError(t"Received an invalid parameter name: {self}")
         return result.value()
 
 
@@ -96,5 +96,5 @@ __extension StringSlice(BindIndex):
         var name = String(self)
         var result = stmt.parameter_index(name)
         if not result:
-            raise BindIndexError(String("Received an invalid parameter name: ", name))
+            raise BindIndexError(t"Received an invalid parameter name: {name}")
         return result.value()

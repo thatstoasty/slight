@@ -1,6 +1,6 @@
 from std.sys import stderr
 from std.os import abort
-from std.utils.variant import Variant
+from std.utils import Variant
 from slight.result import SQLite3Result
 from slight.c.raw_bindings import sqlite3_stmt
 from slight.c.sqlite_string import SQLiteMallocString
@@ -153,8 +153,8 @@ struct Statement[conn: ImmutOrigin](Movable):
         Returns:
             A string representation of the statement.
         """
-        var sql = String(self.sql().value()) if self.stmt else String("")
-        return String("Statement(", sql, ")")
+        var sql = String(self.sql().value()) if self.stmt else ""
+        return t"Statement({sql})"
 
     fn column_count(self) -> UInt:
         """Returns the number of columns in the result set.
@@ -197,7 +197,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             except e:
                 abort(String(e))
         else:
-            abort(String("[UNREACHABLE] sqlite3_column_type returned an invalid value: ", column_type))
+            abort(t"[UNREACHABLE] sqlite3_column_type returned an invalid value: {column_type}")
 
     fn finalize(deinit self) raises -> None:
         """Finalizes the statement and releases its resources.

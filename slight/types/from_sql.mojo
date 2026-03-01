@@ -1,4 +1,4 @@
-from std.sys.intrinsics import _type_is_eq, _type_is_eq_parse_time
+from std.sys.intrinsics import _type_is_eq
 from slight.types.value_ref import ValueRef
 
 

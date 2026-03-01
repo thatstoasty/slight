@@ -1,6 +1,5 @@
-from pathlib import Path
-
-from memory import Pointer
+from std.pathlib import Path
+from std.memory import Pointer
 from slight.c.api import sqlite_ffi
 from slight.result import SQLite3Result
 from slight.inner_connection import InnerConnection
@@ -277,7 +276,7 @@ struct Connection(Movable):
         Raises:
             Error: If parameter binding fails, no rows are returned, or more than one row is returned.
         """
-        return self.prepare(sql^).query_row[transform=transform](params)
+        return self.prepare(sql^).query_row[transform](params)
 
     fn query_row[
         T: Movable, //, transform: fn (Row) raises -> T, *Ts: ToSQL
@@ -302,7 +301,7 @@ struct Connection(Movable):
         Raises:
             Error: If parameter binding fails, no rows are returned, or more than one row is returned.
         """
-        return self.prepare(sql^).query_row[transform=transform](params)
+        return self.prepare(sql^).query_row[transform](params)
 
     fn execute_batch(self, sql: String) raises:
         """Executes a batch of SQL statements.
@@ -627,7 +626,7 @@ struct Connection(Movable):
 
         fn main() raises:
             var db = Connection.open_in_memory()
-            var user_version = db.pragma_query_value[transform=get_int]("user_version")
+            var user_version = db.pragma_query_value[get_int]("user_version")
             print(user_version)
         ```
         """
@@ -808,7 +807,7 @@ struct Connection(Movable):
 
         fn main() raises:
             var db = Connection.open_in_memory()
-            var mode = db.pragma_update_and_check[transform=get_string](
+            var mode = db.pragma_update_and_check[get_string](
                 "journal_mode", "OFF"
             )
             print(mode)

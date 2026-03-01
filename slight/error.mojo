@@ -66,9 +66,5 @@ fn error_from_sqlite_code(code: SQLite3Result, msg: Optional[String]) -> String:
         A string containing the formatted error message.
     """
     if msg:
-        return String("sqlite3 Error (", code.value, "): ", msg.value())
-    return String(
-        "sqlite3 Error (",
-        code.value,
-        "): Unknown error has occurred. The provided code was invalid and could not get the error via sqlite3 handle.",
-    )
+        return t"sqlite3 Error ({code.value}): {msg.value()}"
+    return t"sqlite3 Error ({code.value}): Unknown error has occurred. The provided code was invalid and could not get the error via sqlite3 handle."

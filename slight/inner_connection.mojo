@@ -1,4 +1,4 @@
-from pathlib import Path
+from std.pathlib import Path
 
 from slight.c.api import sqlite_ffi
 from slight.c.raw_bindings import (
@@ -168,7 +168,7 @@ struct InnerConnection(Movable):
         Returns:
             The file path of the database, or None if the database is in-memory.
         """
-        var db_name = String("main")
+        var db_name = "main"
         var path = sqlite_ffi()[].db_filename(self.db, db_name)
         if not path:
             return None
@@ -193,9 +193,9 @@ struct InnerConnection(Movable):
         elif result == SQLite3Result.ERROR:
             return False
         elif result.value == -1:
-            raise Error("SQLITE_MISUSE: The given database name is not valid: ", database)
+            raise Error(t"SQLITE_MISUSE: The given database name is not valid: {database}")
         else:
-            raise Error("Unexpected result from sqlite3_db_readonly: ", String(result))
+            raise Error(t"Unexpected result from sqlite3_db_readonly: {result}")
 
     fn raise_if_error(self, code: SQLite3Result) raises:
         """Raises if the SQLite error code is not `SQLITE_OK`.

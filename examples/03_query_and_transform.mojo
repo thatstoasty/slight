@@ -58,19 +58,19 @@ fn main() raises:
     # For convenience, we can also call it directly on the Connection which will
     # prepare the statement for us internally.
     stmt = db.prepare("SELECT * FROM COMPANY LIMIT 1;")
-    print("Employee:", stmt.query_row[transform=transform_row]())
+    print("Employee:", stmt.query_row[transform_row]())
     print("Employee:", db.query_row[transform_row]("SELECT * FROM COMPANY LIMIT 1;"))
 
     # query_map returns an iterator which transforms rows into Employee structs.
     stmt = db.prepare("SELECT * FROM COMPANY;")
     print("\nAll employees mapped by transform function:")
-    for row in stmt.query_map[transform=transform_row]():
+    for row in stmt.query_map[transform_row]():
         print(row)
     
     # Alternatively, we can call `.map` on the Rows iterator returned by `query`.
     # This will return a `MappedRows` iterator which applies the transform function on each row.
     stmt.reset()
-    for row in stmt.query().map[transform=transform_row]():
+    for row in stmt.query().map[transform_row]():
         print(row)
     
     # Finally, we can use `as_type` to directly map rows to Employee structs.

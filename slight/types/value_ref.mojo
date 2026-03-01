@@ -1,4 +1,4 @@
-from std.utils.variant import Variant
+from std.utils import Variant
 
 
 trait SQLType(Copyable):

@@ -1,4 +1,4 @@
-from os import abort
+from std.os import abort
 from slight.c.api import sqlite_ffi
 from slight.result import SQLite3Result
 from slight.c.types import sqlite3_stmt, ResultDestructorFn, TextEncoding, MutExternalPointer, ImmutExternalPointer
