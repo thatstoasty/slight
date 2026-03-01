@@ -16,7 +16,7 @@ fn assert_current_sum(x: Int, conn: Connection) raises:
     fn get_int(r: Row) raises -> Int:
         return r.get[Int](0)
     
-    var result = conn.query_row[get_int]("SELECT SUM(x) FROM foo")
+    var result = conn.one_row[get_int]("SELECT SUM(x) FROM foo")
     assert_equal(result, x)
 
 
@@ -41,7 +41,7 @@ fn test_drop() raises:
         return r.get[Int](0)
     
     tx = db.transaction()
-    var sum = tx.conn[].query_row[get_sum]("SELECT SUM(x) FROM foo")
+    var sum = tx.conn[].one_row[get_sum]("SELECT SUM(x) FROM foo")
     assert_equal(sum, 2)
     tx^.finish()
 
@@ -67,7 +67,7 @@ fn test_explicit_rollback_commit() raises:
         return r.get[Int](0)
     
     with db.transaction() as tx:
-        var sum = tx.conn[].query_row[get_sum]("SELECT SUM(x) FROM foo")
+        var sum = tx.conn[].one_row[get_sum]("SELECT SUM(x) FROM foo")
         assert_equal(sum, 6)
 
 
@@ -207,7 +207,7 @@ fn test_transaction_behavior() raises:
     fn get_sum(r: Row) raises -> Int:
         return r.get[Int](0)
     
-    var sum = db.query_row[get_sum]("SELECT SUM(x) FROM foo")
+    var sum = db.one_row[get_sum]("SELECT SUM(x) FROM foo")
     assert_equal(sum, 6)
 
 
@@ -267,7 +267,7 @@ fn test_multiple_inserts_in_transaction() raises:
     fn get_sum(r: Row) raises -> Int:
         return r.get[Int](0)
     
-    var sum = db.query_row[get_sum]("SELECT SUM(x) FROM foo")
+    var sum = db.one_row[get_sum]("SELECT SUM(x) FROM foo")
     assert_equal(sum, 45)  # 0+1+2+...+9 = 45
 
 

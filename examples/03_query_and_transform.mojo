@@ -49,17 +49,17 @@ fn main() raises:
             is_active=row.get[Bool](5)
         )
 
-    # query_row returns a single row transformed into an Employee struct.
-    # For convenience, we can also call it directly on the Connection which will
-    # prepare the statement for us internally.
+    # one_row returns a single row transformed into an Employee struct.
+    # For convenience, we can call it directly on the Connection which will
+    # prepare the statement for us internally. Connections cannot return row iterators, because
+    # results are tied to the lifetime of the statement, so we have to use one_row for single rows and stmt.query for multiple rows.
     stmt = db.prepare("SELECT * FROM COMPANY LIMIT 1;")
-    print("Employee:", stmt.query_row[transform_row]())
-    print("Employee:", db.query_row[transform_row]("SELECT * FROM COMPANY LIMIT 1;"))
+    print("Employee:", db.one_row[transform_row]("SELECT * FROM COMPANY LIMIT 1;"))
 
-    # query_map returns an iterator which transforms rows into Employee structs.
+    # query returns an iterator which transforms rows into Employee structs.
     stmt = db.prepare("SELECT * FROM COMPANY;")
     print("\nAll employees mapped by transform function:")
-    for row in stmt.query_map[transform_row]():
+    for row in stmt.query[transform_row]():
         print(row)
     
     # Alternatively, we can call `.map` on the Rows iterator returned by `query`.
@@ -71,10 +71,10 @@ fn main() raises:
     # Finally, we can use `as_type` to directly map rows to Employee structs.
     stmt.reset()
     print("\nAll employees mapped by type:")
-    for employee in stmt.query_as_type[Employee]():
+    for employee in stmt.query[Employee]():
         print(employee)
     
-    # Same as with `query_map`, we can also call `as_type` on the `Rows` iterator returned by `query`.
+    # Same as with `query`, we can also call `as_type` on the `Rows` iterator returned by `query`.
     stmt.reset()
     for employee in stmt.query().as_type[Employee]():
         print(employee)

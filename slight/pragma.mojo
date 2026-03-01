@@ -93,7 +93,7 @@ struct Sql(Movable, Stringable):
         else:
             self.wrap_and_escape(s, '"')
     
-    fn push_value[T: ToSQL, //](mut self, value: T) raises:
+    fn push_value[T: AnyType, //](mut self, value: T) raises:
         """Push a parameter value to the buffer.
 
         Parameters:
@@ -105,7 +105,8 @@ struct Sql(Movable, Stringable):
         Raises:
             Error: If the value type is unsupported.
         """
-        var sql = value.to_sql()
+        comptime assert conforms_to(T, ToSQL), "`value` must conform to ToSQL trait."
+        var sql = trait_downcast[ToSQL](value).to_sql()
 
         if sql.isa[SQLite3Integer]():
             self.push_int(Int(sql[SQLite3Integer].value))

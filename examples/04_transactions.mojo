@@ -7,9 +7,6 @@ for atomic database operations with rollback capabilities.
 from slight.connection import Connection
 from slight.transaction import Transaction, Savepoint, TransactionBehavior, DropBehavior
 from slight.row import Row
-from slight import Params
-# from slight import Int, Bool, SIMD, Dict, List
-# from slight.types.to_sql import SIMD
 
 
 fn print_account_balances(db: Connection) raises:
@@ -183,7 +180,7 @@ fn example_transaction_behaviors() raises:
     fn get_sum(r: Row) raises -> Int:
         return r.get[Int](0)
 
-    var total = db.query_row[get_sum]("SELECT SUM(value) FROM data")
+    var total = db.one_row[get_sum]("SELECT SUM(value) FROM data LIMIT 1;")
     print("Total sum:", total)
 
 

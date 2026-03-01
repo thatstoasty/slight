@@ -1,7 +1,6 @@
 from std.testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
 
-from slight.connection import Connection
-from slight import Row, String, Int, ToSQL, Params
+from slight import Connection, Row
 from slight.pragma import Sql, is_identifier
 
 comptime dummy: Int = 0

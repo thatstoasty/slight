@@ -3,7 +3,6 @@ from std.testing import assert_equal, assert_true, assert_false, assert_not_equa
 from slight.connection import Connection
 from slight.statement import eq_ignore_ascii_case
 from slight.row import Row
-from slight import String, Int, Bool, SIMD, Dict, List, NoneType, ToSQL
 from slight.bind import BindIndex, BindIndexError
 
 
@@ -27,7 +26,7 @@ fn test_bind_index_with_int() raises:
     fn get_id(r: Row) raises -> Int:
         return r.get[Int](0)
 
-    var result = db.query_row[get_id]("SELECT id FROM test WHERE name = 'test_value'")
+    var result = db.one_row[get_id]("SELECT id FROM test WHERE name = 'test_value'")
     assert_equal(result, 42)
 
 
@@ -56,7 +55,7 @@ fn test_bind_index_with_string() raises:
     fn get_name(r: Row) raises -> String:
         return r.get[String](1)
 
-    var result = db.query_row[get_name]("SELECT * FROM test WHERE id = 123")
+    var result = db.one_row[get_name]("SELECT * FROM test WHERE id = 123")
     assert_equal(result, "hello")
 
 
