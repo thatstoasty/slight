@@ -1,3 +1,4 @@
+from std.builtin.rebind import downcast, trait_downcast
 from std.reflection import (
     struct_field_count,
     struct_field_names,
@@ -225,7 +226,32 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
         raise Error("InvalidColumnTypeError: column is not of type TEXT")
 
     # TODO: Parameter inference breaks if I try to put RowIndex first in the parameter list.
-    fn get[S: FromSQL, I: RowIndex](self, idx: I) raises -> S:
+    # TODO: Re-enable when exposing users to extensions is less buggy and more ergonomic.
+    # fn get[S: FromSQL, I: RowIndex](self, idx: I) raises -> S:
+    #     """Gets a value of type S from the specified column using generic type conversion.
+
+    #     This is a generic method that can retrieve values of any supported type,
+    #     making the API more ergonomic by eliminating the need for type-specific methods.
+
+    #     Parameters:
+    #         S: The type to convert the column value to. Supported types are:
+    #            Int, SIMD types (Int8/UInt8 to Int64/UInt64, Float16 to Float64, Int), String, Bool, and NoneType.
+    #         I: The type used to specify the column index (0-based). Can be Int, UInt, String, or StringSlice.
+
+    #     Args:
+    #         idx: The column index (0-based).
+
+    #     Returns:
+    #         An Optional containing the value of type T, or None if the column is NULL.
+
+    #     Raises:
+    #         InvalidColumnIndexError: If the column index is out of bounds.
+    #         Error: If the column value cannot be converted to type T.
+    #     """
+    #     var i = idx.idx(self.stmt[])
+    #     return S(self.stmt[].value_ref(i))
+
+    fn get[S: Movable, I: AnyType](self, idx: I) raises -> S:
         """Gets a value of type S from the specified column using generic type conversion.
 
         This is a generic method that can retrieve values of any supported type,
@@ -246,8 +272,11 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
             InvalidColumnIndexError: If the column index is out of bounds.
             Error: If the column value cannot be converted to type T.
         """
-        var i = idx.idx(self.stmt[])
-        return S(self.stmt[].value_ref(i))
+        comptime assert conforms_to(S, FromSQL), "S must implement FromSQL."
+        comptime assert conforms_to(I, RowIndex), "I must implement RowIndex."
+
+        var i = trait_downcast[RowIndex](idx).idx(self.stmt[])
+        return downcast[S, FromSQL](self.stmt[].value_ref(i))
 
 
 @fieldwise_init

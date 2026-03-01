@@ -3,8 +3,7 @@ from std.testing import assert_equal, assert_true, assert_false, assert_not_equa
 from slight.connection import Connection
 from slight.statement import eq_ignore_ascii_case
 from slight.row import Row
-from slight import String, Int, Bool, SIMD, Dict, List, NoneType
-from slight.types.to_sql import ToSQL
+from slight import String, Int, Bool, SIMD, Dict, List, NoneType, ToSQL
 from slight.bind import BindIndex, BindIndexError
 
 

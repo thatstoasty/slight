@@ -10,10 +10,6 @@ from slight.row import Row
 from slight import Int, Bool, SIMD, Dict, List
 from slight.types.to_sql import SIMD
 
-comptime dummy_int: Int = 1
-comptime dummy_float: Float64 = 1.0
-comptime dummy_bool: Bool = False
-
 
 fn print_account_balances(db: Connection) raises:
     """Helper function to print all account balances."""

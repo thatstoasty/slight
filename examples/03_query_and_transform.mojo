@@ -1,10 +1,5 @@
 from slight.connection import Connection
 from slight.row import Row
-from slight import Int, Bool, SIMD, Dict, List
-
-comptime dummy_int: Int = 1
-comptime dummy_float: Float64 = 1.0
-comptime dummy_bool: Bool = False
 
 
 @fieldwise_init
