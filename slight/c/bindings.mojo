@@ -1484,6 +1484,35 @@ struct sqlite3:
         return self.lib.sqlite3_create_scalar_function(
             db, zFunctionName.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, pApp, xFunc, destructor_callback
         )
+    
+    fn create_scalar_function(
+        self,
+        db: MutExternalPointer[sqlite3_connection],
+        mut zFunctionName: String,
+        nArg: c_int,
+        eTextRep: c_int,
+        xFunc: ScalarFnCallback,
+    ) -> SQLite3Result:
+        """Create Or Redefine SQL Functions.
+
+        This function is used to add SQL functions or aggregates or to redefine
+        the behavior of existing SQL functions or aggregates. For scalar functions,
+        only xFunc should be non-NULL. For aggregate functions, xStep and xFinal
+        should be non-NULL and xFunc should be NULL.
+
+        Args:
+            db: Database connection handle.
+            zFunctionName: Name of the SQL function to create.
+            nArg: Number of arguments the function accepts (-1 for variable).
+            eTextRep: Text encoding (SQLITE_UTF8, SQLITE_UTF16, etc.).
+            xFunc: Callback for scalar functions.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        return self.lib.sqlite3_create_scalar_function(
+            db, zFunctionName.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, xFunc
+        )
 
     fn create_window_function[
         app_origin: MutOrigin,

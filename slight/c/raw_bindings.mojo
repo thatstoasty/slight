@@ -1695,6 +1695,57 @@ struct _sqlite3(Movable):
         ]("sqlite3_create_function_v2")(
             db, zFunctionName, nArg, eTextRep, pApp, xFunc, xStep, xFinal, destructor_callback
         )
+    
+    fn sqlite3_create_scalar_function[
+        fn_name_origin: ImmutOrigin,
+    ](
+        self,
+        db: MutExternalPointer[sqlite3_connection],
+        zFunctionName: ImmutUnsafePointer[c_char, fn_name_origin],
+        nArg: c_int,
+        eTextRep: c_int,
+        xFunc: ScalarFnCallback,
+    ) -> c_int:
+        """Create Or Redefine SQL Functions.
+
+        This function is used to add SQL functions or aggregates or to redefine
+        the behavior of existing SQL functions or aggregates. The function
+        registers scalar or aggregate functions with a database connection.
+
+        For scalar functions, only xFunc should be non-NULL. For aggregate
+        functions, xStep and xFinal should be non-NULL and xFunc should be NULL.
+        The destructor_callback callback is invoked when the function is deleted, typically
+        when the database connection is closed.
+
+        Args:
+            db: Database connection handle.
+            zFunctionName: Name of the function to create.
+            nArg: Number of arguments the function accepts (-1 for variable).
+            eTextRep: Text encoding and other flags (SQLITE_UTF8, etc.).
+            xFunc: Scalar function implementation (NULL for aggregates).
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        var pApp = UnsafePointer[NoneType, origin=MutAnyOrigin]()
+        var xStep = UnsafePointer[AggStepCallback, origin=MutAnyOrigin]()
+        var xFinal = UnsafePointer[AggFinalCallback, origin=MutAnyOrigin]()
+        var xDestroy = UnsafePointer[ResultDestructorFn, origin=MutAnyOrigin]()
+        return self.lib.get_function[
+            fn (
+                type_of(db),
+                type_of(zFunctionName),
+                type_of(nArg),
+                type_of(eTextRep),
+                type_of(pApp),
+                type_of(xFunc),
+                type_of(xStep),
+                type_of(xFinal),
+                type_of(xDestroy),
+            ) -> c_int
+        ]("sqlite3_create_function_v2")(
+            db, zFunctionName, nArg, eTextRep, pApp, xFunc, xStep, xFinal, xDestroy
+        )
 
     fn sqlite3_create_window_function[
         fn_name_origin: ImmutOrigin,

@@ -760,12 +760,12 @@ struct Connection(Movable):
         sql.push_value(value)
         return self.one_row[transform](String(sql))
     
-    fn create_scalar_function[x_func: ScalarFnCallback](
+    fn create_scalar_function[T: Copyable & ImplicitlyDestructible, //, x_func: ScalarFnCallback](
         self,
         fn_name: String,
         n_arg: Int,
         flags: FunctionFlags,
-        pApp: MutUnsafePointer[NoneType],
+        pApp: T,
     ) raises:
         """Attach a user-defined scalar function to a database connection.
 
@@ -790,7 +790,38 @@ struct Connection(Movable):
         # For scalar functions, SQLite requires xFunc to be non-NULL and
         # xStep/xFinal to be NULL. We call the raw C API directly to pass
         # NULL for the unused callbacks.
-        var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags, pApp)
+        var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags, pApp.copy())
+        self.raise_if_error(result)
+    
+    fn create_scalar_function[x_func: ScalarFnCallback](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        flags: FunctionFlags,
+    ) raises:
+        """Attach a user-defined scalar function to a database connection.
+
+        The function will remain available until the connection is closed or
+        until it is explicitly removed via `remove_function`.
+
+        For scalar functions, only `x_func` is used. The xStep and xFinal
+        callbacks are set to NULL internally, as required by SQLite.
+
+        Parameters:
+            x_func: The scalar function callback implementation.
+
+        Args:
+            fn_name: Name of the SQL function to create.
+            n_arg: Number of arguments the function accepts (-1 for variable number).
+            flags: Function flags (encoding, determinism, etc.).
+
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        # For scalar functions, SQLite requires xFunc to be non-NULL and
+        # xStep/xFinal to be NULL. We call the raw C API directly to pass
+        # NULL for the unused callbacks.
+        var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags)
         self.raise_if_error(result)
 
     # fn create_scalar_function_with_data[
