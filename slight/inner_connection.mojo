@@ -14,6 +14,19 @@ from slight.result import SQLite3Result
 from slight.error import error_msg, raise_if_error, decode_error
 
 
+fn _default_destructor(pApp: MutExternalPointer[NoneType]):
+    """Default destructor for user-defined function application data.
+
+    This function is used as the destructor callback when creating user-defined functions
+    with application data. It checks if the provided pointer is valid and frees it if so.
+
+    Args:
+        pApp: A mutable external pointer to the application data.
+    """
+    if pApp:
+        pApp.free()
+
+
 @explicit_destroy("InnerConnection must be explicitly destroyed. Use self.close() to destroy.")
 struct InnerConnection(Movable):
     """A connection to a SQLite3 database."""
@@ -250,7 +263,12 @@ struct InnerConnection(Movable):
         For scalar functions, only `x_func` is used. The xStep and xFinal
         callbacks are set to NULL internally, as required by SQLite.
 
+        `slight` **creates a copy of `pApp`** to pass to SQLite, so the caller retains ownership of the original `pApp` value
+        and is responsible for its lifecycle. The copied value is automatically freed using a default destructor
+        when the function is removed or when the connection is closed.
+
         Parameters:
+            T: The type of the application data to be passed to the callback.
             x_func: The scalar function callback implementation.
 
         Args:
@@ -265,19 +283,14 @@ struct InnerConnection(Movable):
         # For scalar functions, SQLite requires xFunc to be non-NULL and
         # xStep/xFinal to be NULL. We call the raw C API directly to pass
         # NULL for the unused callbacks.
-
-        fn destructor(pApp: MutExternalPointer[NoneType]):
-            # pass
-            if pApp:
-                print("would free")
-                pApp.free()
-        
         fn xFunc[func: ScalarFnCallback](ctx: MutExternalPointer[sqlite3_context], argc: c_int, argv: MutExternalPointer[MutExternalPointer[sqlite3_value]]) raises -> NoneType:
             # Convert raw C callback to our Context wrapper and call the user-provided function
             var context = Context(ctx, argc, argv)
             func(context)
             return
 
+        # Copy data to the heap and pass a pointer to it as pApp.
+        # The data will be freed using the default destructor when the function is removed or when the connection is closed.
         var pAppPtr = alloc[T](count=1)
         pAppPtr[0] = pApp.copy()
 
@@ -289,7 +302,7 @@ struct InnerConnection(Movable):
             flags.value,
             pAppPtr.bitcast[NoneType](),
             xFunc[x_func],
-            destructor,
+            _default_destructor,
         )
     
     fn create_scalar_function[x_func: ScalarFnCallback](
