@@ -1,6 +1,9 @@
 from std.pathlib import Path
 from std.memory import Pointer
+from std.ffi import c_int
 from slight.c.api import sqlite_ffi
+from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
+from slight.functions import FunctionFlags, Context, ScalarFnCallback
 from slight.result import SQLite3Result
 from slight.inner_connection import InnerConnection
 from slight.flags import PrepFlag, OpenFlag
@@ -277,28 +280,28 @@ struct Connection(Movable):
         """
         return self.db.last_insert_row_id()
     
-    fn one_column[P: AnyType, //, T: FromSQL](self, var sql: String, params: P = ()) raises -> T:
-        """Fetches a single column from the first row of the result set.
+    # fn one_column[P: AnyType, //, T: FromSQL](self, var sql: String, params: P = ()) raises -> T:
+    #     """Fetches a single column from the first row of the result set.
 
-        Parameters:
-            P: The type of the parameters to bind.
-            T: The type to retrieve the value as. Must be Copyable, Movable, and FromSQL.
+    #     Parameters:
+    #         P: The type of the parameters to bind.
+    #         T: The type to retrieve the value as. Must be Copyable, Movable, and FromSQL.
 
-        Args:
-            sql: The SQL query to execute.
-            params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+    #     Args:
+    #         sql: The SQL query to execute.
+    #         params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
         
-        Returns:
-            The value of the first column in the first row of the result set.
+    #     Returns:
+    #         The value of the first column in the first row of the result set.
         
-        Raises:
-            Error: If the query fails or no rows are returned.
-        """
-        comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
-        fn get_item(row: Row) raises -> T:
-            return row.get[T](0)
+    #     Raises:
+    #         Error: If the query fails or no rows are returned.
+    #     """
+    #     comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
+    #     fn get_item(row: Row) raises -> T:
+    #         return row.get[T](0)
 
-        return self.prepare(sql^).query[get_item](params)
+    #     return self.prepare(sql^).query[get_item](params)
     
     fn one_row[
         T: Movable, P: AnyType, //, transform: fn (Row) raises -> T
@@ -756,4 +759,359 @@ struct Connection(Movable):
         sql.push_equal_sign()
         sql.push_value(value)
         return self.one_row[transform](String(sql))
+    
+    fn create_scalar_function[x_func: ScalarFnCallback](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        flags: FunctionFlags,
+        pApp: MutUnsafePointer[NoneType],
+    ) raises:
+        """Attach a user-defined scalar function to a database connection.
 
+        The function will remain available until the connection is closed or
+        until it is explicitly removed via `remove_function`.
+
+        For scalar functions, only `x_func` is used. The xStep and xFinal
+        callbacks are set to NULL internally, as required by SQLite.
+
+        Parameters:
+            x_func: The scalar function callback implementation.
+
+        Args:
+            fn_name: Name of the SQL function to create.
+            n_arg: Number of arguments the function accepts (-1 for variable number).
+            flags: Function flags (encoding, determinism, etc.).
+            pApp: An opaque pointer that is passed to the callback when the function is called. Can be used to store context or state for the function.
+
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        # For scalar functions, SQLite requires xFunc to be non-NULL and
+        # xStep/xFinal to be NULL. We call the raw C API directly to pass
+        # NULL for the unused callbacks.
+        var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags, pApp)
+        self.raise_if_error(result)
+
+    # fn create_scalar_function_with_data[
+    #     conn_type: Movable, /,
+    #     app_origin: MutOrigin,
+    #     fn_origin: MutOrigin,
+    # ](
+    #     ref conn: conn_type,
+    #     mut fn_name: String,
+    #     n_arg: Int,
+    #     flags: FunctionFlags,
+    #     p_app: MutOpaquePointer[app_origin],
+    #     x_func: fn (
+    #         MutExternalPointer[sqlite3_context],
+    #         c_int,
+    #         MutUnsafePointer[MutExternalPointer[sqlite3_value], fn_origin],
+    #     ) -> NoneType,
+    #     destructor: ResultDestructorFn,
+    # ) raises:
+    #     """Attach a user-defined scalar function with user data to a database connection.
+
+    #     This variant allows passing application data (`p_app`) that can be retrieved
+    #     inside the callback using `FunctionContext.user_data()`. A destructor callback
+    #     is called when the function is deleted to free the user data.
+
+    #     Parameters:
+    #         conn_type: The type of the connection.
+    #         app_origin: The origin of the pApp pointer.
+    #         fn_origin: The origin of the xFunc callback pointer.
+
+    #     Args:
+    #         conn: The database connection.
+    #         fn_name: Name of the SQL function to create.
+    #         n_arg: Number of arguments (-1 for variable number).
+    #         flags: Function flags.
+    #         p_app: User data pointer passed to the callback via `sqlite3_user_data()`.
+    #         x_func: The scalar function callback.
+    #         destructor: Callback invoked when the function is deleted to free p_app.
+
+    #     Raises:
+    #         Error: If the function could not be attached to the connection.
+    #     """
+    #     var result = sqlite_ffi()[].create_function_v2(
+    #         self.db,
+    #         fn_name.as_c_string_slice().unsafe_ptr(),
+    #         c_int(n_arg),
+    #         flags.value,
+    #         p_app,
+    #         x_func,
+    #         MutExternalPointer[NoneType](),  # xStep = NULL
+    #         MutExternalPointer[NoneType](),  # xFinal = NULL
+    #         destructor,
+    #     )
+    #     self.raise_if_error(self.db, SQLite3Result(result))
+
+    # fn create_aggregate_function[
+    #     step_origin: MutOrigin,
+    # ](
+    #     self,
+    #     mut fn_name: String,
+    #     n_arg: Int,
+    #     flags: FunctionFlags,
+    #     x_step: fn (
+    #         MutExternalPointer[sqlite3_context],
+    #         c_int,
+    #         MutUnsafePointer[MutExternalPointer[sqlite3_value], step_origin],
+    #     ) -> NoneType,
+    #     x_final: fn (MutExternalPointer[sqlite3_context]) -> NoneType,
+    # ) raises:
+    #     """Attach a user-defined aggregate function to a database connection.
+
+    #     Aggregate functions process multiple rows and produce a single result.
+    #     The `x_step` callback is called once per row, and `x_final` is called
+    #     once at the end to produce the result.
+
+    #     Use `FunctionContext.aggregate_context()` inside the callbacks to manage
+    #     per-group state.
+
+    #     Parameters:
+    #         step_origin: The origin of the xStep callback pointer.
+
+    #     Args:
+    #         fn_name: Name of the SQL aggregate function to create.
+    #         n_arg: Number of arguments (-1 for variable number).
+    #         flags: Function flags.
+    #         x_step: The step callback, called once per row.
+    #         x_final: The finalize callback, called once to produce the result.
+
+    #     Raises:
+    #         Error: If the function could not be attached to the connection.
+    #     """
+    #     # For aggregate functions, SQLite requires xFunc to be NULL and
+    #     # xStep/xFinal to be non-NULL.
+    #     var result = sqlite_ffi()[].create_function_v2(
+    #         self.db,
+    #         fn_name.as_c_string_slice().unsafe_ptr(),
+    #         c_int(n_arg),
+    #         flags.value,
+    #         MutExternalPointer[NoneType](),  # pApp = NULL
+    #         MutExternalPointer[NoneType](),  # xFunc = NULL
+    #         x_step,
+    #         x_final,
+    #         MutExternalPointer[NoneType](),  # destructor = NULL
+    #     )
+    #     self.raise_if_error(self.db, SQLite3Result(result))
+
+    # fn create_aggregate_function_with_data[
+    #     app_origin: MutOrigin,
+    #     step_origin: MutOrigin,
+    # ](
+    #     self,
+    #     mut fn_name: String,
+    #     n_arg: Int,
+    #     flags: FunctionFlags,
+    #     p_app: MutOpaquePointer[app_origin],
+    #     x_step: fn (
+    #         MutExternalPointer[sqlite3_context],
+    #         c_int,
+    #         MutUnsafePointer[MutExternalPointer[sqlite3_value], step_origin],
+    #     ) -> NoneType,
+    #     x_final: fn (MutExternalPointer[sqlite3_context]) -> NoneType,
+    #     destructor: ResultDestructorFn,
+    # ) raises:
+    #     """Attach a user-defined aggregate function with user data to a database connection.
+
+    #     This variant allows passing application data (`p_app`) that can be retrieved
+    #     inside the callbacks using `FunctionContext.user_data()`.
+
+    #     Parameters:
+    #         app_origin: The origin of the pApp pointer.
+    #         step_origin: The origin of the xStep callback pointer.
+
+    #     Args:
+    #         fn_name: Name of the SQL aggregate function to create.
+    #         n_arg: Number of arguments (-1 for variable number).
+    #         flags: Function flags.
+    #         p_app: User data pointer passed to the callbacks via `sqlite3_user_data()`.
+    #         x_step: The step callback.
+    #         x_final: The finalize callback.
+    #         destructor: Callback invoked when the function is deleted to free p_app.
+
+    #     Raises:
+    #         Error: If the function could not be attached to the connection.
+    #     """
+    #     var result = sqlite_ffi()[].create_function_v2(
+    #         self.db,
+    #         fn_name.as_c_string_slice().unsafe_ptr(),
+    #         c_int(n_arg),
+    #         flags.value,
+    #         p_app,
+    #         MutExternalPointer[NoneType](),  # xFunc = NULL
+    #         x_step,
+    #         x_final,
+    #         destructor,
+    #     )
+    #     self.raise_if_error(self.db, SQLite3Result(result))
+
+    # fn create_window_function[
+    #     step_origin: MutOrigin,
+    #     inverse_origin: MutOrigin,
+    # ](
+    #     self,
+    #     mut fn_name: String,
+    #     n_arg: Int,
+    #     flags: FunctionFlags,
+    #     x_step: fn (
+    #         MutExternalPointer[sqlite3_context],
+    #         c_int,
+    #         MutUnsafePointer[MutExternalPointer[sqlite3_value], step_origin],
+    #     ) -> NoneType,
+    #     x_final: fn (MutExternalPointer[sqlite3_context]) -> NoneType,
+    #     x_value: fn (MutExternalPointer[sqlite3_context]) -> NoneType,
+    #     x_inverse: fn (
+    #         MutExternalPointer[sqlite3_context],
+    #         c_int,
+    #         MutUnsafePointer[MutExternalPointer[sqlite3_value], inverse_origin],
+    #     ) -> NoneType,
+    # ) raises:
+    #     """Attach a user-defined aggregate window function to a database connection.
+
+    #     Window functions operate over a sliding window of rows. In addition to
+    #     the `x_step` and `x_final` callbacks (like aggregate functions), they require
+    #     `x_value` (to return the current aggregate value without finalizing) and
+    #     `x_inverse` (to remove a row leaving the window frame).
+
+    #     See https://sqlite.org/windowfunctions.html#udfwinfunc for more information.
+
+    #     Parameters:
+    #         step_origin: The origin of the xStep callback pointer.
+    #         inverse_origin: The origin of the xInverse callback pointer.
+
+    #     Args:
+    #         fn_name: Name of the SQL window function to create.
+    #         n_arg: Number of arguments (-1 for variable number).
+    #         flags: Function flags.
+    #         x_step: Called for each row entering the window.
+    #         x_final: Called to compute the final aggregate value.
+    #         x_value: Called to get the current aggregate value.
+    #         x_inverse: Called for each row leaving the window.
+
+    #     Raises:
+    #         Error: If the function could not be attached to the connection.
+    #     """
+    #     # Window functions use sqlite3_create_window_function (no NULL slots needed).
+    #     var result = sqlite_ffi()[].create_window_function(
+    #         self.db,
+    #         fn_name.as_c_string_slice().unsafe_ptr(),
+    #         c_int(n_arg),
+    #         flags.value,
+    #         MutExternalPointer[NoneType](),  # pApp = NULL
+    #         x_step,
+    #         x_final,
+    #         x_value,
+    #         x_inverse,
+    #         MutExternalPointer[NoneType](),  # destructor = NULL
+    #     )
+    #     self.raise_if_error(self.db, SQLite3Result(result))
+
+    # fn create_window_function_with_data[
+    #     app_origin: MutOrigin,
+    #     step_origin: MutOrigin,
+    #     inverse_origin: MutOrigin,
+    # ](
+    #     self,
+    #     mut fn_name: String,
+    #     n_arg: Int,
+    #     flags: FunctionFlags,
+    #     p_app: MutOpaquePointer[app_origin],
+    #     x_step: fn (
+    #         MutExternalPointer[sqlite3_context],
+    #         c_int,
+    #         MutUnsafePointer[MutExternalPointer[sqlite3_value], step_origin],
+    #     ) -> NoneType,
+    #     x_final: fn (MutExternalPointer[sqlite3_context]) -> NoneType,
+    #     x_value: fn (MutExternalPointer[sqlite3_context]) -> NoneType,
+    #     x_inverse: fn (
+    #         MutExternalPointer[sqlite3_context],
+    #         c_int,
+    #         MutUnsafePointer[MutExternalPointer[sqlite3_value], inverse_origin],
+    #     ) -> NoneType,
+    #     destructor: ResultDestructorFn,
+    # ) raises:
+    #     """Attach a user-defined window function with user data to a database connection.
+
+    #     This variant allows passing application data (`p_app`) that can be retrieved
+    #     inside the callbacks using `FunctionContext.user_data()`.
+
+    #     Parameters:
+    #         app_origin: The origin of the pApp pointer.
+    #         step_origin: The origin of the xStep callback pointer.
+    #         inverse_origin: The origin of the xInverse callback pointer.
+
+    #     Args:
+    #         fn_name: Name of the SQL window function to create.
+    #         n_arg: Number of arguments (-1 for variable number).
+    #         flags: Function flags.
+    #         p_app: User data pointer passed to callbacks via `sqlite3_user_data()`.
+    #         x_step: Called for each row entering the window.
+    #         x_final: Called to compute the final aggregate value.
+    #         x_value: Called to get the current aggregate value.
+    #         x_inverse: Called for each row leaving the window.
+    #         destructor: Callback invoked when the function is deleted to free p_app.
+
+    #     Raises:
+    #         Error: If the function could not be attached to the connection.
+    #     """
+    #     var result = sqlite_ffi()[].create_window_function(
+    #         self.db,
+    #         fn_name.as_c_string_slice().unsafe_ptr(),
+    #         c_int(n_arg),
+    #         flags.value,
+    #         p_app,
+    #         x_step,
+    #         x_final,
+    #         x_value,
+    #         x_inverse,
+    #         destructor,
+    #     )
+    #     self.raise_if_error(self.db, SQLite3Result(result))
+
+    # fn remove_function(
+    #     self,
+    #     mut fn_name: String,
+    #     n_arg: Int,
+    # ) raises:
+    #     """Remove a user-defined function from a database connection.
+
+    #     `fn_name` and `n_arg` should match the name and number of arguments
+    #     given to `create_scalar_function`, `create_aggregate_function`, or
+    #     `create_window_function`.
+
+    #     Args:
+    #         fn_name: Name of the SQL function to remove.
+    #         n_arg: Number of arguments the function was registered with.
+
+    #     Raises:
+    #         Error: If the function could not be removed.
+    #     """
+    #     # To delete a function, pass NULL for all callbacks and pApp,
+    #     # with UTF8 encoding.
+    #     var result = sqlite_ffi()[].lib.get_function[
+    #         fn (
+    #             MutExternalPointer[sqlite3_connection],  # db
+    #             ImmutUnsafePointer[c_char],  # zFunctionName
+    #             c_int,  # nArg
+    #             c_int,  # eTextRep (UTF8)
+    #             MutExternalPointer[NoneType],  # pApp (NULL)
+    #             MutExternalPointer[NoneType],  # xFunc (NULL)
+    #             MutExternalPointer[NoneType],  # xStep (NULL)
+    #             MutExternalPointer[NoneType],  # xFinal (NULL)
+    #             MutExternalPointer[NoneType],  # destructor (NULL)
+    #         ) -> c_int
+    #     ]("sqlite3_create_function_v2")(
+    #         self.db,
+    #         fn_name.as_c_string_slice().unsafe_ptr(),
+    #         c_int(n_arg),
+    #         FunctionFlags.UTF8.value,
+    #         MutExternalPointer[NoneType](),  # pApp = NULL
+    #         MutExternalPointer[NoneType](),  # xFunc = NULL
+    #         MutExternalPointer[NoneType](),  # xStep = NULL
+    #         MutExternalPointer[NoneType](),  # xFinal = NULL
+    #         MutExternalPointer[NoneType](),  # destructor = NULL
+    #     )
+    #     self.raise_if_error(self.db, SQLite3Result(result))

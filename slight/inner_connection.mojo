@@ -1,11 +1,13 @@
 from std.pathlib import Path
+from std.ffi import c_int
 
 from slight.c.api import sqlite_ffi
 from slight.c.raw_bindings import (
     sqlite3_connection,
     sqlite3_stmt,
 )
-from slight.c.types import MutExternalPointer
+from slight.c.types import MutExternalPointer, MutUnsafePointer, sqlite3_context, sqlite3_value, AggFinalCallback, AggStepCallback, WindowValueCallback, WindowInverseCallback
+from slight.functions import FunctionFlags, Context, ScalarFnCallback
 from slight.flags import PrepFlag, OpenFlag
 from slight.result import SQLite3Result
 from slight.error import error_msg, raise_if_error, decode_error
@@ -229,3 +231,59 @@ struct InnerConnection(Movable):
             Error: If the SQLite error code is not `SQLITE_OK`.
         """
         return decode_error(self.db, code)
+
+    fn create_scalar_function[x_func: ScalarFnCallback](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        flags: FunctionFlags,
+        # x_func: ScalarFnCallback,
+        pApp: MutUnsafePointer[NoneType],
+        # x_func: fn () raises -> T,
+    ) raises -> SQLite3Result:
+        """Attach a user-defined scalar function to a database connection.
+
+        The function will remain available until the connection is closed or
+        until it is explicitly removed via `remove_function`.
+
+        For scalar functions, only `x_func` is used. The xStep and xFinal
+        callbacks are set to NULL internally, as required by SQLite.
+
+        Parameters:
+            x_func: The scalar function callback implementation.
+
+        Args:
+            fn_name: Name of the SQL function to create.
+            n_arg: Number of arguments the function accepts (-1 for variable number).
+            flags: Function flags (encoding, determinism, etc.).
+            pApp: An optional pointer to application data that will be passed to the callback.
+
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        # For scalar functions, SQLite requires xFunc to be non-NULL and
+        # xStep/xFinal to be NULL. We call the raw C API directly to pass
+        # NULL for the unused callbacks.
+
+        fn destructor(pApp: MutExternalPointer[NoneType]):
+            # pass
+            if pApp:
+                print("would free")
+                # pApp.free()
+        
+        fn xFunc[func: ScalarFnCallback](ctx: MutExternalPointer[sqlite3_context], argc: c_int, argv: MutExternalPointer[MutExternalPointer[sqlite3_value]]) raises -> NoneType:
+            # Convert raw C callback to our Context wrapper and call the user-provided function
+            var context = Context(ctx, argc, argv)
+            func(context)
+            return
+
+        var func_name = fn_name.copy()
+        return sqlite_ffi()[].create_scalar_function(
+            self.db,
+            func_name,
+            c_int(n_arg),
+            flags.value,
+            pApp,
+            xFunc[x_func],
+            destructor,
+        )

@@ -121,6 +121,61 @@ struct sqlite3_file(Movable):
     pass
 
 
+# ===----------------------------------------------------------------------=== #
+# Callback Type Aliases
+# ===----------------------------------------------------------------------=== #
+
+comptime ScalarFnCallback = fn (
+    MutExternalPointer[sqlite3_context],
+    c_int,
+    MutExternalPointer[MutExternalPointer[sqlite3_value]],
+) raises -> NoneType
+"""Callback type for scalar SQL functions.
+
+The callback receives:
+- The SQL function context pointer.
+- The number of arguments (argc).
+- A pointer to the array of argument values (argv).
+
+Use `Context` to conveniently access arguments and set results.
+"""
+
+comptime AggStepCallback = fn (
+    MutExternalPointer[sqlite3_context],
+    c_int,
+    MutUnsafePointer[MutExternalPointer[sqlite3_value]],
+) -> NoneType
+"""Callback type for the step function of an aggregate SQL function.
+
+Called once for each row in an aggregate group.
+"""
+
+comptime AggFinalCallback = fn (
+    MutExternalPointer[sqlite3_context],
+) -> NoneType
+"""Callback type for the finalize function of an aggregate SQL function.
+
+Called once after all rows have been processed to compute the final result.
+"""
+
+comptime WindowValueCallback = fn (
+    MutExternalPointer[sqlite3_context],
+) -> NoneType
+"""Callback type for the value function of a window aggregate function.
+
+Returns the current value of the aggregate without finalizing.
+"""
+
+comptime WindowInverseCallback = fn (
+    MutExternalPointer[sqlite3_context],
+    c_int,
+    MutUnsafePointer[MutExternalPointer[sqlite3_value]],
+) -> NoneType
+"""Callback type for the inverse function of a window aggregate function.
+
+Called when a row leaves the window frame.
+"""
+
 comptime ResultDestructorFn = fn (MutExternalPointer[NoneType]) -> NoneType
 """Constants Defining Special Destructor Behavior.
 

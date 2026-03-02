@@ -8,8 +8,6 @@ from slight.c.types import (
     sqlite3_blob,
     sqlite3_connection,
     sqlite3_context,
-    ResultDestructorFn,
-    AuthCallbackFn,
     sqlite3_file,
     sqlite3_index_info,
     sqlite3_snapshot,
@@ -19,9 +17,15 @@ from slight.c.types import (
     MutExternalPointer,
     DataType,
     TextEncoding,
+    ResultDestructorFn,
+    AuthCallbackFn,
+    ScalarFnCallback,
+    AggStepCallback,
+    AggFinalCallback,
+    WindowValueCallback,
+    WindowInverseCallback,
 )
 from slight.c.sqlite_string import SQLiteMallocString
-
 
 struct sqlite3:
     """SQLite3 C API binding struct.
@@ -1399,8 +1403,8 @@ struct sqlite3:
     # TODO: Create scalar and aggregate function variants since they require null function pointers.
     fn create_function_v2[
         app_origin: MutOrigin,
-        fn_origin: MutOrigin,
-        step_origin: MutOrigin,
+        # fn_origin: MutOrigin,
+        # step_origin: MutOrigin,
     ](
         self,
         db: MutExternalPointer[sqlite3_connection],
@@ -1408,17 +1412,9 @@ struct sqlite3:
         nArg: c_int,
         eTextRep: c_int,
         pApp: MutOpaquePointer[app_origin],
-        xFunc: fn (
-            MutExternalPointer[sqlite3_context],
-            c_int,
-            MutUnsafePointer[MutExternalPointer[sqlite3_value], fn_origin],
-        ) -> NoneType,
-        xStep: fn (
-            MutExternalPointer[sqlite3_context],
-            c_int,
-            MutUnsafePointer[MutExternalPointer[sqlite3_value], step_origin],
-        ) -> NoneType,
-        xFinal: fn (MutExternalPointer[sqlite3_context]) -> NoneType,
+        xFunc: Optional[ScalarFnCallback],
+        xStep: Optional[AggStepCallback],
+        xFinal: Optional[AggFinalCallback],
         destructor_callback: ResultDestructorFn,
     ) -> SQLite3Result:
         """Create Or Redefine SQL Functions.
@@ -1430,8 +1426,6 @@ struct sqlite3:
 
         Parameters:
             app_origin: The origin of the pApp pointer.
-            fn_origin: The origin of the xFunc callback pointer.
-            step_origin: The origin of the xStep callback pointer.
 
         Args:
             db: Database connection handle.
@@ -1449,9 +1443,47 @@ struct sqlite3:
         """
         return self.lib.sqlite3_create_function_v2[
             app_origin=app_origin,
-            fn_origin=fn_origin,
-            step_origin=step_origin,
+            # fn_origin=fn_origin,
+            # step_origin=step_origin,
         ](db, zFunctionName.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, pApp, xFunc, xStep, xFinal, destructor_callback)
+    
+    fn create_scalar_function[
+        app_origin: MutOrigin,
+    ](
+        self,
+        db: MutExternalPointer[sqlite3_connection],
+        mut zFunctionName: String,
+        nArg: c_int,
+        eTextRep: c_int,
+        pApp: MutOpaquePointer[app_origin],
+        xFunc: ScalarFnCallback,
+        destructor_callback: ResultDestructorFn,
+    ) -> SQLite3Result:
+        """Create Or Redefine SQL Functions.
+
+        This function is used to add SQL functions or aggregates or to redefine
+        the behavior of existing SQL functions or aggregates. For scalar functions,
+        only xFunc should be non-NULL. For aggregate functions, xStep and xFinal
+        should be non-NULL and xFunc should be NULL.
+
+        Parameters:
+            app_origin: The origin of the pApp pointer.
+
+        Args:
+            db: Database connection handle.
+            zFunctionName: Name of the SQL function to create.
+            nArg: Number of arguments the function accepts (-1 for variable).
+            eTextRep: Text encoding (SQLITE_UTF8, SQLITE_UTF16, etc.).
+            pApp: Application data pointer passed to callbacks.
+            xFunc: Callback for scalar functions.
+            destructor_callback: Callback invoked when the function is deleted.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        return self.lib.sqlite3_create_scalar_function(
+            db, zFunctionName.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, pApp, xFunc, destructor_callback
+        )
 
     fn create_window_function[
         app_origin: MutOrigin,
@@ -1922,9 +1954,7 @@ struct sqlite3:
         """
         self.lib.sqlite3_result_null(ctx)
 
-    fn result_text64[
-        value_origin: ImmutOrigin,
-    ](
+    fn result_text64(
         self,
         ctx: MutExternalPointer[sqlite3_context],
         mut value: String,
@@ -1935,9 +1965,6 @@ struct sqlite3:
         """Set The Result Of A Function To A Text String (64-bit).
 
         This routine sets the result of a SQL function to a UTF-8 or UTF-16 text string.
-
-        Parameters:
-            value_origin: The origin of the value string.
 
         Args:
             ctx: SQL function context.

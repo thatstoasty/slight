@@ -8,17 +8,21 @@ from slight.c.types import (
     sqlite3_blob,
     sqlite3_connection,
     sqlite3_context,
-    ResultDestructorFn,
     sqlite3_file,
     sqlite3_index_info,
     sqlite3_snapshot,
     sqlite3_stmt,
     sqlite3_value,
     sqlite3_module,
-    AuthCallbackFn,
-    ResultDestructorFn,
     ImmutExternalPointer,
     MutExternalPointer,
+    ResultDestructorFn,
+    AuthCallbackFn,
+    ScalarFnCallback,
+    AggStepCallback,
+    AggFinalCallback,
+    WindowValueCallback,
+    WindowInverseCallback,
 )
 
 
@@ -1583,8 +1587,8 @@ struct _sqlite3(Movable):
     fn sqlite3_create_function_v2[
         fn_name_origin: ImmutOrigin,
         app_origin: MutOrigin,
-        fn_origin: MutOrigin,
-        step_origin: MutOrigin,
+        # fn_origin: MutOrigin,
+        # step_origin: MutOrigin,
     ](
         self,
         db: MutExternalPointer[sqlite3_connection],
@@ -1592,17 +1596,9 @@ struct _sqlite3(Movable):
         nArg: c_int,
         eTextRep: c_int,
         pApp: MutOpaquePointer[app_origin],
-        xFunc: fn (
-            MutExternalPointer[sqlite3_context],
-            c_int,
-            MutUnsafePointer[MutExternalPointer[sqlite3_value], fn_origin],
-        ) -> NoneType,
-        xStep: fn (
-            MutExternalPointer[sqlite3_context],
-            c_int,
-            MutUnsafePointer[MutExternalPointer[sqlite3_value], step_origin],
-        ) -> NoneType,
-        xFinal: fn (MutExternalPointer[sqlite3_context]) -> NoneType,
+        xFunc: Optional[ScalarFnCallback],
+        xStep: Optional[AggStepCallback],
+        xFinal: Optional[AggFinalCallback],
         destructor_callback: ResultDestructorFn,
     ) -> c_int:
         """Create Or Redefine SQL Functions.
@@ -1630,6 +1626,60 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
+        return self.lib.get_function[
+            fn (
+                type_of(db),
+                type_of(zFunctionName),
+                type_of(nArg),
+                type_of(eTextRep),
+                type_of(pApp),
+                type_of(xFunc),
+                type_of(xStep),
+                type_of(xFinal),
+                type_of(destructor_callback),
+            ) -> c_int
+        ]("sqlite3_create_function_v2")(
+            db, zFunctionName, nArg, eTextRep, pApp, xFunc, xStep, xFinal, destructor_callback
+        )
+    
+    fn sqlite3_create_scalar_function[
+        fn_name_origin: ImmutOrigin,
+        app_origin: MutOrigin,
+    ](
+        self,
+        db: MutExternalPointer[sqlite3_connection],
+        zFunctionName: ImmutUnsafePointer[c_char, fn_name_origin],
+        nArg: c_int,
+        eTextRep: c_int,
+        pApp: MutOpaquePointer[app_origin],
+        xFunc: ScalarFnCallback,
+        destructor_callback: ResultDestructorFn,
+    ) -> c_int:
+        """Create Or Redefine SQL Functions.
+
+        This function is used to add SQL functions or aggregates or to redefine
+        the behavior of existing SQL functions or aggregates. The function
+        registers scalar or aggregate functions with a database connection.
+
+        For scalar functions, only xFunc should be non-NULL. For aggregate
+        functions, xStep and xFinal should be non-NULL and xFunc should be NULL.
+        The destructor_callback callback is invoked when the function is deleted, typically
+        when the database connection is closed.
+
+        Args:
+            db: Database connection handle.
+            zFunctionName: Name of the function to create.
+            nArg: Number of arguments the function accepts (-1 for variable).
+            eTextRep: Text encoding and other flags (SQLITE_UTF8, etc.).
+            pApp: User data pointer passed to function callbacks.
+            xFunc: Scalar function implementation (NULL for aggregates).
+            destructor_callback: Destructor for pApp when function is deleted.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        var xStep = UnsafePointer[AggStepCallback, origin=MutAnyOrigin]()
+        var xFinal = UnsafePointer[AggFinalCallback, origin=MutAnyOrigin]()
         return self.lib.get_function[
             fn (
                 type_of(db),
