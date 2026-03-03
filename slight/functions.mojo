@@ -467,13 +467,14 @@ struct Context(Movable, Sized):
             DestructorHint.transient_destructor(),
         )
 
-    fn result_error(self, mut msg: String):
+    fn result_error(self, msg: String):
         """Set the result of the function to an error.
 
         Args:
             msg: The error message string.
         """
-        sqlite_ffi()[].result_error(self.ctx, msg, c_int(-1))
+        var msg_copy = msg.copy()
+        sqlite_ffi()[].result_error(self.ctx, msg_copy, c_int(-1))
 
     fn result_error_code(self, code: Int32):
         """Set the result of the function to an error code.

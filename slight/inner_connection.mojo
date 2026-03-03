@@ -443,7 +443,19 @@ struct InnerConnection(Movable):
             argc: c_int,
             argv: MutExternalPointer[MutExternalPointer[sqlite3_value]]
         ) raises -> NoneType:
-            print("in xStep")
+            """The xStep callback for the aggregate function.
+            
+            This is called once for each row in the group being aggregated. This is a wrapper
+            around the user provided `init_fn` and `step_fn` that manages the aggregate context for the user.
+
+            Args:
+                ctx: The SQLite context for the aggregate function.
+                argc: The number of arguments passed to the function.
+                argv: The arguments passed to the function.
+            
+            Raises:
+                Error: If there is an error during the execution of the step function.
+            """
             var context = Context(ctx, argc, argv)
             var agg_context = context.aggregate_context[A](size_of[A]())
             # TODO: Throw sqlite3_result_error_nomem if we fail to allocate memory for the aggregate context.
@@ -459,13 +471,48 @@ struct InnerConnection(Movable):
             A: Movable & ImplicitlyDestructible, T: Movable & ImplicitlyDestructible, //,
             final_fn: fn (mut ctx: Context, acc: A) raises -> T
         ](ctx: MutExternalPointer[sqlite3_context]) raises -> NoneType:
-            print("in xFinal")
+            """The xFinal callback for the aggregate function.
+
+            This is called once at the end of the aggregation to compute the final result. This is a wrapper
+            around the user provided `final_fn` that manages the aggregate context for the user and converts
+            the result to the appropriate SQLite type.
+
+            Args:
+                ctx: The SQLite context for the aggregate function.
+            
+            Raises:
+                Error: If there is an error during the execution of the final function, or if the
+                    aggregate context cannot be retrieved.
+            """
+
             var context = Context(ctx)
             var agg_context = context.aggregate_context[A](0)
             if not agg_context:
                 raise Error("Failed to get aggregate context in xFinal callback.")
 
-            var result = final_fn(context, agg_context.value()[])
+            var finalize_result: T
+            try:
+                finalize_result = final_fn(context, agg_context.value()[])
+            except e:
+                # If the user's final function raises an error, we need to convert it to a SQLite error result.
+                context.result_error(t"Error in aggregate final function: {e}")
+                return
+            
+            var result = trait_downcast[ToSQL](finalize_result).to_sql()
+            # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
+            # ToSQL is implemented on most of the important stdlib types.
+            if result.isa[SQLite3Null]():
+                context.result_null()
+            elif result.isa[SQLite3Integer]():
+                context.result_int64(result[SQLite3Integer].value)
+            elif result.isa[SQLite3Real]():
+                context.result_double(result[SQLite3Real].value)
+            elif result.isa[SQLite3Text[origin_of(result)]]():
+                context.result_text(String(
+                    result[SQLite3Text[origin_of(result)]].value
+                ))
+            else:
+                raise Error("Unsupported return type from scalar function.")
             return
         
         # Copy data to the heap and pass a pointer to it as pApp.
