@@ -674,7 +674,7 @@ struct Connection(Movable):
         for row in self.prepare(String(sql)).query(()):
             callback(row)
 
-    fn pragma_update[T: AnyType](
+    fn pragma_update[T: AnyType, //](
         self,
         pragma: StringSlice,
         value: T,
@@ -845,8 +845,8 @@ struct Connection(Movable):
         self,
         fn_name: String,
         n_arg: Int,
-        flags: FunctionFlags,
         user_data: P,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
     ) raises:
         """Attach a user-defined aggregate function to a database connection.
 
@@ -868,8 +868,8 @@ struct Connection(Movable):
         Args:
             fn_name: Name of the SQL aggregate function to create.
             n_arg: Number of arguments (-1 for variable number).
-            flags: Function flags.
             user_data: An opaque pointer that is passed to the callbacks when the function is called. Can be used to store context or state for the function.
+            flags: Function flags.
 
         Raises:
             Error: If the function could not be attached to the connection.
@@ -880,46 +880,46 @@ struct Connection(Movable):
         var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags, user_data)
         self.raise_if_error(result)
 
-    # fn create_aggregate_function[
-    #     A: Movable & ImplicitlyDestructible, T: Movable & ImplicitlyDestructible, //,
-    #     init_fn: fn (mut ctx: Context) raises -> A,
-    #     step_fn: fn (mut ctx: Context, mut acc: A) raises,
-    #     final_fn: fn (mut ctx: Context, acc: A) raises -> T,
-    # ](
-    #     self,
-    #     fn_name: String,
-    #     n_arg: Int,
-    #     flags: FunctionFlags,
-    # ) raises:
-    #     """Attach a user-defined aggregate function to a database connection.
+    fn create_aggregate_function[
+        A: Movable & ImplicitlyDestructible, T: Movable & ImplicitlyDestructible, //,
+        init_fn: fn (mut ctx: Context) raises -> A,
+        step_fn: fn (mut ctx: Context, mut acc: A) raises,
+        final_fn: fn (mut ctx: Context, acc: A) raises -> T,
+    ](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    ) raises:
+        """Attach a user-defined aggregate function to a database connection.
 
-    #     Aggregate functions process multiple rows and produce a single result.
-    #     The `x_step` callback is called once per row, and `x_final` is called
-    #     once at the end to produce the result.
+        Aggregate functions process multiple rows and produce a single result.
+        The `x_step` callback is called once per row, and `x_final` is called
+        once at the end to produce the result.
 
-    #     Use `FunctionContext.aggregate_context()` inside the callbacks to manage
-    #     per-group state.
+        Use `FunctionContext.aggregate_context()` inside the callbacks to manage
+        per-group state.
 
-    #     Parameters:
-    #         A: The type of the aggregate state. Must be Movable.
-    #         T: The return type of the aggregate function. Must conform to `ToSQL`.
-    #         init_fn: The callback to initialize the aggregate state for a new group.
-    #         step_fn: The callback to update the aggregate state for each row in the group.
-    #         final_fn: The callback to compute the final result from the aggregate state.
+        Parameters:
+            A: The type of the aggregate state. Must be Movable.
+            T: The return type of the aggregate function. Must conform to `ToSQL`.
+            init_fn: The callback to initialize the aggregate state for a new group.
+            step_fn: The callback to update the aggregate state for each row in the group.
+            final_fn: The callback to compute the final result from the aggregate state.
 
-    #     Args:
-    #         fn_name: Name of the SQL aggregate function to create.
-    #         n_arg: Number of arguments (-1 for variable number).
-    #         flags: Function flags.
+        Args:
+            fn_name: Name of the SQL aggregate function to create.
+            n_arg: Number of arguments (-1 for variable number).
+            flags: Function flags.
 
-    #     Raises:
-    #         Error: If the function could not be attached to the connection.
-    #     """
-    #     # For aggregate functions, SQLite requires xFunc to be NULL and
-    #     # xStep/xFinal to be non-NULL.
-    #     comptime assert conforms_to(T, ToSQL), String("Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`.")
-    #     var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags)
-    #     self.raise_if_error(result)
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        # For aggregate functions, SQLite requires xFunc to be NULL and
+        # xStep/xFinal to be non-NULL.
+        comptime assert conforms_to(T, ToSQL), String("Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`.")
+        var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags)
+        self.raise_if_error(result)
 
     # fn create_window_function[
     #     step_origin: MutOrigin,

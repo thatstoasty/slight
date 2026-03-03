@@ -1885,7 +1885,6 @@ struct _sqlite3(Movable):
             eTextRep: Text encoding and other flags (SQLITE_UTF8, etc.).
             xStep: Aggregate step function (NULL for scalar functions).
             xFinal: Aggregate finalization function (NULL for scalar functions).
-            destructor_callback: Destructor for pApp when function is deleted.
 
         Returns:
             SQLITE_OK on success, or an error code on failure.

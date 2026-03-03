@@ -1554,9 +1554,7 @@ struct sqlite3:
             db, zFunctionName.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, pApp, xStep, xFinal, destructor_callback
         )
     
-    fn create_aggregate_function[
-        app_origin: MutOrigin,
-    ](
+    fn create_aggregate_function(
         self,
         db: MutExternalPointer[sqlite3_connection],
         mut zFunctionName: String,
@@ -1571,9 +1569,6 @@ struct sqlite3:
         the behavior of existing SQL functions or aggregates. For scalar functions,
         only xFunc should be non-NULL. For aggregate functions, xStep and xFinal
         should be non-NULL and xFunc should be NULL.
-
-        Parameters:
-            app_origin: The origin of the pApp pointer.
 
         Args:
             db: Database connection handle.

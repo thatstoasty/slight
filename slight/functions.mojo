@@ -366,7 +366,7 @@ struct Context(Movable, Sized):
             ]()
         )
 
-    fn get_blob(mut self, idx: Int) -> Span[Byte, origin_of(self)]:
+    fn get_blob(self, idx: Int) -> Span[Byte, origin_of(self)]:
         """Returns the `idx`th argument as a Span of bytes (BLOB).
 
         This calls `sqlite3_value_blob` and `sqlite3_value_bytes` directly.
@@ -383,7 +383,7 @@ struct Context(Movable, Sized):
         var value = self.args[idx]
         var blob_ptr = sqlite_ffi()[].value_blob(value)
         var n_bytes = Int(sqlite_ffi()[].value_bytes(value).value)
-        return Span[Byte, origin_of(self)](
+        return Span(
             ptr=blob_ptr.bitcast[Byte]().unsafe_origin_cast[origin_of(self)](),
             length=n_bytes,
         )
@@ -529,6 +529,9 @@ struct Context(Movable, Sized):
 
         For the finalize callback, pass `n_bytes=0` to avoid pointless
         allocations.
+
+        Parameters:
+            A: The type of the aggregate context. This is the type that will be returned as a pointer.
 
         Args:
             n_bytes: Number of bytes to allocate (0 to query existing context).
