@@ -229,18 +229,18 @@ struct Context(Movable, Sized):
                     )
                 )
             )
-        # elif DataType.BLOB.value == value_type.value:
-        #     var blob_ptr = sqlite_ffi()[].value_blob(value)
-        #     var n_bytes = Int(sqlite_ffi()[].value_bytes(value).value)
-        #     return ValueRef[origin_of(self)](
-        #         SQLite3Blob(
-        #             Span[Byte, origin_of(self)](
-        #                 ptr=blob_ptr.bitcast[Byte]()
-        #                 .unsafe_origin_cast[origin_of(self)](),
-        #                 length=n_bytes,
-        #             )
-        #         )
-        #     )
+        elif DataType.BLOB.value == value_type.value:
+            var blob_ptr = sqlite_ffi()[].value_blob(value)
+            var n_bytes = Int(sqlite_ffi()[].value_bytes(value).value)
+            return ValueRef[origin_of(self)](
+                SQLite3Blob(
+                    Span[Byte, origin_of(self)](
+                        ptr=blob_ptr.bitcast[Byte]()
+                        .unsafe_origin_cast[origin_of(self)](),
+                        length=n_bytes,
+                    )
+                )
+            )
         else:
             abort(
                 "[UNREACHABLE] sqlite3_value_type returned an invalid value"
@@ -383,20 +383,20 @@ struct Context(Movable, Sized):
         """Set the result of the function to NULL."""
         sqlite_ffi()[].result_null(self.ctx)
 
-    # fn result_blob(self, data: Span[Byte]):
-    #     """Set the result of the function to a BLOB value.
+    fn result_blob(self, data: Span[mut=False, Byte]):
+        """Set the result of the function to a BLOB value.
 
-    #     SQLite makes its own copy of the data (uses SQLITE_TRANSIENT).
+        SQLite makes its own copy of the data (uses SQLITE_TRANSIENT).
 
-    #     Args:
-    #         data: The blob data to return.
-    #     """
-    #     sqlite_ffi()[].result_blob64(
-    #         self.ctx,
-    #         data.unsafe_ptr().bitcast[NoneType]().unsafe_origin_cast[MutExternalOrigin](),
-    #         UInt64(len(data)),
-    #         DestructorHint.transient_destructor(),
-    #     )
+        Args:
+            data: The blob data to return.
+        """
+        sqlite_ffi()[].result_blob64(
+            self.ctx,
+            data.unsafe_ptr().bitcast[NoneType](),
+            UInt64(len(data)),
+            DestructorHint.transient_destructor(),
+        )
 
     fn result_error(self, mut msg: String):
         """Set the result of the function to an error.

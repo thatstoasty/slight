@@ -1674,7 +1674,7 @@ struct sqlite3:
         """
         return self.lib.sqlite3_memory_alarm(callback, arg, n)
 
-    fn value_blob(self, value: MutExternalPointer[sqlite3_value]) -> MutExternalPointer[NoneType]:
+    fn value_blob(self, value: MutExternalPointer[sqlite3_value]) -> ImmutExternalPointer[NoneType]:
         """Obtaining SQL Values - BLOB.
 
         This routine extracts a BLOB value from an sqlite3_value object.
@@ -1884,11 +1884,11 @@ struct sqlite3:
         self.lib.sqlite3_set_auxdata(ctx, N, data, destructor_callback)
 
     fn result_blob64[
-        origin: MutOrigin,
+        origin: ImmutOrigin,
     ](
         self,
         ctx: MutExternalPointer[sqlite3_context],
-        value: MutOpaquePointer[origin],
+        value: ImmutOpaquePointer[origin],
         n: UInt64,
         destructor_callback: ResultDestructorFn,
     ):
