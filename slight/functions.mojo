@@ -71,7 +71,7 @@ from slight.types.value_ref import (
 
 
 @fieldwise_init
-struct FunctionFlags(Copyable, Movable, ImplicitlyCopyable):
+struct FunctionFlags(ImplicitlyCopyable):
     """Function Flags for `sqlite3_create_function`.
 
     See [sqlite3_create_function](https://sqlite.org/c3ref/create_function.html)
@@ -527,4 +527,4 @@ struct Context(Movable, Sized):
         """
         sqlite_ffi()[].set_auxdata(self.ctx, c_int(arg), data, destructor)
 
-comptime ScalarFnCallback = fn (Context) raises -> None
+comptime ScalarFnCallback = fn [T: ToSQL](Context) raises -> T

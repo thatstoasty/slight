@@ -760,7 +760,8 @@ struct Connection(Movable):
         sql.push_value(value)
         return self.one_row[transform](String(sql))
     
-    fn create_scalar_function[T: Copyable & ImplicitlyDestructible, //, x_func: ScalarFnCallback](
+    # TODO: V should be constrained to ToSQL.
+    fn create_scalar_function[T: Copyable & ImplicitlyDestructible, V: ImplicitlyDestructible, //, x_func: fn (Context) raises -> V](
         self,
         fn_name: String,
         n_arg: Int,
@@ -776,6 +777,8 @@ struct Connection(Movable):
         callbacks are set to NULL internally, as required by SQLite.
 
         Parameters:
+            T: The type of the application data to pass to the callback. Must be Copyable and ImplicitlyDestructible.
+            V: The return type of the scalar function. Must conform to `ToSQL`.
             x_func: The scalar function callback implementation.
 
         Args:
@@ -793,9 +796,10 @@ struct Connection(Movable):
         var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags, pApp.copy())
         self.raise_if_error(result)
     
-    fn create_scalar_function[x_func: ScalarFnCallback](
+    # TODO: When extensions work, switch to ToSQL
+    fn create_scalar_function[V: ImplicitlyDestructible, //, x_func: fn (Context) raises -> V](
         self,
-        fn_name: String,
+        function: String,
         n_arg: Int,
         flags: FunctionFlags,
     ) raises:
@@ -821,6 +825,7 @@ struct Connection(Movable):
         # For scalar functions, SQLite requires xFunc to be non-NULL and
         # xStep/xFinal to be NULL. We call the raw C API directly to pass
         # NULL for the unused callbacks.
+        comptime assert conforms_to(V, ToSQL), "Return type V must conform to ToSQL trait."
         var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags)
         self.raise_if_error(result)
 

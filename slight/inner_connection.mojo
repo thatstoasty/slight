@@ -8,6 +8,12 @@ from slight.c.raw_bindings import (
     sqlite3_stmt,
 )
 from slight.c.types import MutExternalPointer, MutUnsafePointer, sqlite3_context, sqlite3_value, AggFinalCallback, AggStepCallback, WindowValueCallback, WindowInverseCallback
+from slight.types.to_sql import ToSQL
+from slight.types.value_ref import SQLite3Null,
+SQLite3Integer,
+SQLite3Real,
+SQLite3Text,
+SQLite3Blob
 from slight.functions import FunctionFlags, Context, ScalarFnCallback
 from slight.flags import PrepFlag, OpenFlag
 from slight.result import SQLite3Result
@@ -246,7 +252,8 @@ struct InnerConnection(Movable):
         """
         return decode_error(self.db, code)
 
-    fn create_scalar_function[T: Copyable & ImplicitlyDestructible, //, x_func: ScalarFnCallback](
+    # TODO: V should be constrained to ToSQL, but I want to keep extensions private from users for now.
+    fn create_scalar_function[T: Copyable & ImplicitlyDestructible, V: ImplicitlyDestructible, //, x_func: fn (Context) raises -> V](
         self,
         fn_name: String,
         n_arg: Int,
@@ -280,13 +287,28 @@ struct InnerConnection(Movable):
         Raises:
             Error: If the function could not be attached to the connection.
         """
+        comptime assert conforms_to(V, ToSQL), "Return type V must conform to ToSQL trait."
         # For scalar functions, SQLite requires xFunc to be non-NULL and
         # xStep/xFinal to be NULL. We call the raw C API directly to pass
         # NULL for the unused callbacks.
-        fn xFunc[func: ScalarFnCallback](ctx: MutExternalPointer[sqlite3_context], argc: c_int, argv: MutExternalPointer[MutExternalPointer[sqlite3_value]]) raises -> NoneType:
+        fn xFunc[func: fn (Context) raises -> V](ctx: MutExternalPointer[sqlite3_context], argc: c_int, argv: MutExternalPointer[MutExternalPointer[sqlite3_value]]) raises -> NoneType:
             # Convert raw C callback to our Context wrapper and call the user-provided function
             var context = Context(ctx, argc, argv)
-            func(context)
+            var result = trait_downcast[ToSQL](func(context)).to_sql()
+
+            # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
+            if result.isa[SQLite3Null]():
+                context.result_null()
+            elif result.isa[SQLite3Integer]():
+                context.result_int64(result[SQLite3Integer].value)
+            elif result.isa[SQLite3Real]():
+                context.result_double(result[SQLite3Real].value)
+            elif result.isa[SQLite3Text[origin_of(result)]]():
+                context.result_text(String(
+                    result[SQLite3Text[origin_of(result)]].value
+                ))
+            else:
+                raise Error("Unsupported return type from scalar function.")
             return
 
         # Copy data to the heap and pass a pointer to it as pApp.
@@ -305,7 +327,7 @@ struct InnerConnection(Movable):
             _default_destructor,
         )
     
-    fn create_scalar_function[x_func: ScalarFnCallback](
+    fn create_scalar_function[V: ImplicitlyDestructible, //, x_func: fn (Context) raises -> V](
         self,
         fn_name: String,
         n_arg: Int,
@@ -330,14 +352,30 @@ struct InnerConnection(Movable):
         Raises:
             Error: If the function could not be attached to the connection.
         """
+        comptime assert conforms_to(V, ToSQL), "Return type V must conform to ToSQL trait."
         # For scalar functions, SQLite requires xFunc to be non-NULL and
         # xStep/xFinal to be NULL. We call the raw C API directly to pass
         # NULL for the unused callbacks.
         
-        fn xFunc[func: ScalarFnCallback](ctx: MutExternalPointer[sqlite3_context], argc: c_int, argv: MutExternalPointer[MutExternalPointer[sqlite3_value]]) raises -> NoneType:
+        # Wrap the user-provided function in a C callback that matches the expected signature for SQLite scalar functions.
+        fn xFunc[func: fn (Context) raises -> V](ctx: MutExternalPointer[sqlite3_context], argc: c_int, argv: MutExternalPointer[MutExternalPointer[sqlite3_value]]) raises -> NoneType:
             # Convert raw C callback to our Context wrapper and call the user-provided function
             var context = Context(ctx, argc, argv)
-            func(context)
+            var result = trait_downcast[ToSQL](func(context)).to_sql()
+            # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
+            # ToSQL is implemented on most of the important stdlib types.
+            if result.isa[SQLite3Null]():
+                context.result_null()
+            elif result.isa[SQLite3Integer]():
+                context.result_int64(result[SQLite3Integer].value)
+            elif result.isa[SQLite3Real]():
+                context.result_double(result[SQLite3Real].value)
+            elif result.isa[SQLite3Text[origin_of(result)]]():
+                context.result_text(String(
+                    result[SQLite3Text[origin_of(result)]].value
+                ))
+            else:
+                raise Error("Unsupported return type from scalar function.")
             return
         
         var func_name = fn_name.copy()
