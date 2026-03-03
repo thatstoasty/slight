@@ -130,10 +130,7 @@ struct Context(Movable, Sized):
     the function result. This struct wraps the raw `sqlite3_context` and
     argument pointers passed to user-defined SQL function callbacks.
 
-    Parameters:
-        argv_origin: The origin of the argv pointer.
-
-    Example:
+    #### Example:
 
     ```mojo
     from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
@@ -155,12 +152,6 @@ struct Context(Movable, Sized):
     var args: List[MutExternalPointer[sqlite3_value]]
     """The number of arguments passed to the function."""
 
-    # var argc: c_int
-    # """The number of arguments passed to the function."""
-
-    # var argv: MutUnsafePointer[MutExternalPointer[sqlite3_value], Self.argv_origin]
-    # """A pointer to the array of argument value pointers."""
-
     fn __init__[argv_origin: MutOrigin](
         out self,
         ctx: MutExternalPointer[sqlite3_context],
@@ -169,6 +160,9 @@ struct Context(Movable, Sized):
     ):
         """Initialize a Context from raw callback arguments.
 
+        Parameters:
+            argv_origin: The origin of the argv pointer.
+
         Args:
             ctx: The raw SQLite function context pointer.
             argc: The number of arguments.
@@ -176,8 +170,6 @@ struct Context(Movable, Sized):
         """
         self.ctx = ctx
         self.args = [argv[i] for i in range(argc)]
-        # self.argc = argc
-        # self.argv = argv
 
     # ===------------------------------------------------------------------=== #
     # Argument Access
@@ -520,11 +512,12 @@ struct Context(Movable, Sized):
         This saves metadata that can be retrieved later using `get_auxdata`.
         Useful for caching per-query data (e.g., compiled regex patterns).
 
+        Parameters:
+            data_origin: The origin of the data pointer.
+
         Args:
             arg: The argument index for the auxiliary data.
             data: Pointer to the data to store.
             destructor: Callback to free the data when no longer needed.
         """
         sqlite_ffi()[].set_auxdata(self.ctx, c_int(arg), data, destructor)
-
-comptime ScalarFnCallback = fn [T: ToSQL](Context) raises -> T

@@ -370,6 +370,7 @@ struct sqlite3_context(Movable):
 
 # TODO: Implement this later
 struct sqlite3_module(Movable):
+    """Virtual Table Module."""
     pass
 
 

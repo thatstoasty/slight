@@ -4,7 +4,7 @@ from std.reflection import get_type_name
 from std.ffi import c_int
 from slight.c.api import sqlite_ffi
 from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
-from slight.functions import FunctionFlags, Context, ScalarFnCallback
+from slight.functions import FunctionFlags, Context
 from slight.result import SQLite3Result
 from slight.inner_connection import InnerConnection
 from slight.flags import PrepFlag, OpenFlag
@@ -308,6 +308,11 @@ struct Connection(Movable):
         T: Movable, P: AnyType, //, transform: fn (Row) raises -> T
     ](self, var sql: String, params: P = ()) raises -> T:
         """Executes a SQL query and returns a single row.
+
+        Parameters:
+            T: The type to transform the row into.
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+            transform: A function to transform the row into the desired type.
 
         Args:
             sql: The SQL query to execute.

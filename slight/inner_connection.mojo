@@ -14,7 +14,7 @@ SQLite3Integer,
 SQLite3Real,
 SQLite3Text,
 SQLite3Blob
-from slight.functions import FunctionFlags, Context, ScalarFnCallback
+from slight.functions import FunctionFlags, Context
 from slight.flags import PrepFlag, OpenFlag
 from slight.result import SQLite3Result
 from slight.error import error_msg, raise_if_error, decode_error
@@ -258,9 +258,7 @@ struct InnerConnection(Movable):
         fn_name: String,
         n_arg: Int,
         flags: FunctionFlags,
-        # x_func: ScalarFnCallback,
         pApp: T,
-        # x_func: fn () raises -> T,
     ) raises -> SQLite3Result:
         """Attach a user-defined scalar function to a database connection.
 
@@ -276,6 +274,7 @@ struct InnerConnection(Movable):
 
         Parameters:
             T: The type of the application data to be passed to the callback.
+            V: The return type of the scalar function, which must conform to `ToSQL`.
             x_func: The scalar function callback implementation.
 
         Args:
@@ -283,6 +282,9 @@ struct InnerConnection(Movable):
             n_arg: Number of arguments the function accepts (-1 for variable number).
             flags: Function flags (encoding, determinism, etc.).
             pApp: An optional pointer to application data that will be passed to the callback.
+        
+        Returns:
+            The SQLite3Result code from the create function operation.
 
         Raises:
             Error: If the function could not be attached to the connection.
@@ -349,6 +351,9 @@ struct InnerConnection(Movable):
             fn_name: Name of the SQL function to create.
             n_arg: Number of arguments the function accepts (-1 for variable number).
             flags: Function flags (encoding, determinism, etc.).
+        
+        Returns:
+            The SQLite3Result code from the create function operation.
 
         Raises:
             Error: If the function could not be attached to the connection.
