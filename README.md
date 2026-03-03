@@ -135,7 +135,7 @@ fn main() raises:
     
     # Map rows to User structs
     var stmt = db.prepare("SELECT * FROM users")
-    for user in stmt.query[transform=to_user]():
+    for user in stmt.query[to_user]():
         print(user)
     
     # Get a single row
@@ -200,6 +200,9 @@ fn main() raises:
 | REAL | `Float16`, `Float32`, `Float64` |
 | TEXT | `String` |
 | INTEGER (0/1) | `Bool` |
+| BLOB | `List[Byte]` |
+| NULL | `None` |
+| NULLABLE COLUMN | `Option[T]` where `T` refers to the sqlite to mojo type mappings above |
 
 ### Writing to SQL (ToSQL)
 
@@ -211,6 +214,8 @@ fn main() raises:
 | `String`, `StringLiteral`, `StringSlice` | TEXT |
 | `Bool` | INTEGER (0/1) |
 | `None` | NULL |
+| `Option[T]` | NULLABLE COLUMN refers to the sqlite to mojo type mappings above |
+
 
 ### Parameter Binding (Params)
 
