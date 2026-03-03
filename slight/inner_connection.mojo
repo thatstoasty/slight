@@ -1,6 +1,6 @@
 from std.pathlib import Path
 from std.ffi import c_int
-from std.memory import OwnedPointer
+from std.reflection import get_type_name
 
 from slight.c.api import sqlite_ffi
 from slight.c.raw_bindings import (
@@ -287,7 +287,7 @@ struct InnerConnection(Movable):
         Raises:
             Error: If the function could not be attached to the connection.
         """
-        comptime assert conforms_to(V, ToSQL), "Return type V must conform to ToSQL trait."
+        comptime assert conforms_to(V, ToSQL), String("Return type V must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`.")
         # For scalar functions, SQLite requires xFunc to be non-NULL and
         # xStep/xFinal to be NULL. We call the raw C API directly to pass
         # NULL for the unused callbacks.
@@ -342,6 +342,7 @@ struct InnerConnection(Movable):
         callbacks are set to NULL internally, as required by SQLite.
 
         Parameters:
+            V: The return type of the scalar function, which must conform to `ToSQL`.
             x_func: The scalar function callback implementation.
 
         Args:
@@ -352,7 +353,7 @@ struct InnerConnection(Movable):
         Raises:
             Error: If the function could not be attached to the connection.
         """
-        comptime assert conforms_to(V, ToSQL), "Return type V must conform to ToSQL trait."
+        comptime assert conforms_to(V, ToSQL), String("Return type V must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`.")
         # For scalar functions, SQLite requires xFunc to be non-NULL and
         # xStep/xFinal to be NULL. We call the raw C API directly to pass
         # NULL for the unused callbacks.

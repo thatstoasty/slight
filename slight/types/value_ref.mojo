@@ -1,4 +1,5 @@
 from std.utils import Variant
+from std.os import abort
 
 
 trait SQLType(Copyable):
@@ -123,7 +124,8 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         stmt: The origin of the statement that owns the value memory.
     """
 
-    var value: Variant[SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text[Self.stmt], SQLite3Blob[Self.stmt]]
+    comptime _type = Variant[SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text[Self.stmt], SQLite3Blob[Self.stmt]]
+    var value: Self._type
     """The actual value stored in the variant."""
 
     @implicit
@@ -170,6 +172,25 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
             value: The SQLite3Blob value to store.
         """
         self.value = value^
+    
+    fn __init__(out self, value: Self._type):
+        """Initialize a ValueRef by copying another ValueRef.
+
+        Args:
+            value: The ValueRef to copy.
+        """
+        if value.isa[SQLite3Null]():
+            self.value = value[SQLite3Null].copy()
+        elif value.isa[SQLite3Integer]():
+            self.value = value[SQLite3Integer].copy()
+        elif value.isa[SQLite3Real]():
+            self.value = value[SQLite3Real].copy()
+        elif value.isa[SQLite3Text[Self.stmt]]():
+            self.value = value[SQLite3Text[Self.stmt]].copy()
+        elif value.isa[SQLite3Blob[Self.stmt]]():
+            self.value = value[SQLite3Blob[Self.stmt]].copy()
+        else:
+            abort("UNREACHABLE: invalid variant type for ValueRef initialization")
     
     fn write_to(self, mut writer: Some[Writer]):
         """Write the string representation of the SQL value to the given writer.

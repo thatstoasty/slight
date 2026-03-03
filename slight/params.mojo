@@ -1,4 +1,5 @@
 from std.builtin.constrained import _constrained_conforms_to
+from std.reflection import get_type_name
 from slight.statement import Statement
 from slight.bind import BindIndex
 
@@ -108,7 +109,7 @@ __extension Tuple(Params):
         var expected = Int(stmt.stmt.bind_parameter_count())
         var index = 0
         comptime for i in range(Variadic.size(Self.element_types)):
-            comptime assert conforms_to(Self.element_types[i], ToSQL), String("All elements of the tuple must conform to ToSQL. Element at index ", i, " does not conform to ToSQL")
+            comptime assert conforms_to(Self.element_types[i], ToSQL), String("All elements of the tuple must conform to `ToSQL`. Element at index ", i, "of type ", get_type_name[Self.element_types[i]](), " does not conform to `ToSQL`")
             index += 1  # The leftmost SQL parameter has an index of 1.
             if index > expected:
                 break

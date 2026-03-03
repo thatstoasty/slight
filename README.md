@@ -243,9 +243,8 @@ And took notes from:
 
 ## TODO
 
-* Support nullable fields. Number one priority!
 * Support features for different compilation options.
 * Loading custom extensions.
-* Creating custom functions and collations.
+* Creating custom aggregate/window functions and collations.
 * Made `Row.get` more flexible and ergonomic by allowing users to specify the column using any type that implements a `RowIndex` trait, which would include both `UInt/Int` for positional access and `String` for named access. But instead of checking for types that implement `RowIndex` and `FromSQL` at compilation time, I want to enforce these constraints via the type checker by using trait parameters. This would make the API safer and more user-friendly, as users would get immediate feedback if they try to use unsupported types for column access or retrieval. However, extensions are not fully baked yet and exposing them to users is a worse developer experience than just doing runtime checks and leaving the `get` function signature a bit more vague. I have left this as a TODO for now. Once the extension system is more ergonomic and less buggy, I can re-enable this feature and provide a much better API for column access in `Row.get`.
 * Same goes for parameter binding. Any type that implements a `Params` trait can be used as parameters for queries, but currently this is not enforced by the type checker. For now, functions accept `AnyType` for parameters and we perform a comptime assert to check if the provided type conforms to the `Params` trait, which is a bit clunky. Ideally, we would want to enforce this constraint directly in the function signature, but due to limitations in the current trait system and extension system, this is not possible without causing issues for users who just want to use simple tuples or lists for parameters. Once the trait and extension systems are more robust, I can re-enable this feature and provide a much cleaner API for parameter binding.

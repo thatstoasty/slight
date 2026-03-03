@@ -4,6 +4,7 @@ This module provides the ToSQL trait which allows converting Mojo types
 into SQLite-compatible values for binding to prepared statements.
 """
 from std.sys.intrinsics import _type_is_eq_parse_time, _type_is_eq
+from std.reflection import get_type_name
 from std.utils.variant import Variant
 from slight.types.value_ref import SQLType, ValueRef, SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text, SQLite3Blob
 
@@ -71,6 +72,20 @@ trait ToSQL(Copyable):
             Error: If the value cannot be converted to a SQLite-compatible value.
         """
         ...
+
+
+__extension Optional(ToSQL):
+    fn to_sql(ref self) raises -> ValueRef[origin_of(self)]:
+        """Convert an Optional value to a SQL parameter, handling None as NULL.
+
+        Returns:
+            A ValueRef containing the SQLite-compatible value.
+        """
+        comptime assert conforms_to(Self.T, ToSQL), String("Optional can only be used with types that implement `ToSQL`. ", get_type_name[Self.T](), " does not implement `ToSQL`.")
+        if not self:
+            return ValueRef[origin_of(self)](SQLite3Null())
+
+        return ValueRef[origin_of(self)](trait_downcast[ToSQL](self.value()).to_sql().value)
 
 
 __extension Bool(ToSQL):
@@ -154,5 +169,5 @@ __extension Span(ToSQL):
         Returns:
             A ValueRef containing the SQLite-compatible value.
         """
-        comptime assert _type_is_eq[Self.T, Byte]()
+        comptime assert _type_is_eq[Self.T, Byte](), String("Span can only be used with Byte type for `ToSQL`. ", get_type_name[Self.T](), " is not Byte.")
         return ValueRef[origin_of(self)](SQLite3Blob(rebind[Span[Byte, self.origin]](self)))

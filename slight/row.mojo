@@ -272,8 +272,8 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
             InvalidColumnIndexError: If the column index is out of bounds.
             Error: If the column value cannot be converted to type T.
         """
-        comptime assert conforms_to(S, FromSQL), "S must implement FromSQL."
-        comptime assert conforms_to(I, RowIndex), "I must implement RowIndex."
+        comptime assert conforms_to(S, FromSQL), String("S must implement `FromSQL`. ", get_type_name[S](), " does not implement `FromSQL`.")
+        comptime assert conforms_to(I, RowIndex), String("I must implement `RowIndex`. ", get_type_name[I](), " does not implement `RowIndex`.")
 
         var i = trait_downcast[RowIndex](idx).idx(self.stmt[])
         return downcast[S, FromSQL](self.stmt[].value_ref(i))

@@ -22,7 +22,6 @@ fn main() raises:
     conn.create_scalar_function[halve](
         "halve",
         n_arg=1,
-        flags=FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
     )
 
     fn get_result(row: Row) raises -> Float64:
@@ -33,8 +32,7 @@ fn main() raises:
     conn.create_scalar_function[halve_user_data](
         "halve_user_data",
         n_arg=1,
-        flags=FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
-        pApp=5.5
+        user_data=5.5
     )
 
     print("Result:", conn.one_row[get_result]("SELECT halve_user_data(10.0)"))
@@ -42,7 +40,6 @@ fn main() raises:
     conn.create_scalar_function[mojo_sqrt](
         "mojo_sqrt",
         n_arg=1,
-        flags=FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
     )
 
     print("Result:", conn.one_row[get_result]("SELECT mojo_sqrt(15.0)"))

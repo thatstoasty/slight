@@ -1,5 +1,6 @@
 from std.pathlib import Path
 from std.memory import Pointer
+from std.reflection import get_type_name
 from std.ffi import c_int
 from slight.c.api import sqlite_ffi
 from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
@@ -235,7 +236,7 @@ struct Connection(Movable):
         Raises:
             Error: If parameter binding fails or the underlying SQLite call fails.
         """
-        comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
+        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`. Try a tuple or a list of parameters.")
         var stmt = self.prepare(sql^)
         try:
             return stmt.execute(params)
@@ -318,7 +319,7 @@ struct Connection(Movable):
         Raises:
             Error: If the query fails or does not return exactly one row.
         """
-        comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
+        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`. Try a tuple or a list of parameters.")
         var rows = self.prepare(sql^).query[transform](params)
         try:
             return next(rows)
@@ -658,7 +659,7 @@ struct Connection(Movable):
             db.pragma[print_column]("table_info", "sqlite_master")
         ```
         """
-        comptime assert conforms_to(T, ToSQL), "`value` must conform to ToSQL trait."
+        comptime assert conforms_to(T, ToSQL), String("`value` must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`.")
         var sql = Sql()
         sql.push_pragma(pragma, schema)
         # The argument may be either in parentheses or separated by an equal sign
@@ -752,7 +753,7 @@ struct Connection(Movable):
             print(mode)
         ```
         """
-        comptime assert conforms_to(V, ToSQL), "`value` must conform to ToSQL trait."
+        comptime assert conforms_to(V, ToSQL), String("`value` must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`.")
         var sql = Sql()
         sql.push_pragma(pragma, schema)
         # The argument may be either in parentheses or separated by an equal sign
@@ -765,8 +766,8 @@ struct Connection(Movable):
         self,
         fn_name: String,
         n_arg: Int,
-        flags: FunctionFlags,
-        pApp: T,
+        user_data: T,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
     ) raises:
         """Attach a user-defined scalar function to a database connection.
 
@@ -784,8 +785,8 @@ struct Connection(Movable):
         Args:
             fn_name: Name of the SQL function to create.
             n_arg: Number of arguments the function accepts (-1 for variable number).
-            flags: Function flags (encoding, determinism, etc.).
-            pApp: An opaque pointer that is passed to the callback when the function is called. Can be used to store context or state for the function.
+            user_data: An opaque pointer that is passed to the callback when the function is called. Can be used to store context or state for the function.
+            flags: Function flags (encoding, determinism, etc.). Defaults to UTF-8 encoding and deterministic behavior.
 
         Raises:
             Error: If the function could not be attached to the connection.
@@ -793,15 +794,15 @@ struct Connection(Movable):
         # For scalar functions, SQLite requires xFunc to be non-NULL and
         # xStep/xFinal to be NULL. We call the raw C API directly to pass
         # NULL for the unused callbacks.
-        var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags, pApp.copy())
+        var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags, user_data.copy())
         self.raise_if_error(result)
     
     # TODO: When extensions work, switch to ToSQL
     fn create_scalar_function[V: ImplicitlyDestructible, //, x_func: fn (Context) raises -> V](
         self,
-        function: String,
+        fn_name: String,
         n_arg: Int,
-        flags: FunctionFlags,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
     ) raises:
         """Attach a user-defined scalar function to a database connection.
 
@@ -812,6 +813,7 @@ struct Connection(Movable):
         callbacks are set to NULL internally, as required by SQLite.
 
         Parameters:
+            V: The return type of the scalar function. Must conform to `ToSQL`.
             x_func: The scalar function callback implementation.
 
         Args:
@@ -825,7 +827,7 @@ struct Connection(Movable):
         # For scalar functions, SQLite requires xFunc to be non-NULL and
         # xStep/xFinal to be NULL. We call the raw C API directly to pass
         # NULL for the unused callbacks.
-        comptime assert conforms_to(V, ToSQL), "Return type V must conform to ToSQL trait."
+        comptime assert conforms_to(V, ToSQL), String("Return type V must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`.")
         var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags)
         self.raise_if_error(result)
 

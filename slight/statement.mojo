@@ -1,6 +1,7 @@
 from std.sys import stderr
 from std.os import abort
 from std.utils import Variant
+from std.reflection import get_type_name
 from slight.result import SQLite3Result
 from slight.c.raw_bindings import sqlite3_stmt
 from slight.c.sqlite_string import SQLiteMallocString
@@ -290,7 +291,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If the statement returns rows (use query() for SELECT statements),
                    or if any other error occurs during execution.
         """
-        comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
+        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`.")
         trait_downcast[Params](params).bind(self)
         return self._execute()
 
@@ -379,7 +380,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If the parameter type is unsupported or binding fails.
         """
-        comptime assert conforms_to(T, ToSQL), "`parameter` must conform to ToSQL trait."
+        comptime assert conforms_to(T, ToSQL), String("`parameter` must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`.")
         var value = trait_downcast[ToSQL](parameter).to_sql()
         if value.isa[SQLite3Null]():
             self.bind_null(index)
@@ -413,7 +414,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If parameter binding fails or the query execution fails.
         """
-        comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
+        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`.")
         trait_downcast[Params](params).bind(self)
         return Rows(Pointer(to=self))
     
@@ -439,7 +440,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If parameter binding fails or the query execution fails.
         """
-        comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
+        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`.")
         return MappedRows[Self.conn, origin_of(self), transform](self.query(params))
 
     fn query[
@@ -463,7 +464,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If parameter binding fails or the query execution fails.
         """
-        comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
+        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`.")
         return TypedRows[Self.conn, origin_of(self), T](self.query(params))
 
     fn exists[P: AnyType](self, params: P = ()) raises -> Bool:
@@ -485,7 +486,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If parameter binding fails or the query execution fails.
         """
-        comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
+        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`.")
         var rows = self.query(params)
         try:
             _ = rows.__next__()
@@ -512,7 +513,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If the query fails or does not return exactly one row.
         """
-        comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
+        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`.")
         var rows = self.query[transform](params)
         try:
             return next(rows)
@@ -611,7 +612,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If the number of affected rows is not exactly one,
             or if any error occurs during execution.
         """
-        comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
+        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`.")
         var changes = self.execute(params)
         if changes == 1:
             return self.connection[].last_insert_row_id()
