@@ -14,7 +14,8 @@ from slight.types.value_ref import SQLite3Null,
 SQLite3Integer,
 SQLite3Real,
 SQLite3Text,
-SQLite3Blob
+SQLite3Blob,
+ValueRef
 from slight.functions import FunctionFlags, Context
 from slight.flags import PrepFlag, OpenFlag
 from slight.result import SQLite3Result
@@ -453,7 +454,7 @@ struct InnerConnection(Movable):
             ctx: MutExternalPointer[sqlite3_context],
             argc: c_int,
             argv: MutExternalPointer[MutExternalPointer[sqlite3_value]]
-        ) raises -> NoneType:
+        ) -> NoneType:
             """The xStep callback for the aggregate function.
             
             This is called once for each row in the group being aggregated. This is a wrapper
@@ -490,7 +491,7 @@ struct InnerConnection(Movable):
         fn xFinal[
             A: Movable & ImplicitlyDestructible, T: Movable & ImplicitlyDestructible, //,
             final_fn: fn (mut ctx: Context, acc: A) raises -> T
-        ](ctx: MutExternalPointer[sqlite3_context]) raises -> NoneType:
+        ](ctx: MutExternalPointer[sqlite3_context]) -> NoneType:
             """The xFinal callback for the aggregate function.
 
             This is called once at the end of the aggregation to compute the final result. This is a wrapper
@@ -508,7 +509,8 @@ struct InnerConnection(Movable):
             var context = Context(ctx)
             var agg_context = context.aggregate_context[A](0)
             if not agg_context:
-                raise Error("Failed to get aggregate context in xFinal callback.")
+                context.result_error("Failed to get aggregate context in xFinal callback.")
+                return
 
             var finalize_result: T
             try:
@@ -518,7 +520,14 @@ struct InnerConnection(Movable):
                 context.result_error(t"Error in aggregate final function: {e}")
                 return
             
-            var result = trait_downcast[ToSQL](finalize_result).to_sql()
+
+            var result: ValueRef[origin_of(finalize_result)]
+            try:
+                result = trait_downcast[ToSQL](finalize_result).to_sql()
+            except e:
+                context.result_error(t"Error converting final result to SQL: {e}")
+                return
+            
             # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
             # ToSQL is implemented on most of the important stdlib types.
             if result.isa[SQLite3Null]():
@@ -532,7 +541,9 @@ struct InnerConnection(Movable):
                     result[SQLite3Text[origin_of(result)]].value
                 ))
             else:
-                raise Error("Unsupported return type from scalar function.")
+                context.result_error("Unsupported return type from scalar function.")
+                return
+            
             return
         
         # Copy data to the heap and pass a pointer to it as pApp.
@@ -600,7 +611,7 @@ struct InnerConnection(Movable):
             ctx: MutExternalPointer[sqlite3_context],
             argc: c_int,
             argv: MutExternalPointer[MutExternalPointer[sqlite3_value]]
-        ) raises -> NoneType:
+        ) -> NoneType:
             """The xStep callback for the aggregate function.
             
             This is called once for each row in the group being aggregated. This is a wrapper
@@ -637,7 +648,7 @@ struct InnerConnection(Movable):
         fn xFinal[
             A: Movable & ImplicitlyDestructible, T: Movable & ImplicitlyDestructible, //,
             final_fn: fn (mut ctx: Context, acc: A) raises -> T
-        ](ctx: MutExternalPointer[sqlite3_context]) raises -> NoneType:
+        ](ctx: MutExternalPointer[sqlite3_context]) -> NoneType:
             """The xFinal callback for the aggregate function.
 
             This is called once at the end of the aggregation to compute the final result. This is a wrapper
@@ -651,11 +662,11 @@ struct InnerConnection(Movable):
                 Error: If there is an error during the execution of the final function, or if the
                     aggregate context cannot be retrieved.
             """
-
             var context = Context(ctx)
             var agg_context = context.aggregate_context[A](0)
             if not agg_context:
-                raise Error("Failed to get aggregate context in xFinal callback.")
+                context.result_error("Failed to get aggregate context in xFinal callback.")
+                return
 
             var finalize_result: T
             try:
@@ -665,7 +676,13 @@ struct InnerConnection(Movable):
                 context.result_error(t"Error in aggregate final function: {e}")
                 return
             
-            var result = trait_downcast[ToSQL](finalize_result).to_sql()
+            var result: ValueRef[origin_of(finalize_result)]
+            try:
+                result = trait_downcast[ToSQL](finalize_result).to_sql()
+            except e:
+                context.result_error(t"Error converting final result to SQL: {e}")
+                return
+            
             # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
             # ToSQL is implemented on most of the important stdlib types.
             if result.isa[SQLite3Null]():
@@ -675,11 +692,11 @@ struct InnerConnection(Movable):
             elif result.isa[SQLite3Real]():
                 context.result_double(result[SQLite3Real].value)
             elif result.isa[SQLite3Text[origin_of(result)]]():
-                context.result_text(String(
-                    result[SQLite3Text[origin_of(result)]].value
-                ))
+                context.result_text(String(result[SQLite3Text[origin_of(result)]].value))
             else:
-                raise Error("Unsupported return type from scalar function.")
+                context.result_error("Unsupported return type from scalar function.")
+                return
+            
             return
         
         var func_name = fn_name.copy()

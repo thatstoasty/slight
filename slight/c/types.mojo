@@ -144,7 +144,7 @@ comptime AggStepCallback = fn (
     MutExternalPointer[sqlite3_context],
     c_int,
     MutExternalPointer[MutExternalPointer[sqlite3_value]],
-) raises -> NoneType
+) -> NoneType
 """Callback type for the step function of an aggregate SQL function.
 
 Called once for each row in an aggregate group.
@@ -152,7 +152,7 @@ Called once for each row in an aggregate group.
 
 comptime AggFinalCallback = fn (
     MutExternalPointer[sqlite3_context],
-) raises -> NoneType
+) -> NoneType
 """Callback type for the finalize function of an aggregate SQL function.
 
 Called once after all rows have been processed to compute the final result.

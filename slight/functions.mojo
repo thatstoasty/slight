@@ -537,7 +537,7 @@ struct Context(Movable, Sized):
             n_bytes: Number of bytes to allocate (0 to query existing context).
 
         Returns:
-            A pointer to the aggregate context, or a null pointer on allocation failure.
+            An optional pointer to the aggregate context. None is returned if a null pointer is returned (allocation failure).
         """
         var ptr = sqlite_ffi()[].aggregate_context(self.ctx, c_int(n_bytes))
         if not ptr:
