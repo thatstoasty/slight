@@ -17,6 +17,9 @@
 - **Transactions**: Full transaction support with `DEFERRED`, `IMMEDIATE`, and `EXCLUSIVE` modes
 - **Savepoints**: Nested savepoints for fine-grained rollback control
 - **Pragma Support**: Configure SQLite behavior through pragma statements
+- **Scalar Functions**: Register custom SQL functions that operate on a single row
+- **Aggregate Functions**: Register custom SQL aggregate functions that process multiple rows
+- **Window Functions**: Register custom SQL window functions over sliding frames
 
 ## Installation
 
@@ -190,6 +193,127 @@ fn main() raises:
         tx.commit()
 ```
 
+### Scalar Functions
+
+Register custom SQL functions that operate on a single row:
+
+```mojo
+from slight.connection import Connection
+from slight.functions import Context, FunctionFlags
+from slight.row import Row
+
+fn halve(ctx: Context) raises -> Float64:
+    return ctx.get_double(0) / 2.0
+
+fn main() raises:
+    var db = Connection.open_in_memory()
+
+    # Register a scalar function named "halve" that takes 1 argument
+    db.create_scalar_function[halve](
+        "halve",
+        n_arg=1,
+    )
+
+    fn get_result(row: Row) raises -> Float64:
+        return row.get[Float64](0)
+
+    print(db.one_row[get_result]("SELECT halve(10.0)"))  # 5.0
+```
+
+### Aggregate Functions
+
+Register custom SQL aggregate functions that process multiple rows into a single result:
+
+```mojo
+from slight.connection import Connection
+from slight.functions import Context, FunctionFlags
+from slight.row import Row
+
+fn sum_init(mut ctx: Context) raises -> Int64:
+    return 0
+
+fn sum_step(mut ctx: Context, mut acc: Int64) raises:
+    acc += ctx.get_int64(0)
+
+fn sum_finalize(mut ctx: Context, acc: Int64) raises -> Int64:
+    return acc
+
+fn main() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""
+        CREATE TABLE numbers (value INTEGER);
+        INSERT INTO numbers VALUES (1);
+        INSERT INTO numbers VALUES (2);
+        INSERT INTO numbers VALUES (3);
+    """)
+
+    db.create_aggregate_function[sum_init, sum_step, sum_finalize](
+        "my_sum",
+        n_arg=1,
+        flags=FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    )
+
+    fn get_result(row: Row) raises -> Int64:
+        return row.get[Int64](0)
+
+    print(db.one_row[get_result]("SELECT my_sum(value) FROM numbers"))  # 6
+```
+
+### Window Functions
+
+Register custom SQL window functions that operate over a sliding frame of rows. Window functions extend aggregate functions with `inverse` (to remove a row leaving the frame) and `value` (to return the current result without finalizing) callbacks:
+
+```mojo
+from slight.connection import Connection
+from slight.functions import Context, FunctionFlags
+from slight.row import Row
+
+fn sum_init(mut ctx: Context) raises -> Int64:
+    return 0
+
+fn sum_step(mut ctx: Context, mut acc: Int64) raises:
+    acc += ctx.get_int64(0)
+
+fn sum_finalize(mut ctx: Context, acc: Int64) raises -> Optional[Int64]:
+    return acc
+
+fn sum_inverse(mut ctx: Context, mut acc: Int64) raises:
+    acc -= ctx.get_int64(0)
+
+fn sum_value(acc: Optional[Int64]) raises -> Optional[Int64]:
+    return acc.copy()
+
+fn main() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""
+        CREATE TABLE numbers (value INTEGER);
+        INSERT INTO numbers VALUES (1);
+        INSERT INTO numbers VALUES (2);
+        INSERT INTO numbers VALUES (3);
+        INSERT INTO numbers VALUES (4);
+        INSERT INTO numbers VALUES (5);
+    """)
+
+    db.create_window_function[sum_init, sum_step, sum_finalize, sum_value, sum_inverse](
+        "my_sum",
+        n_arg=1,
+        flags=FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    )
+
+    fn get_row(row: Row) raises -> String:
+        return t"{row.get[Int64](0)} | {row.get[Int64](1)}"
+
+    # Sliding window: sum of current row and the one before it
+    var stmt = db.prepare("""
+        SELECT value,
+               my_sum(value) OVER (ORDER BY value ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)
+        FROM numbers
+    """)
+    for row in stmt.query[get_row]():
+        print(row)
+    # Output: 1|1, 2|3, 3|5, 4|7, 5|9
+```
+
 ## Supported Types
 
 ### Reading from SQL (FromSQL)
@@ -216,7 +340,6 @@ fn main() raises:
 | `None` | NULL |
 | `Option[T]` | NULLABLE COLUMN refers to the sqlite to mojo type mappings above |
 
-
 ### Parameter Binding (Params)
 
 For parameter binding **only Tuples support heterogeneous types**. Lists and Dicts require all parameters to be of the same type, because we do not have Trait objects yet.
@@ -235,6 +358,9 @@ For more detailed examples, see the `examples/` directory:
 - `02_execute_batch.mojo` - Batch execution of multiple statements
 - `03_query_and_transform.mojo` - Row transformation and mapping
 - `04_transactions.mojo` - Transactions and savepoints
+- `05_scalar_functions.mojo` - Custom scalar SQL functions
+- `06_aggregate_functions.mojo` - Custom aggregate SQL functions
+- `07_window_functions.mojo` - Custom window SQL functions
 
 ## Attributions
 

@@ -11,23 +11,38 @@ from slight.c.types import (
     sqlite3_value,
 )
 from slight.types.to_sql import ToSQL
-from slight.types.value_ref import SQLite3Null
+from slight.types.value_ref import (
+    SQLite3Null,
+    SQLite3Integer,
+    SQLite3Real,
+    SQLite3Text,
+    SQLite3Blob,
+    ValueRef,
+)
 from std.ffi import c_int
 from std.pathlib import Path
 from std.reflection import get_type_name
 from std.sys import size_of
 
-
-SQLite3Integer,
-SQLite3Real,
-SQLite3Text,
-SQLite3Blob,
-ValueRef
 from slight.error import decode_error, error_msg, raise_if_error
 from slight.flags import OpenFlag, PrepFlag
 from slight.functions import Context, FunctionFlags
 from slight.result import SQLite3Result
 
+
+fn ptr_copy[T: Copyable & ImplicitlyDestructible](data: T) -> MutExternalPointer[T]:
+    """Creates a copy of the value as a mutable external pointer.
+
+    This is used to create a copy of the application data to pass to SQLite when creating user-defined functions.
+    This data can be freed on demand by the destructor callback, and we don't have to worry
+    about Mojo's ASAP destruction.
+
+    Returns:
+        A mutable external pointer containing a copy of the value.
+    """
+    var ptr = alloc[T](count=1)
+    ptr[0] = data.copy()
+    return ptr
 
 fn _default_destructor(pApp: MutExternalPointer[NoneType]):
     """Default destructor for user-defined function application data.
@@ -40,6 +55,260 @@ fn _default_destructor(pApp: MutExternalPointer[NoneType]):
     """
     if pApp:
         pApp.free()
+
+
+# For scalar functions, SQLite requires xFunc to be non-NULL and
+# xStep/xFinal to be NULL. We call the raw C API directly to pass
+# NULL for the unused callbacks.
+fn _call_scalar_callback[
+    V: Movable & ImplicitlyDestructible, //,
+    func: fn(Context) raises -> V
+](
+    ctx: MutExternalPointer[sqlite3_context],
+    argc: c_int,
+    argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
+) -> NoneType:
+    """The xFunc callback for the scalar function.
+
+    This is a wrapper around the user provided `func` that converts the raw C callback parameters
+    into a `Context` object, calls the user's function, and then converts the result back to the appropriate SQLite type.
+    This function matches the function signature expected by the C API.
+
+    Parameters:
+        V: The return type of the scalar function, which must conform to `ToSQL`.
+        func: The user-provided function to be called for the scalar function.
+
+    Args:
+        ctx: The SQLite context for the function call.
+        argc: The number of arguments passed to the function.
+        argv: The arguments passed to the function.
+    """
+    # Convert raw C callback to our Context wrapper and call the user-provided function
+    var context = Context(ctx, argc, argv)
+    
+    var fn_result: V
+    try:
+        fn_result = func(context)
+    except e:
+        # If the user's function raises an error, we need to convert it to a SQLite error result.
+        context.result_error(t"Error in scalar function: {e}")
+        return
+    
+    var result: ValueRef[origin_of(fn_result)]
+    try:
+        result = trait_downcast[ToSQL](fn_result).to_sql()
+    except e:
+        context.result_error(t"Error converting result to SQL: {e}")
+        return
+    
+    # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
+    if result.isa[SQLite3Null]():
+        context.result_null()
+    elif result.isa[SQLite3Integer]():
+        context.result_int64(result[SQLite3Integer].value)
+    elif result.isa[SQLite3Real]():
+        context.result_double(result[SQLite3Real].value)
+    elif result.isa[SQLite3Text[origin_of(result)]]():
+        context.result_text(String(result[SQLite3Text[origin_of(result)]].value))
+    else:
+        context.result_error("Unsupported return type from scalar function.")
+        return
+    return
+
+
+fn _call_step_callback[
+    A: Movable & ImplicitlyDestructible,
+    //,
+    init_fn: fn(mut ctx: Context) raises -> A,
+    step_fn: fn(mut ctx: Context, mut acc: A) raises,
+](
+    ctx: MutExternalPointer[sqlite3_context],
+    argc: c_int,
+    argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
+) -> NoneType:
+    """The xStep callback for the aggregate function.
+
+    This is called once for each row in the group being aggregated. This is a wrapper
+    around the user provided `init_fn` and `step_fn` that manages the aggregate context for the user.
+    This function matches the function signature expected by the C API.
+
+    Parameters:
+        A: The type of the aggregate context, which is initialized by `init_fn` and updated by `step_fn`.
+        init_fn: The user-provided function to initialize the aggregate context on the first call.
+        step_fn: The user-provided function to update the aggregate context on each call.
+
+    Args:
+        ctx: The SQLite context for the aggregate function.
+        argc: The number of arguments passed to the function.
+        argv: The arguments passed to the function.
+    """
+    var context = Context(ctx, argc, argv)
+    var agg_context = context.aggregate_context[A](size_of[A]())
+    # TODO: Throw sqlite3_result_error_nomem if we fail to allocate memory for the aggregate context.
+    if not agg_context:
+        var agg_context_ptr = alloc[A](count=1)
+        try:
+            agg_context_ptr[0] = init_fn(context)
+        except e:
+            # If the user's init function raises an error, we need to convert it to a SQLite error result.
+            context.result_error(t"Error in aggregate init function: {e}")
+            return
+        agg_context = Optional(agg_context_ptr)
+
+    try:
+        step_fn(context, agg_context.value()[])
+    except e:
+        context.result_error(t"Error in aggregate step function: {e}")
+        return
+    return
+
+
+fn _call_final_callback[
+    A: Movable & ImplicitlyDestructible,
+    T: Movable & ImplicitlyDestructible,
+    //,
+    final_fn: fn(mut ctx: Context, acc: A) raises -> T,
+](ctx: MutExternalPointer[sqlite3_context]) -> NoneType:
+    """The xFinal callback for the aggregate function.
+
+    This is called once at the end of the aggregation to compute the final result. This is a wrapper
+    around the user provided `final_fn` that manages the aggregate context for the user and converts
+    the result to the appropriate SQLite type.
+    This function matches the function signature expected by the C API.
+
+    Parameters:
+        A: The type of the aggregate context, which is updated by the xStep callback and passed to `final_fn`.
+        T: The return type of the final function, which must conform to `ToSQL`.
+        final_fn: The user-provided function to compute the final result from the aggregate context.
+
+    Args:
+        ctx: The SQLite context for the aggregate function.
+    """
+    var context = Context(ctx)
+    var agg_context = context.aggregate_context[A](0)
+    if not agg_context:
+        context.result_error_nomem()
+        return
+
+    var finalize_result: T
+    try:
+        finalize_result = final_fn(context, agg_context.value()[])
+    except e:
+        # If the user's final function raises an error, we need to convert it to a SQLite error result.
+        context.result_error(t"Error in aggregate final function: {e}")
+        return
+
+    var result: ValueRef[origin_of(finalize_result)]
+    try:
+        result = trait_downcast[ToSQL](finalize_result).to_sql()
+    except e:
+        context.result_error(t"Error converting final result to SQL: {e}")
+        return
+
+    # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
+    # ToSQL is implemented on most of the important stdlib types.
+    if result.isa[SQLite3Null]():
+        context.result_null()
+    elif result.isa[SQLite3Integer]():
+        context.result_int64(result[SQLite3Integer].value)
+    elif result.isa[SQLite3Real]():
+        context.result_double(result[SQLite3Real].value)
+    elif result.isa[SQLite3Text[origin_of(result)]]():
+        context.result_text(String(result[SQLite3Text[origin_of(result)]].value))
+    else:
+        context.result_error("Unsupported return type from scalar function.")
+        return
+
+    return
+
+
+fn _call_value_callback[
+    T: Movable & ImplicitlyDestructible,
+    A: Copyable & ImplicitlyDestructible, //, value_fn: fn(acc: Optional[A]) raises -> T
+](ctx: MutExternalPointer[sqlite3_context]) -> NoneType:
+    """The xValue callback for the window function.
+
+    This is called to compute the current value of the window function without finalizing, for use in window frames.
+    This function matches the function signature expected by the C API.
+
+    Parameters:
+        T: The return type of the value function, which must conform to `ToSQL`.
+        A: The type of the aggregate context, which is updated by the xStep callback and passed to `value_fn`.
+        value_fn: The user-provided function to compute the current value from the aggregate context for window functions.
+
+    Args:
+        ctx: The SQLite context for the window function.
+    """
+    var context = Context(ctx)
+    # Set n_bytes to 0 so no unneccessary allocations occur
+    var agg_context = context.aggregate_context[A](0)
+    if not agg_context:
+        context.result_error_nomem()
+        return
+
+    var value_result: T
+    try:
+        value_result = value_fn(agg_context.value()[].copy())
+    except e:
+        context.result_error(t"Error in window function value callback: {e}")
+        return
+
+    var result: ValueRef[origin_of(value_result)]
+    try:
+        result = trait_downcast[ToSQL](value_result).to_sql()
+    except e:
+        context.result_error(t"Error converting window function value result to SQL: {e}")
+        return
+
+    # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
+    # ToSQL is implemented on most of the important stdlib types.
+    if result.isa[SQLite3Null]():
+        context.result_null()
+    elif result.isa[SQLite3Integer]():
+        context.result_int64(result[SQLite3Integer].value)
+    elif result.isa[SQLite3Real]():
+        context.result_double(result[SQLite3Real].value)
+    elif result.isa[SQLite3Text[origin_of(result)]]():
+        context.result_text(String(result[SQLite3Text[origin_of(result)]].value))
+    else:
+        context.result_error("Unsupported return type from value function.")
+        return
+
+    return
+
+fn _call_inverse_callback[
+    A: Movable & ImplicitlyDestructible, //, inverse_fn: fn(mut ctx: Context, mut acc: A) raises
+](
+    ctx: MutExternalPointer[sqlite3_context],
+    argc: c_int,
+    argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
+) -> NoneType:
+    """The `xInverse` callback for user defined window function.
+
+    This is called when a row leaves the window frame, to update the aggregate context accordingly.
+    This function matches the function signature expected by the C API.
+
+    Parameters:
+        A: The type of the aggregate context, which is updated by the xStep callback and passed to `inverse_fn`.
+        inverse_fn: The user-provided function to update the aggregate context when a row leaves the window frame for window functions.
+
+    Args:
+        ctx: The SQLite context for the window function.
+        argc: The number of arguments passed to the function.
+        argv: The arguments passed to the function.
+    """
+    var context = Context(ctx, argc, argv)
+    var agg_context = context.aggregate_context[A](0)
+    if not agg_context:
+        context.result_error_nomem()
+        return
+
+    try:
+        inverse_fn(context, agg_context.value()[])
+    except e:
+        context.result_error(t"Error in window function inverse callback: {e}")
+        return
+    return
 
 
 @explicit_destroy("InnerConnection must be explicitly destroyed. Use self.close() to destroy.")
@@ -263,8 +532,10 @@ struct InnerConnection(Movable):
 
     # TODO: V should be constrained to ToSQL, but I want to keep extensions private from users for now.
     fn create_scalar_function[
-        T: Copyable & ImplicitlyDestructible, V: ImplicitlyDestructible, //, x_func: fn(Context) raises -> V
-    ](self, fn_name: String, n_arg: Int, flags: FunctionFlags, pApp: T,) raises -> SQLite3Result:
+        T: Copyable & ImplicitlyDestructible,
+        V: Movable & ImplicitlyDestructible, //,
+        x_func: fn(Context) raises -> V
+    ](self, fn_name: String, n_arg: Int, flags: FunctionFlags, pApp: T) raises -> SQLite3Result:
         """Attach a user-defined scalar function to a database connection.
 
         The function will remain available until the connection is closed or
@@ -295,54 +566,24 @@ struct InnerConnection(Movable):
             Error: If the function could not be attached to the connection.
         """
         comptime assert conforms_to(V, ToSQL), String(
-            "Return type V must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`."
+            t"Return type V must conform to `ToSQL` trait. {get_type_name[V]()} does not implement `ToSQL`."
         )
-
-        # For scalar functions, SQLite requires xFunc to be non-NULL and
-        # xStep/xFinal to be NULL. We call the raw C API directly to pass
-        # NULL for the unused callbacks.
-        fn xFunc[
-            func: fn(Context) raises -> V
-        ](
-            ctx: MutExternalPointer[sqlite3_context],
-            argc: c_int,
-            argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
-        ) raises -> NoneType:
-            # Convert raw C callback to our Context wrapper and call the user-provided function
-            var context = Context(ctx, argc, argv)
-            var result = trait_downcast[ToSQL](func(context)).to_sql()
-
-            # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
-            if result.isa[SQLite3Null]():
-                context.result_null()
-            elif result.isa[SQLite3Integer]():
-                context.result_int64(result[SQLite3Integer].value)
-            elif result.isa[SQLite3Real]():
-                context.result_double(result[SQLite3Real].value)
-            elif result.isa[SQLite3Text[origin_of(result)]]():
-                context.result_text(String(result[SQLite3Text[origin_of(result)]].value))
-            else:
-                raise Error("Unsupported return type from scalar function.")
-            return
 
         # Copy data to the heap and pass a pointer to it as pApp.
         # The data will be freed using the default destructor when the function is removed or when the connection is closed.
-        var pAppPtr = alloc[T](count=1)
-        pAppPtr[0] = pApp.copy()
-
-        var func_name = fn_name.copy()
+        var pAppPtr = ptr_copy(pApp)
         return sqlite_ffi()[].create_scalar_function(
             self.db,
-            func_name,
+            fn_name,
             c_int(n_arg),
             flags.value,
             pAppPtr.bitcast[NoneType](),
-            xFunc[x_func],
+            _call_scalar_callback[x_func],
             _default_destructor,
         )
 
     fn create_scalar_function[
-        V: ImplicitlyDestructible, //, x_func: fn(Context) raises -> V
+        V: Movable & ImplicitlyDestructible, //, x_func: fn(Context) raises -> V
     ](self, fn_name: String, n_arg: Int, flags: FunctionFlags,) raises -> SQLite3Result:
         """Attach a user-defined scalar function to a database connection.
 
@@ -368,52 +609,14 @@ struct InnerConnection(Movable):
             Error: If the function could not be attached to the connection.
         """
         comptime assert conforms_to(V, ToSQL), String(
-            "Return type V must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`."
+            t"Return type V must conform to `ToSQL` trait. {get_type_name[V]()} does not implement `ToSQL`."
         )
-        # For scalar functions, SQLite requires xFunc to be non-NULL and
-        # xStep/xFinal to be NULL. We call the raw C API directly to pass
-        # NULL for the unused callbacks.
-
-        # Wrap the user-provided function in a C callback that matches the expected signature for SQLite scalar functions.
-        fn xFunc[
-            func: fn(Context) raises -> V
-        ](
-            ctx: MutExternalPointer[sqlite3_context],
-            argc: c_int,
-            argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
-        ) raises -> NoneType:
-            # Convert raw C callback to our Context wrapper and call the user-provided function
-            var context = Context(ctx, argc, argv)
-            var value: V
-            try:
-                value = func(context)
-            except e:
-                # If the user's function raises an error, we need to convert it to a SQLite error result.
-                context.result_error(t"Error in scalar function: {e}")
-                return
-
-            var result = trait_downcast[ToSQL](value).to_sql()
-            # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
-            # ToSQL is implemented on most of the important stdlib types.
-            if result.isa[SQLite3Null]():
-                context.result_null()
-            elif result.isa[SQLite3Integer]():
-                context.result_int64(result[SQLite3Integer].value)
-            elif result.isa[SQLite3Real]():
-                context.result_double(result[SQLite3Real].value)
-            elif result.isa[SQLite3Text[origin_of(result)]]():
-                context.result_text(String(result[SQLite3Text[origin_of(result)]].value))
-            else:
-                raise Error("Unsupported return type from scalar function.")
-            return
-
-        var func_name = fn_name.copy()
         return sqlite_ffi()[].create_scalar_function(
             self.db,
-            func_name,
+            fn_name,
             c_int(n_arg),
             flags.value,
-            xFunc[x_func],
+            _call_scalar_callback[x_func],
         )
 
     fn create_aggregate_function[
@@ -455,123 +658,20 @@ struct InnerConnection(Movable):
             Error: If the function could not be attached to the connection.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
         )
-
-        fn xStep[
-            A: Movable & ImplicitlyDestructible,
-            //,
-            init_fn: fn(mut ctx: Context) raises -> A,
-            step_fn: fn(mut ctx: Context, mut acc: A) raises,
-        ](
-            ctx: MutExternalPointer[sqlite3_context],
-            argc: c_int,
-            argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
-        ) -> NoneType:
-            """The xStep callback for the aggregate function.
-
-            This is called once for each row in the group being aggregated. This is a wrapper
-            around the user provided `init_fn` and `step_fn` that manages the aggregate context for the user.
-
-            Args:
-                ctx: The SQLite context for the aggregate function.
-                argc: The number of arguments passed to the function.
-                argv: The arguments passed to the function.
-
-            Raises:
-                Error: If there is an error during the execution of the step function.
-            """
-            var context = Context(ctx, argc, argv)
-            var agg_context = context.aggregate_context[A](size_of[A]())
-            # TODO: Throw sqlite3_result_error_nomem if we fail to allocate memory for the aggregate context.
-            if not agg_context:
-                var agg_context_ptr = alloc[A](count=1)
-                try:
-                    agg_context_ptr[0] = init_fn(context)
-                except e:
-                    # If the user's init function raises an error, we need to convert it to a SQLite error result.
-                    context.result_error(t"Error in aggregate init function: {e}")
-                    return
-                agg_context = Optional(agg_context_ptr)
-
-            try:
-                step_fn(context, agg_context.value()[])
-            except e:
-                context.result_error(t"Error in aggregate step function: {e}")
-                return
-            return
-
-        fn xFinal[
-            A: Movable & ImplicitlyDestructible,
-            T: Movable & ImplicitlyDestructible,
-            //,
-            final_fn: fn(mut ctx: Context, acc: A) raises -> T,
-        ](ctx: MutExternalPointer[sqlite3_context]) -> NoneType:
-            """The xFinal callback for the aggregate function.
-
-            This is called once at the end of the aggregation to compute the final result. This is a wrapper
-            around the user provided `final_fn` that manages the aggregate context for the user and converts
-            the result to the appropriate SQLite type.
-
-            Args:
-                ctx: The SQLite context for the aggregate function.
-
-            Raises:
-                Error: If there is an error during the execution of the final function, or if the
-                    aggregate context cannot be retrieved.
-            """
-
-            var context = Context(ctx)
-            var agg_context = context.aggregate_context[A](0)
-            if not agg_context:
-                context.result_error_nomem()
-                return
-
-            var finalize_result: T
-            try:
-                finalize_result = final_fn(context, agg_context.value()[])
-            except e:
-                # If the user's final function raises an error, we need to convert it to a SQLite error result.
-                context.result_error(t"Error in aggregate final function: {e}")
-                return
-
-            var result: ValueRef[origin_of(finalize_result)]
-            try:
-                result = trait_downcast[ToSQL](finalize_result).to_sql()
-            except e:
-                context.result_error(t"Error converting final result to SQL: {e}")
-                return
-
-            # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
-            # ToSQL is implemented on most of the important stdlib types.
-            if result.isa[SQLite3Null]():
-                context.result_null()
-            elif result.isa[SQLite3Integer]():
-                context.result_int64(result[SQLite3Integer].value)
-            elif result.isa[SQLite3Real]():
-                context.result_double(result[SQLite3Real].value)
-            elif result.isa[SQLite3Text[origin_of(result)]]():
-                context.result_text(String(result[SQLite3Text[origin_of(result)]].value))
-            else:
-                context.result_error("Unsupported return type from scalar function.")
-                return
-
-            return
 
         # Copy data to the heap and pass a pointer to it as pApp.
         # The data will be freed using the default destructor when the function is removed or when the connection is closed.
-        var pAppPtr = alloc[P](count=1)
-        pAppPtr[0] = pApp.copy()
-
-        var func_name = fn_name.copy()
+        var pAppPtr = ptr_copy(pApp)
         return sqlite_ffi()[].create_aggregate_function(
             self.db,
-            func_name,
+            fn_name,
             c_int(n_arg),
             flags.value,
             pAppPtr.bitcast[NoneType](),
-            xStep[init_fn, step_fn],
-            xFinal[final_fn],
+            _call_step_callback[init_fn, step_fn],
+            _call_final_callback[final_fn],
             _default_destructor,
         )
 
@@ -611,116 +711,15 @@ struct InnerConnection(Movable):
             Error: If the function could not be attached to the connection.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
         )
-
-        fn xStep[
-            A: Movable & ImplicitlyDestructible,
-            //,
-            init_fn: fn(mut ctx: Context) raises -> A,
-            step_fn: fn(mut ctx: Context, mut acc: A) raises,
-        ](
-            ctx: MutExternalPointer[sqlite3_context],
-            argc: c_int,
-            argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
-        ) -> NoneType:
-            """The xStep callback for the aggregate function.
-
-            This is called once for each row in the group being aggregated. This is a wrapper
-            around the user provided `init_fn` and `step_fn` that manages the aggregate context for the user.
-
-            Args:
-                ctx: The SQLite context for the aggregate function.
-                argc: The number of arguments passed to the function.
-                argv: The arguments passed to the function.
-
-            Raises:
-                Error: If there is an error during the execution of the step function.
-            """
-            var context = Context(ctx, argc, argv)
-            var agg_context = context.aggregate_context[A](size_of[A]())
-            # TODO: Throw sqlite3_result_error_nomem if we fail to allocate memory for the aggregate context.
-            if not agg_context:
-                var agg_context_ptr = alloc[A](count=1)
-                try:
-                    agg_context_ptr[0] = init_fn(context)
-                except e:
-                    # If the user's init function raises an error, we need to convert it to a SQLite error result.
-                    context.result_error(t"Error in aggregate init function: {e}")
-                    return
-                agg_context = Optional(agg_context_ptr)
-
-            try:
-                step_fn(context, agg_context.value()[])
-            except e:
-                context.result_error(t"Error in aggregate step function: {e}")
-                return
-            return
-
-        fn xFinal[
-            A: Movable & ImplicitlyDestructible,
-            T: Movable & ImplicitlyDestructible,
-            //,
-            final_fn: fn(mut ctx: Context, acc: A) raises -> T,
-        ](ctx: MutExternalPointer[sqlite3_context]) -> NoneType:
-            """The xFinal callback for the aggregate function.
-
-            This is called once at the end of the aggregation to compute the final result. This is a wrapper
-            around the user provided `final_fn` that manages the aggregate context for the user and converts
-            the result to the appropriate SQLite type.
-
-            Args:
-                ctx: The SQLite context for the aggregate function.
-
-            Raises:
-                Error: If there is an error during the execution of the final function, or if the
-                    aggregate context cannot be retrieved.
-            """
-            var context = Context(ctx)
-            var agg_context = context.aggregate_context[A](0)
-            if not agg_context:
-                context.result_error_nomem()
-                return
-
-            var finalize_result: T
-            try:
-                finalize_result = final_fn(context, agg_context.value()[])
-            except e:
-                # If the user's final function raises an error, we need to convert it to a SQLite error result.
-                context.result_error(t"Error in aggregate final function: {e}")
-                return
-
-            var result: ValueRef[origin_of(finalize_result)]
-            try:
-                result = trait_downcast[ToSQL](finalize_result).to_sql()
-            except e:
-                context.result_error(t"Error converting final result to SQL: {e}")
-                return
-
-            # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
-            # ToSQL is implemented on most of the important stdlib types.
-            if result.isa[SQLite3Null]():
-                context.result_null()
-            elif result.isa[SQLite3Integer]():
-                context.result_int64(result[SQLite3Integer].value)
-            elif result.isa[SQLite3Real]():
-                context.result_double(result[SQLite3Real].value)
-            elif result.isa[SQLite3Text[origin_of(result)]]():
-                context.result_text(String(result[SQLite3Text[origin_of(result)]].value))
-            else:
-                context.result_error("Unsupported return type from scalar function.")
-                return
-
-            return
-
-        var func_name = fn_name.copy()
         return sqlite_ffi()[].create_aggregate_function(
             self.db,
-            func_name,
+            fn_name,
             c_int(n_arg),
             flags.value,
-            xStep[init_fn, step_fn],
-            xFinal[final_fn],
+            _call_step_callback[init_fn, step_fn],
+            _call_final_callback[final_fn],
         )
 
     fn create_window_function[
@@ -766,195 +765,22 @@ struct InnerConnection(Movable):
             Error: If the function could not be attached to the connection.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
         )
-
-        fn xStep[
-            A: Copyable & ImplicitlyDestructible,
-            //,
-            init_fn: fn(mut ctx: Context) raises -> A,
-            step_fn: fn(mut ctx: Context, mut acc: A) raises,
-        ](
-            ctx: MutExternalPointer[sqlite3_context],
-            argc: c_int,
-            argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
-        ) -> NoneType:
-            """The xStep callback for the aggregate function.
-
-            This is called once for each row in the group being aggregated. This is a wrapper
-            around the user provided `init_fn` and `step_fn` that manages the aggregate context for the user.
-
-            Args:
-                ctx: The SQLite context for the aggregate function.
-                argc: The number of arguments passed to the function.
-                argv: The arguments passed to the function.
-
-            Raises:
-                Error: If there is an error during the execution of the step function.
-            """
-            var context = Context(ctx, argc, argv)
-            var agg_context = context.aggregate_context[A](size_of[A]())
-            # TODO: Throw sqlite3_result_error_nomem if we fail to allocate memory for the aggregate context.
-            if not agg_context:
-                var agg_context_ptr = alloc[A](count=1)
-                try:
-                    agg_context_ptr[0] = init_fn(context)
-                except e:
-                    # If the user's init function raises an error, we need to convert it to a SQLite error result.
-                    context.result_error(t"Error in aggregate init function: {e}")
-                    return
-                agg_context = Optional(agg_context_ptr)
-
-            try:
-                step_fn(context, agg_context.value()[])
-            except e:
-                context.result_error(t"Error in aggregate step function: {e}")
-                return
-            return
-
-        fn xFinal[
-            A: Copyable & ImplicitlyDestructible,
-            T: Movable & ImplicitlyDestructible,
-            //,
-            final_fn: fn(mut ctx: Context, acc: A) raises -> T,
-        ](ctx: MutExternalPointer[sqlite3_context]) -> NoneType:
-            """The xFinal callback for the aggregate function.
-
-            This is called once at the end of the aggregation to compute the final result. This is a wrapper
-            around the user provided `final_fn` that manages the aggregate context for the user and converts
-            the result to the appropriate SQLite type.
-
-            Args:
-                ctx: The SQLite context for the aggregate function.
-
-            Raises:
-                Error: If there is an error during the execution of the final function, or if the
-                    aggregate context cannot be retrieved.
-            """
-
-            var context = Context(ctx)
-            var agg_context = context.aggregate_context[A](0)
-            if not agg_context:
-                context.result_error_nomem()
-                return
-
-            var finalize_result: T
-            try:
-                finalize_result = final_fn(context, agg_context.value()[])
-            except e:
-                # If the user's final function raises an error, we need to convert it to a SQLite error result.
-                context.result_error(t"Error in aggregate final function: {e}")
-                return
-
-            var result: ValueRef[origin_of(finalize_result)]
-            try:
-                result = trait_downcast[ToSQL](finalize_result).to_sql()
-            except e:
-                context.result_error(t"Error converting final result to SQL: {e}")
-                return
-
-            # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
-            # ToSQL is implemented on most of the important stdlib types.
-            if result.isa[SQLite3Null]():
-                context.result_null()
-            elif result.isa[SQLite3Integer]():
-                context.result_int64(result[SQLite3Integer].value)
-            elif result.isa[SQLite3Real]():
-                context.result_double(result[SQLite3Real].value)
-            elif result.isa[SQLite3Text[origin_of(result)]]():
-                context.result_text(String(result[SQLite3Text[origin_of(result)]].value))
-            else:
-                context.result_error("Unsupported return type from scalar function.")
-                return
-
-            return
-
-        fn xValue[
-            A: Copyable & ImplicitlyDestructible, //, value_fn: fn(acc: Optional[A]) raises -> T
-        ](ctx: MutExternalPointer[sqlite3_context]) -> NoneType:
-            """The xValue callback for the window function.
-
-            This is called to compute the current value of the window function without finalizing, for use in window frames.
-
-            Args:
-                ctx: The SQLite context for the window function.
-
-            Raises:
-                Error: If there is an error during the execution of the value function.
-            """
-            var context = Context(ctx)
-            # Set n_bytes to 0 so no unneccessary allocations occur
-            var agg_context = context.aggregate_context[A](0)
-            if not agg_context:
-                context.result_error_nomem()
-                return
-
-            var value_result: T
-            try:
-                value_result = value_fn(agg_context.value()[].copy())
-            except e:
-                context.result_error(t"Error in window function value callback: {e}")
-                return
-
-            var result: ValueRef[origin_of(value_result)]
-            try:
-                result = trait_downcast[ToSQL](value_result).to_sql()
-            except e:
-                context.result_error(t"Error converting window function value result to SQL: {e}")
-                return
-
-            # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
-            # ToSQL is implemented on most of the important stdlib types.
-            if result.isa[SQLite3Null]():
-                context.result_null()
-            elif result.isa[SQLite3Integer]():
-                context.result_int64(result[SQLite3Integer].value)
-            elif result.isa[SQLite3Real]():
-                context.result_double(result[SQLite3Real].value)
-            elif result.isa[SQLite3Text[origin_of(result)]]():
-                context.result_text(String(result[SQLite3Text[origin_of(result)]].value))
-            else:
-                context.result_error("Unsupported return type from value function.")
-                return
-
-            return
-
-        fn xInverse[
-            A: Movable & ImplicitlyDestructible, //, inverse_fn: fn(mut ctx: Context, mut acc: A) raises
-        ](
-            ctx: MutExternalPointer[sqlite3_context],
-            argc: c_int,
-            argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
-        ) -> NoneType:
-            var context = Context(ctx, argc, argv)
-            var agg_context = context.aggregate_context[A](0)
-            if not agg_context:
-                context.result_error_nomem()
-                return
-
-            try:
-                inverse_fn(context, agg_context.value()[])
-            except e:
-                context.result_error(t"Error in window function inverse callback: {e}")
-                return
-            return
 
         # Copy data to the heap and pass a pointer to it as pApp.
         # The data will be freed using the default destructor when the function is removed or when the connection is closed.
-        var pAppPtr = alloc[P](count=1)
-        pAppPtr[0] = pApp.copy()
-
-        var func_name = fn_name.copy()
+        var pAppPtr = ptr_copy(pApp)
         return sqlite_ffi()[].create_window_function(
             self.db,
-            func_name,
+            fn_name,
             c_int(n_arg),
             flags.value,
             pAppPtr.bitcast[NoneType](),
-            xStep[init_fn, step_fn],
-            xFinal[final_fn],
-            xValue[value_fn],
-            xInverse[inverse_fn],
+            _call_step_callback[init_fn, step_fn],
+            _call_final_callback[final_fn],
+            _call_value_callback[value_fn],
+            _call_inverse_callback[inverse_fn],
             _default_destructor,
         )
 
@@ -998,186 +824,15 @@ struct InnerConnection(Movable):
             Error: If the function could not be attached to the connection.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
         )
-
-        fn xStep[
-            A: Movable & ImplicitlyDestructible,
-            //,
-            init_fn: fn(mut ctx: Context) raises -> A,
-            step_fn: fn(mut ctx: Context, mut acc: A) raises,
-        ](
-            ctx: MutExternalPointer[sqlite3_context],
-            argc: c_int,
-            argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
-        ) -> NoneType:
-            """The xStep callback for the aggregate function.
-
-            This is called once for each row in the group being aggregated. This is a wrapper
-            around the user provided `init_fn` and `step_fn` that manages the aggregate context for the user.
-
-            Args:
-                ctx: The SQLite context for the aggregate function.
-                argc: The number of arguments passed to the function.
-                argv: The arguments passed to the function.
-
-            Raises:
-                Error: If there is an error during the execution of the step function.
-            """
-            var context = Context(ctx, argc, argv)
-            var agg_context = context.aggregate_context[A](size_of[A]())
-            # TODO: Throw sqlite3_result_error_nomem if we fail to allocate memory for the aggregate context.
-            if not agg_context:
-                var agg_context_ptr = alloc[A](count=1)
-                try:
-                    agg_context_ptr[0] = init_fn(context)
-                except e:
-                    # If the user's init function raises an error, we need to convert it to a SQLite error result.
-                    context.result_error(t"Error in aggregate init function: {e}")
-                    return
-                agg_context = Optional(agg_context_ptr)
-
-            try:
-                step_fn(context, agg_context.value()[])
-            except e:
-                context.result_error(t"Error in aggregate step function: {e}")
-                return
-            return
-
-        fn xFinal[
-            A: Movable & ImplicitlyDestructible,
-            T: Movable & ImplicitlyDestructible,
-            //,
-            final_fn: fn(mut ctx: Context, acc: A) raises -> T,
-        ](ctx: MutExternalPointer[sqlite3_context]) -> NoneType:
-            """The xFinal callback for the aggregate function.
-
-            This is called once at the end of the aggregation to compute the final result. This is a wrapper
-            around the user provided `final_fn` that manages the aggregate context for the user and converts
-            the result to the appropriate SQLite type.
-
-            Args:
-                ctx: The SQLite context for the aggregate function.
-
-            Raises:
-                Error: If there is an error during the execution of the final function, or if the
-                    aggregate context cannot be retrieved.
-            """
-            var context = Context(ctx)
-            var agg_context = context.aggregate_context[A](0)
-            if not agg_context:
-                context.result_error_nomem()
-                return
-
-            var finalize_result: T
-            try:
-                finalize_result = final_fn(context, agg_context.value()[])
-            except e:
-                # If the user's final function raises an error, we need to convert it to a SQLite error result.
-                context.result_error(t"Error in aggregate final function: {e}")
-                return
-
-            var result: ValueRef[origin_of(finalize_result)]
-            try:
-                result = trait_downcast[ToSQL](finalize_result).to_sql()
-            except e:
-                context.result_error(t"Error converting final result to SQL: {e}")
-                return
-
-            # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
-            # ToSQL is implemented on most of the important stdlib types.
-            if result.isa[SQLite3Null]():
-                context.result_null()
-            elif result.isa[SQLite3Integer]():
-                context.result_int64(result[SQLite3Integer].value)
-            elif result.isa[SQLite3Real]():
-                context.result_double(result[SQLite3Real].value)
-            elif result.isa[SQLite3Text[origin_of(result)]]():
-                context.result_text(String(result[SQLite3Text[origin_of(result)]].value))
-            else:
-                context.result_error("Unsupported return type from scalar function.")
-                return
-
-            return
-
-        fn xValue[
-            A: Copyable & ImplicitlyDestructible, //, value_fn: fn(acc: Optional[A]) raises -> T
-        ](ctx: MutExternalPointer[sqlite3_context]) -> NoneType:
-            """The xValue callback for the window function.
-
-            This is called to compute the current value of the window function without finalizing, for use in window frames.
-
-            Args:
-                ctx: The SQLite context for the window function.
-
-            Raises:
-                Error: If there is an error during the execution of the value function.
-            """
-            var context = Context(ctx)
-            # Set n_bytes to 0 so no unneccessary allocations occur
-            var agg_context = context.aggregate_context[A](0)
-            if not agg_context:
-                context.result_error_nomem()
-                return
-
-            var value_result: T
-            try:
-                value_result = value_fn(agg_context.value()[].copy())
-            except e:
-                context.result_error(t"Error in window function value callback: {e}")
-                return
-
-            var result: ValueRef[origin_of(value_result)]
-            try:
-                result = trait_downcast[ToSQL](value_result).to_sql()
-            except e:
-                context.result_error(t"Error converting window function value result to SQL: {e}")
-                return
-
-            # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
-            # ToSQL is implemented on most of the important stdlib types.
-            if result.isa[SQLite3Null]():
-                context.result_null()
-            elif result.isa[SQLite3Integer]():
-                context.result_int64(result[SQLite3Integer].value)
-            elif result.isa[SQLite3Real]():
-                context.result_double(result[SQLite3Real].value)
-            elif result.isa[SQLite3Text[origin_of(result)]]():
-                context.result_text(String(result[SQLite3Text[origin_of(result)]].value))
-            else:
-                context.result_error("Unsupported return type from value function.")
-                return
-
-            return
-
-        fn xInverse[
-            A: Movable & ImplicitlyDestructible, //, inverse_fn: fn(mut ctx: Context, mut acc: A) raises
-        ](
-            ctx: MutExternalPointer[sqlite3_context],
-            argc: c_int,
-            argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
-        ) -> NoneType:
-            var context = Context(ctx, argc, argv)
-            var agg_context = context.aggregate_context[A](0)
-            if not agg_context:
-                context.result_error_nomem()
-                return
-
-            try:
-                inverse_fn(context, agg_context.value()[])
-            except e:
-                context.result_error(t"Error in window function inverse callback: {e}")
-                return
-            return
-
-        var func_name = fn_name.copy()
         return sqlite_ffi()[].create_window_function(
             self.db,
-            func_name,
+            fn_name,
             c_int(n_arg),
             flags.value,
-            xStep[init_fn, step_fn],
-            xFinal[final_fn],
-            xValue[value_fn],
-            xInverse[inverse_fn],
+            _call_step_callback[init_fn, step_fn],
+            _call_final_callback[final_fn],
+            _call_value_callback[value_fn],
+            _call_inverse_callback[inverse_fn],
         )

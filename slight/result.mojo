@@ -151,14 +151,6 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, TrivialRegisterPass
         """
         return self.value != other
 
-    fn write_to(self, mut writer: Some[Writer]):
-        """Writes the integer value of the SQLite3Result to the provided writer.
-
-        Args:
-            writer: A mutable reference to a Writer where the integer value will be written.
-        """
-        writer.write(self.value)
-
     fn write_repr_to(self) -> String:
         """Returns a string representation of the SQLite3Result, including its integer value.
 
@@ -167,73 +159,70 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, TrivialRegisterPass
         """
         return t"SQLite3Result({self.value})"
 
-    fn __str__(self) -> String:
-        """Returns a human-readable string representation of the SQLite3Result, including a description of the result code.
-
-        Returns:
-            A human-readable string representation of the SQLite3Result.
+    fn write_to(self, mut writer: Some[Writer]):
+        """Writes a human-readable string representation of the SQLite3Result, including a description of the result code.
         """
         if self.value == SQLITE_OK:
-            return "[SQLITE_OK] Successful result"
+            writer.write(t"[SQLITE_OK ({self.value})] Successful result")
         elif self.value == SQLITE_ERROR:
-            return "[SQLITE_ERROR] Generic error"
+            writer.write(t"[SQLITE_ERROR ({self.value})] Generic error")
         elif self.value == SQLITE_INTERNAL:
-            return "[SQLITE_INTERNAL] Internal logic error in SQLite"
+            writer.write(t"[SQLITE_INTERNAL ({self.value})] Internal logic error in SQLite")
         elif self.value == SQLITE_PERM:
-            return "[SQLITE_PERM] Access permission denied"
+            writer.write(t"[SQLITE_PERM ({self.value})] Access permission denied")
         elif self.value == SQLITE_ABORT:
-            return "[SQLITE_ABORT] Callback routine requested an abort"
+            writer.write(t"[SQLITE_ABORT ({self.value})] Callback routine requested an abort")
         elif self.value == SQLITE_BUSY:
-            return "[SQLITE_BUSY] The database file is locked"
+            writer.write(t"[SQLITE_BUSY ({self.value})] The database file is locked")
         elif self.value == SQLITE_LOCKED:
-            return "[SQLITE_LOCKED] A table in the database is locked"
+            writer.write(t"[SQLITE_LOCKED ({self.value})] A table in the database is locked")
         elif self.value == SQLITE_NOMEM:
-            return "[SQLITE_NOMEM] A malloc() failed"
+            writer.write(t"[SQLITE_NOMEM ({self.value})] A malloc() failed")
         elif self.value == SQLITE_READONLY:
-            return "[SQLITE_READONLY] Attempt to write a readonly database"
+            writer.write(t"[SQLITE_READONLY ({self.value})] Attempt to write a readonly database")
         elif self.value == SQLITE_INTERRUPT:
-            return "[SQLITE_INTERRUPT] Operation terminated by sqlite3_interrupt()"
+            writer.write(t"[SQLITE_INTERRUPT ({self.value})] Operation terminated by sqlite3_interrupt()")
         elif self.value == SQLITE_IOERR:
-            return "[SQLITE_IOERR] Some kind of disk I/O error occurred"
+            writer.write(t"[SQLITE_IOERR ({self.value})] Some kind of disk I/O error occurred")
         elif self.value == SQLITE_CORRUPT:
-            return "[SQLITE_CORRUPT] The database disk image is malformed"
+            writer.write(t"[SQLITE_CORRUPT ({self.value})] The database disk image is malformed")
         elif self.value == SQLITE_NOTFOUND:
-            return "[SQLITE_NOTFOUND] Unknown opcode in sqlite3_file_control()"
+            writer.write(t"[SQLITE_NOTFOUND ({self.value})] Unknown opcode in sqlite3_file_control()")
         elif self.value == SQLITE_FULL:
-            return "[SQLITE_FULL] Insertion failed because database is full"
+            writer.write(t"[SQLITE_FULL ({self.value})] Insertion failed because database is full")
         elif self.value == SQLITE_CANTOPEN:
-            return "[SQLITE_CANTOPEN] Unable to open the database file"
+            writer.write(t"[SQLITE_CANTOPEN ({self.value})] Unable to open the database file")
         elif self.value == SQLITE_PROTOCOL:
-            return "[SQLITE_PROTOCOL] Database lock protocol error"
+            writer.write(t"[SQLITE_PROTOCOL ({self.value})] Database lock protocol error")
         elif self.value == SQLITE_EMPTY:
-            return "[SQLITE_EMPTY] Internal use only"
+            writer.write(t"[SQLITE_EMPTY ({self.value})] Internal use only")
         elif self.value == SQLITE_SCHEMA:
-            return "[SQLITE_SCHEMA] The database schema changed"
+            writer.write(t"[SQLITE_SCHEMA ({self.value})] The database schema changed")
         elif self.value == SQLITE_TOOBIG:
-            return "[SQLITE_TOOBIG] String or BLOB exceeds size limit"
+            writer.write(t"[SQLITE_TOOBIG ({self.value})] String or BLOB exceeds size limit")
         elif self.value == SQLITE_CONSTRAINT:
-            return "[SQLITE_CONSTRAINT] Abort due to constraint violation"
+            writer.write(t"[SQLITE_CONSTRAINT ({self.value})] Abort due to constraint violation")
         elif self.value == SQLITE_MISMATCH:
-            return "[SQLITE_MISMATCH] Data type mismatch"
+            writer.write(t"[SQLITE_MISMATCH ({self.value})] Data type mismatch")
         elif self.value == SQLITE_MISUSE:
-            return "[SQLITE_MISUSE] Library used incorrectly"
+            writer.write(t"[SQLITE_MISUSE ({self.value})] Library used incorrectly")
         elif self.value == SQLITE_NOLFS:
-            return "[SQLITE_NOLFS] Uses OS features not supported on host"
+            writer.write(t"[SQLITE_NOLFS ({self.value})] Uses OS features not supported on host")
         elif self.value == SQLITE_AUTH:
-            return "[SQLITE_AUTH] Authorization denied"
+            writer.write(t"[SQLITE_AUTH ({self.value})] Authorization denied")
         elif self.value == SQLITE_FORMAT:
-            return "[SQLITE_FORMAT] Not used"
+            writer.write(t"[SQLITE_FORMAT ({self.value})] Not used")
         elif self.value == SQLITE_RANGE:
-            return "[SQLITE_RANGE] 2nd parameter to sqlite3_bind out of range"
+            writer.write(t"[SQLITE_RANGE ({self.value})] 2nd parameter to sqlite3_bind out of range")
         elif self.value == SQLITE_NOTFOUND:
-            return "[SQLITE_NOTADB] File opened that is not a database file"
+            writer.write(t"[SQLITE_NOTADB ({self.value})] File opened that is not a database file")
         elif self.value == SQLITE_NOTICE:
-            return "[SQLITE_NOTICE] Notifications from sqlite3_log()"
+            writer.write(t"[SQLITE_NOTICE ({self.value})] Notifications from sqlite3_log()")
         elif self.value == SQLITE_WARNING:
-            return "[SQLITE_WARNING] Warnings from sqlite3_log()"
+            writer.write(t"[SQLITE_WARNING ({self.value})] Warnings from sqlite3_log()")
         elif self.value == SQLITE_ROW:
-            return "[SQLITE_ROW] sqlite3_step() has another row ready"
+            writer.write(t"[SQLITE_ROW ({self.value})] sqlite3_step() has another row ready")
         elif self.value == SQLITE_DONE:
-            return "[SQLITE_DONE] sqlite3_step() has finished executing"
+            writer.write(t"[SQLITE_DONE ({self.value})] sqlite3_step() has finished executing")
         else:
-            return t"UNKNOWN SQLITE RESULT CODE: {self.value}"
+            writer.write(t"UNKNOWN SQLITE RESULT CODE: {self.value}")

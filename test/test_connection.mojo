@@ -9,30 +9,6 @@ from std.pathlib import Path
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 
-# # @fieldwise_init
-# # struct Employee(Copyable, Movable, Writable):
-# #     var id: Int
-# #     var name: String
-# #     var age: Int8
-# #     var address: String
-# #     var salary: Float64
-# #     var is_active: Bool
-
-# #     fn write_to[W: Writer](self, mut writer: W):
-# #         writer.write("Employee(id=", self.id, ", name=", self.name, ", age=", self.age, ", address=", self.address, ", salary=", self.salary, ", is_active=", self.is_active, ")")
-
-
-# # fn transform_row(row: Row) raises -> Employee:
-# #     return Employee(
-# #         id=row.get[Int]("id"),
-# #         name=row.get[String]("name"),
-# #         age=row.get[Int8]("age"),
-# #         address=row.get[String]("address"),
-# #         salary=row.get[Float64]("salary"),
-# #         is_active=row.get[Bool]("is_active")
-# #     )
-        
-
 fn test_eq_ignore_ascii_case_test() raises:
     assert_true(eq_ignore_ascii_case("hello".as_bytes(), "HELLO".as_bytes()))
     assert_true(eq_ignore_ascii_case("MoJo".as_bytes(), "mojo".as_bytes()))
@@ -55,7 +31,7 @@ fn test_path() raises:
 
 fn test_open_failure() raises:
     with assert_raises(contains="Unable to open the database file"):
-        _ = Connection.open("no_such_file.db", materialize[OpenFlag.READ_ONLY]())
+        _ = Connection.open("no_such_file.db", OpenFlag.READ_ONLY)
 
 
 # fn test_close_retry() raises:

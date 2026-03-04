@@ -761,12 +761,12 @@ struct Connection(Movable):
 
     # TODO: V should be constrained to ToSQL.
     fn create_scalar_function[
-        T: Copyable & ImplicitlyDestructible, V: ImplicitlyDestructible, //, x_func: fn(Context) raises -> V
+        P: Copyable & ImplicitlyDestructible, V: Movable & ImplicitlyDestructible, //, x_func: fn(Context) raises -> V
     ](
         self,
         fn_name: String,
         n_arg: Int,
-        user_data: T,
+        user_data: P,
         flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
     ) raises:
         """Attach a user-defined scalar function to a database connection.
@@ -799,7 +799,7 @@ struct Connection(Movable):
 
     # TODO: When extensions work, switch to ToSQL
     fn create_scalar_function[
-        V: ImplicitlyDestructible, //, x_func: fn(Context) raises -> V
+        V: Movable & ImplicitlyDestructible, //, x_func: fn(Context) raises -> V
     ](
         self,
         fn_name: String,

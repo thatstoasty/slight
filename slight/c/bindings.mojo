@@ -1457,7 +1457,7 @@ struct sqlite3:
     ](
         self,
         db: MutExternalPointer[sqlite3_connection],
-        mut zFunctionName: String,
+        zFunctionName: String,
         nArg: c_int,
         eTextRep: c_int,
         pApp: MutOpaquePointer[app_origin],
@@ -1486,14 +1486,15 @@ struct sqlite3:
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
+        var func_name = zFunctionName.copy()
         return self.lib.sqlite3_create_scalar_function(
-            db, zFunctionName.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, pApp, xFunc, destructor_callback
+            db, func_name.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, pApp, xFunc, destructor_callback
         )
 
     fn create_scalar_function(
         self,
         db: MutExternalPointer[sqlite3_connection],
-        mut zFunctionName: String,
+        zFunctionName: String,
         nArg: c_int,
         eTextRep: c_int,
         xFunc: ScalarFnCallback,
@@ -1515,8 +1516,9 @@ struct sqlite3:
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
+        var func_name = zFunctionName.copy()
         return self.lib.sqlite3_create_scalar_function(
-            db, zFunctionName.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, xFunc
+            db, func_name.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, xFunc
         )
 
     fn create_aggregate_function[
@@ -1524,7 +1526,7 @@ struct sqlite3:
     ](
         self,
         db: MutExternalPointer[sqlite3_connection],
-        mut zFunctionName: String,
+        zFunctionName: String,
         nArg: c_int,
         eTextRep: c_int,
         pApp: MutOpaquePointer[app_origin],
@@ -1555,14 +1557,15 @@ struct sqlite3:
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
+        var func_name = zFunctionName.copy()
         return self.lib.sqlite3_create_aggregate_function(
-            db, zFunctionName.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, pApp, xStep, xFinal, destructor_callback
+            db, func_name.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, pApp, xStep, xFinal, destructor_callback
         )
 
     fn create_aggregate_function(
         self,
         db: MutExternalPointer[sqlite3_connection],
-        mut zFunctionName: String,
+        zFunctionName: String,
         nArg: c_int,
         eTextRep: c_int,
         xStep: AggStepCallback,
@@ -1586,8 +1589,9 @@ struct sqlite3:
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
+        var func_name = zFunctionName.copy()
         return self.lib.sqlite3_create_aggregate_function(
-            db, zFunctionName.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, xStep, xFinal
+            db, func_name.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, xStep, xFinal
         )
 
     fn create_window_function[
@@ -1595,7 +1599,7 @@ struct sqlite3:
     ](
         self,
         db: MutExternalPointer[sqlite3_connection],
-        mut zFunctionName: String,
+        zFunctionName: String,
         nArg: c_int,
         eTextRep: c_int,
         pApp: MutOpaquePointer[app_origin],
@@ -1630,9 +1634,10 @@ struct sqlite3:
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
+        var func_name = zFunctionName.copy()
         return self.lib.sqlite3_create_window_function(
             db,
-            zFunctionName.as_c_string_slice().unsafe_ptr(),
+            func_name.as_c_string_slice().unsafe_ptr(),
             nArg,
             eTextRep,
             pApp,
@@ -1646,7 +1651,7 @@ struct sqlite3:
     fn create_window_function(
         self,
         db: MutExternalPointer[sqlite3_connection],
-        mut zFunctionName: String,
+        zFunctionName: String,
         nArg: c_int,
         eTextRep: c_int,
         xStep: AggStepCallback,
@@ -1674,8 +1679,9 @@ struct sqlite3:
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
+        var func_name = zFunctionName.copy()
         return self.lib.sqlite3_create_window_function(
-            db, zFunctionName.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, xStep, xFinal, xValue, xInverse
+            db, func_name.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, xStep, xFinal, xValue, xInverse
         )
 
     fn aggregate_count(self, ctx: MutExternalPointer[sqlite3_context]) -> SQLite3Result:
