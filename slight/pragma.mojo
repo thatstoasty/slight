@@ -10,7 +10,7 @@ from slight.types.value_ref import SQLite3Integer, SQLite3Real, SQLite3Text
 from slight.c.raw_bindings import SQLITE_MISUSE
 
 
-struct Sql(Movable, Stringable):
+struct Sql(Movable, Writable):
     """A builder for SQL pragma statements.
     
     This struct provides methods to construct properly formatted and escaped
@@ -24,13 +24,13 @@ struct Sql(Movable, Stringable):
         """Create a new empty SQL builder."""
         self.buf = String()
     
-    fn __str__(self) -> String:
+    fn write_to(self, mut writer: Some[Writer]):
         """Get the current SQL statement.
         
-        Returns:
-            The current SQL statement as a string.
+        Args:
+            writer: The writer to write the SQL statement to.
         """
-        return self.buf.copy()
+        writer.write(self.buf)
     
     fn as_string_slice(self) -> StringSlice[origin_of(self.buf)]:
         """Get the current SQL statement as a string slice.

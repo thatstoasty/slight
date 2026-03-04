@@ -143,8 +143,8 @@ Use `Context` to conveniently access arguments and set results.
 comptime AggStepCallback = fn (
     MutExternalPointer[sqlite3_context],
     c_int,
-    MutUnsafePointer[MutExternalPointer[sqlite3_value]],
-) -> NoneType
+    MutExternalPointer[MutExternalPointer[sqlite3_value]],
+) raises -> NoneType
 """Callback type for the step function of an aggregate SQL function.
 
 Called once for each row in an aggregate group.
@@ -152,7 +152,7 @@ Called once for each row in an aggregate group.
 
 comptime AggFinalCallback = fn (
     MutExternalPointer[sqlite3_context],
-) -> NoneType
+) raises -> NoneType
 """Callback type for the finalize function of an aggregate SQL function.
 
 Called once after all rows have been processed to compute the final result.

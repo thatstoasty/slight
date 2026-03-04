@@ -674,7 +674,7 @@ struct Connection(Movable):
         for row in self.prepare(String(sql)).query(()):
             callback(row)
 
-    fn pragma_update[T: AnyType](
+    fn pragma_update[T: AnyType, //](
         self,
         pragma: StringSlice,
         value: T,
@@ -835,161 +835,91 @@ struct Connection(Movable):
         comptime assert conforms_to(V, ToSQL), String("Return type V must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`.")
         var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags)
         self.raise_if_error(result)
+    
+    fn create_aggregate_function[
+        A: Movable & ImplicitlyDestructible, T: Movable & ImplicitlyDestructible, P: Copyable & ImplicitlyDestructible, //,
+        init_fn: fn (mut ctx: Context) raises -> A,
+        step_fn: fn (mut ctx: Context, mut acc: A) raises,
+        final_fn: fn (mut ctx: Context, acc: A) raises -> T,
+    ](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        user_data: P,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    ) raises:
+        """Attach a user-defined aggregate function to a database connection.
 
-    # fn create_scalar_function_with_data[
-    #     conn_type: Movable, /,
-    #     app_origin: MutOrigin,
-    #     fn_origin: MutOrigin,
-    # ](
-    #     ref conn: conn_type,
-    #     mut fn_name: String,
-    #     n_arg: Int,
-    #     flags: FunctionFlags,
-    #     p_app: MutOpaquePointer[app_origin],
-    #     x_func: fn (
-    #         MutExternalPointer[sqlite3_context],
-    #         c_int,
-    #         MutUnsafePointer[MutExternalPointer[sqlite3_value], fn_origin],
-    #     ) -> NoneType,
-    #     destructor: ResultDestructorFn,
-    # ) raises:
-    #     """Attach a user-defined scalar function with user data to a database connection.
+        Aggregate functions process multiple rows and produce a single result.
+        The `x_step` callback is called once per row, and `x_final` is called
+        once at the end to produce the result.
 
-    #     This variant allows passing application data (`p_app`) that can be retrieved
-    #     inside the callback using `FunctionContext.user_data()`. A destructor callback
-    #     is called when the function is deleted to free the user data.
+        Use `FunctionContext.aggregate_context()` inside the callbacks to manage
+        per-group state.
 
-    #     Parameters:
-    #         conn_type: The type of the connection.
-    #         app_origin: The origin of the pApp pointer.
-    #         fn_origin: The origin of the xFunc callback pointer.
+        Parameters:
+            A: The type of the aggregate state. Must be Movable.
+            T: The return type of the aggregate function. Must conform to `ToSQL`.
+            P: The type of the application data to pass to the callbacks.
+            init_fn: The callback to initialize the aggregate state for a new group.
+            step_fn: The callback to update the aggregate state for each row in the group.
+            final_fn: The callback to compute the final result from the aggregate state.
 
-    #     Args:
-    #         conn: The database connection.
-    #         fn_name: Name of the SQL function to create.
-    #         n_arg: Number of arguments (-1 for variable number).
-    #         flags: Function flags.
-    #         p_app: User data pointer passed to the callback via `sqlite3_user_data()`.
-    #         x_func: The scalar function callback.
-    #         destructor: Callback invoked when the function is deleted to free p_app.
+        Args:
+            fn_name: Name of the SQL aggregate function to create.
+            n_arg: Number of arguments (-1 for variable number).
+            user_data: An opaque pointer that is passed to the callbacks when the function is called. Can be used to store context or state for the function.
+            flags: Function flags.
 
-    #     Raises:
-    #         Error: If the function could not be attached to the connection.
-    #     """
-    #     var result = sqlite_ffi()[].create_function_v2(
-    #         self.db,
-    #         fn_name.as_c_string_slice().unsafe_ptr(),
-    #         c_int(n_arg),
-    #         flags.value,
-    #         p_app,
-    #         x_func,
-    #         MutExternalPointer[NoneType](),  # xStep = NULL
-    #         MutExternalPointer[NoneType](),  # xFinal = NULL
-    #         destructor,
-    #     )
-    #     self.raise_if_error(self.db, SQLite3Result(result))
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        # For aggregate functions, SQLite requires xFunc to be NULL and
+        # xStep/xFinal to be non-NULL.
+        comptime assert conforms_to(T, ToSQL), String("Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`.")
+        var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags, user_data)
+        self.raise_if_error(result)
 
-    # fn create_aggregate_function[
-    #     step_origin: MutOrigin,
-    # ](
-    #     self,
-    #     mut fn_name: String,
-    #     n_arg: Int,
-    #     flags: FunctionFlags,
-    #     x_step: fn (
-    #         MutExternalPointer[sqlite3_context],
-    #         c_int,
-    #         MutUnsafePointer[MutExternalPointer[sqlite3_value], step_origin],
-    #     ) -> NoneType,
-    #     x_final: fn (MutExternalPointer[sqlite3_context]) -> NoneType,
-    # ) raises:
-    #     """Attach a user-defined aggregate function to a database connection.
+    fn create_aggregate_function[
+        A: Movable & ImplicitlyDestructible, T: Movable & ImplicitlyDestructible, //,
+        init_fn: fn (mut ctx: Context) raises -> A,
+        step_fn: fn (mut ctx: Context, mut acc: A) raises,
+        final_fn: fn (mut ctx: Context, acc: A) raises -> T,
+    ](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    ) raises:
+        """Attach a user-defined aggregate function to a database connection.
 
-    #     Aggregate functions process multiple rows and produce a single result.
-    #     The `x_step` callback is called once per row, and `x_final` is called
-    #     once at the end to produce the result.
+        Aggregate functions process multiple rows and produce a single result.
+        The `x_step` callback is called once per row, and `x_final` is called
+        once at the end to produce the result.
 
-    #     Use `FunctionContext.aggregate_context()` inside the callbacks to manage
-    #     per-group state.
+        Use `FunctionContext.aggregate_context()` inside the callbacks to manage
+        per-group state.
 
-    #     Parameters:
-    #         step_origin: The origin of the xStep callback pointer.
+        Parameters:
+            A: The type of the aggregate state. Must be Movable.
+            T: The return type of the aggregate function. Must conform to `ToSQL`.
+            init_fn: The callback to initialize the aggregate state for a new group.
+            step_fn: The callback to update the aggregate state for each row in the group.
+            final_fn: The callback to compute the final result from the aggregate state.
 
-    #     Args:
-    #         fn_name: Name of the SQL aggregate function to create.
-    #         n_arg: Number of arguments (-1 for variable number).
-    #         flags: Function flags.
-    #         x_step: The step callback, called once per row.
-    #         x_final: The finalize callback, called once to produce the result.
+        Args:
+            fn_name: Name of the SQL aggregate function to create.
+            n_arg: Number of arguments (-1 for variable number).
+            flags: Function flags.
 
-    #     Raises:
-    #         Error: If the function could not be attached to the connection.
-    #     """
-    #     # For aggregate functions, SQLite requires xFunc to be NULL and
-    #     # xStep/xFinal to be non-NULL.
-    #     var result = sqlite_ffi()[].create_function_v2(
-    #         self.db,
-    #         fn_name.as_c_string_slice().unsafe_ptr(),
-    #         c_int(n_arg),
-    #         flags.value,
-    #         MutExternalPointer[NoneType](),  # pApp = NULL
-    #         MutExternalPointer[NoneType](),  # xFunc = NULL
-    #         x_step,
-    #         x_final,
-    #         MutExternalPointer[NoneType](),  # destructor = NULL
-    #     )
-    #     self.raise_if_error(self.db, SQLite3Result(result))
-
-    # fn create_aggregate_function_with_data[
-    #     app_origin: MutOrigin,
-    #     step_origin: MutOrigin,
-    # ](
-    #     self,
-    #     mut fn_name: String,
-    #     n_arg: Int,
-    #     flags: FunctionFlags,
-    #     p_app: MutOpaquePointer[app_origin],
-    #     x_step: fn (
-    #         MutExternalPointer[sqlite3_context],
-    #         c_int,
-    #         MutUnsafePointer[MutExternalPointer[sqlite3_value], step_origin],
-    #     ) -> NoneType,
-    #     x_final: fn (MutExternalPointer[sqlite3_context]) -> NoneType,
-    #     destructor: ResultDestructorFn,
-    # ) raises:
-    #     """Attach a user-defined aggregate function with user data to a database connection.
-
-    #     This variant allows passing application data (`p_app`) that can be retrieved
-    #     inside the callbacks using `FunctionContext.user_data()`.
-
-    #     Parameters:
-    #         app_origin: The origin of the pApp pointer.
-    #         step_origin: The origin of the xStep callback pointer.
-
-    #     Args:
-    #         fn_name: Name of the SQL aggregate function to create.
-    #         n_arg: Number of arguments (-1 for variable number).
-    #         flags: Function flags.
-    #         p_app: User data pointer passed to the callbacks via `sqlite3_user_data()`.
-    #         x_step: The step callback.
-    #         x_final: The finalize callback.
-    #         destructor: Callback invoked when the function is deleted to free p_app.
-
-    #     Raises:
-    #         Error: If the function could not be attached to the connection.
-    #     """
-    #     var result = sqlite_ffi()[].create_function_v2(
-    #         self.db,
-    #         fn_name.as_c_string_slice().unsafe_ptr(),
-    #         c_int(n_arg),
-    #         flags.value,
-    #         p_app,
-    #         MutExternalPointer[NoneType](),  # xFunc = NULL
-    #         x_step,
-    #         x_final,
-    #         destructor,
-    #     )
-    #     self.raise_if_error(self.db, SQLite3Result(result))
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        # For aggregate functions, SQLite requires xFunc to be NULL and
+        # xStep/xFinal to be non-NULL.
+        comptime assert conforms_to(T, ToSQL), String("Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`.")
+        var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags)
+        self.raise_if_error(result)
 
     # fn create_window_function[
     #     step_origin: MutOrigin,

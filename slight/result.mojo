@@ -33,7 +33,7 @@ from slight.c.raw_bindings import (
 )
 
 
-struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, Writable, Stringable, Representable, TrivialRegisterPassable):
+struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, Writable, TrivialRegisterPassable):
     """A wrapper around SQLite result codes that provides more descriptive error handling and utilities."""
     var value: Int32
     """The underlying SQLite result code value."""
@@ -158,7 +158,7 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, Writable, Stringabl
         """
         writer.write(self.value)
     
-    fn __repr__(self) -> String:
+    fn write_repr_to(self) -> String:
         """Returns a string representation of the SQLite3Result, including its integer value.
 
         Returns:

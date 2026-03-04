@@ -1513,7 +1513,78 @@ struct sqlite3:
         return self.lib.sqlite3_create_scalar_function(
             db, zFunctionName.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, xFunc
         )
+    
+    fn create_aggregate_function[
+        app_origin: MutOrigin,
+    ](
+        self,
+        db: MutExternalPointer[sqlite3_connection],
+        mut zFunctionName: String,
+        nArg: c_int,
+        eTextRep: c_int,
+        pApp: MutOpaquePointer[app_origin],
+        xStep: AggStepCallback,
+        xFinal: AggFinalCallback,
+        destructor_callback: ResultDestructorFn,
+    ) -> SQLite3Result:
+        """Create Or Redefine SQL Functions.
 
+        This function is used to add SQL functions or aggregates or to redefine
+        the behavior of existing SQL functions or aggregates. For scalar functions,
+        only xFunc should be non-NULL. For aggregate functions, xStep and xFinal
+        should be non-NULL and xFunc should be NULL.
+
+        Parameters:
+            app_origin: The origin of the pApp pointer.
+
+        Args:
+            db: Database connection handle.
+            zFunctionName: Name of the SQL function to create.
+            nArg: Number of arguments the function accepts (-1 for variable).
+            eTextRep: Text encoding (SQLITE_UTF8, SQLITE_UTF16, etc.).
+            pApp: Application data pointer passed to callbacks.
+            xStep: Callback for aggregate step functions.
+            xFinal: Callback for aggregate finalization.
+            destructor_callback: Callback invoked when the function is deleted.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        return self.lib.sqlite3_create_aggregate_function(
+            db, zFunctionName.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, pApp, xStep, xFinal, destructor_callback
+        )
+    
+    fn create_aggregate_function(
+        self,
+        db: MutExternalPointer[sqlite3_connection],
+        mut zFunctionName: String,
+        nArg: c_int,
+        eTextRep: c_int,
+        xStep: AggStepCallback,
+        xFinal: AggFinalCallback,
+    ) -> SQLite3Result:
+        """Create Or Redefine SQL Functions.
+
+        This function is used to add SQL functions or aggregates or to redefine
+        the behavior of existing SQL functions or aggregates. For scalar functions,
+        only xFunc should be non-NULL. For aggregate functions, xStep and xFinal
+        should be non-NULL and xFunc should be NULL.
+
+        Args:
+            db: Database connection handle.
+            zFunctionName: Name of the SQL function to create.
+            nArg: Number of arguments the function accepts (-1 for variable).
+            eTextRep: Text encoding (SQLITE_UTF8, SQLITE_UTF16, etc.).
+            xStep: Callback for aggregate step functions.
+            xFinal: Callback for aggregate finalization.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        return self.lib.sqlite3_create_aggregate_function(
+            db, zFunctionName.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, xStep, xFinal
+        )
+    
     fn create_window_function[
         app_origin: MutOrigin,
         step_origin: MutOrigin,

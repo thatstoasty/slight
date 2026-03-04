@@ -16,22 +16,15 @@ from slight.functions import (
 from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
 from std.ffi import c_int
 
-fn halve_impl(
-    raw_ctx: MutExternalPointer[sqlite3_context],
-    argc: c_int,
-    argv: MutUnsafePointer[MutExternalPointer[sqlite3_value]],
-):
-    var ctx = Context(raw_ctx, argc, argv)
-    var value = ctx.get_double(0)
-    ctx.result_double(value / 2.0)
+fn halve(ctx: Context) raises -> Float64:
+    return ctx.get_double(0) / 2.0
 
 fn main() raises:
     var conn = Connection.open_in_memory()
-    conn.create_scalar_function(
+    conn.create_scalar_function[halve](
         "halve",
         n_arg=1,
         flags=FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
-        x_func=halve_impl,
     )
 ```
 """
@@ -116,6 +109,70 @@ struct FunctionFlags(ImplicitlyCopyable):
         return Self(self.value | other.value)
 
 
+# ===----------------------------------------------------------------------=== #
+# Aggregate
+# ===----------------------------------------------------------------------=== #
+
+# trait Aggregate[A: Movable, T: Movable]:
+#     """Trait for defining aggregate functions.
+
+#     An aggregate function is defined by implementing the `Aggregate` trait,
+#     which requires an `update` method to process each row and a `finalize`
+#     method to compute the final result.
+
+#     Parameters:
+#         `A`: The type of the aggregation context, which holds intermediate state during aggregation.
+#         `T`: The type of the final result returned by the aggregate function.
+#     """
+
+#     fn init(self, mut ctx: Context) raises -> A:
+#         """Initializes the aggregation context.
+
+#         This method is called once at the beginning of an aggregate function's execution to set up any necessary state.
+#         Args:
+#             ctx: The function evaluation context, which can be used to access arguments and set results.
+
+#         Returns:
+#             An instance of the aggregation context type `A`, which will be passed to the `update
+        
+#         Raises:
+#             Any errors that occur during initialization process.
+#         """
+#         ...
+    
+#     fn step(self, mut ctx: Context, mut acc: A) raises:
+#         """Processes a single row of input for the aggregate function.
+
+#         This method is called once for each row in the group being aggregated. It updates the aggregation context with information from the current row.
+
+#         Args:
+#             ctx: The function evaluation context, which can be used to access arguments and set results.
+#             acc: The current state of the aggregation context, which can be modified to accumulate results across rows.
+
+#         Raises:
+#             Any errors that occur during the processing of a row.
+#         """
+#         ...
+    
+#     fn finalize(self, mut ctx: Context, acc: Optional[A]) raises -> T:
+#         """Finalizes the aggregate function and computes the result.
+
+#         This method is called once after all rows have been processed by the `step` method.
+#         It computes the final result based on the accumulated state. Will be called exactly once for each invocation of the function. If `step` was called at least once, `acc` will be `Some(A)` (the same `A` as was created by `init` and given to `step`); if `step` was not called (because the function is running against 0 rows), `acc` will be `None`.
+
+
+#         Args:
+#             ctx: The function evaluation context, which can be used to access arguments and set results.
+#             acc: The final state of the aggregation context, which contains the accumulated results. If no rows were processed, this will be `None`.
+
+#         Returns:
+#             The final result of the aggregate function.
+
+#         Raises:
+#             Any errors that occur during the finalization process.
+#         """
+#         ...
+
 
 # ===----------------------------------------------------------------------=== #
 # Context
@@ -151,6 +208,18 @@ struct Context(Movable, Sized):
     """The raw SQLite function context pointer."""
     var args: List[MutExternalPointer[sqlite3_value]]
     """The number of arguments passed to the function."""
+
+    fn __init__(
+        out self,
+        ctx: MutExternalPointer[sqlite3_context],
+    ):
+        """Initialize a Context from raw callback arguments.
+
+        Args:
+            ctx: The raw SQLite function context pointer.
+        """
+        self.ctx = ctx
+        self.args = []
 
     fn __init__[argv_origin: MutOrigin](
         out self,
@@ -297,7 +366,7 @@ struct Context(Movable, Sized):
             ]()
         )
 
-    fn get_blob(mut self, idx: Int) -> Span[Byte, origin_of(self)]:
+    fn get_blob(self, idx: Int) -> Span[Byte, origin_of(self)]:
         """Returns the `idx`th argument as a Span of bytes (BLOB).
 
         This calls `sqlite3_value_blob` and `sqlite3_value_bytes` directly.
@@ -314,7 +383,7 @@ struct Context(Movable, Sized):
         var value = self.args[idx]
         var blob_ptr = sqlite_ffi()[].value_blob(value)
         var n_bytes = Int(sqlite_ffi()[].value_bytes(value).value)
-        return Span[Byte, origin_of(self)](
+        return Span(
             ptr=blob_ptr.bitcast[Byte]().unsafe_origin_cast[origin_of(self)](),
             length=n_bytes,
         )
@@ -398,13 +467,14 @@ struct Context(Movable, Sized):
             DestructorHint.transient_destructor(),
         )
 
-    fn result_error(self, mut msg: String):
+    fn result_error(self, msg: String):
         """Set the result of the function to an error.
 
         Args:
             msg: The error message string.
         """
-        sqlite_ffi()[].result_error(self.ctx, msg, c_int(-1))
+        var msg_copy = msg.copy()
+        sqlite_ffi()[].result_error(self.ctx, msg_copy, c_int(-1))
 
     fn result_error_code(self, code: Int32):
         """Set the result of the function to an error code.
@@ -450,7 +520,7 @@ struct Context(Movable, Sized):
     # Aggregate Helpers
     # ===------------------------------------------------------------------=== #
 
-    fn aggregate_context(self, n_bytes: Int) -> MutExternalPointer[NoneType]:
+    fn aggregate_context[A: Movable](self, n_bytes: Int) -> Optional[MutExternalPointer[A]]:
         """Get or allocate the aggregate function context.
 
         On the first call for a particular aggregate instance, `n_bytes` of
@@ -460,13 +530,19 @@ struct Context(Movable, Sized):
         For the finalize callback, pass `n_bytes=0` to avoid pointless
         allocations.
 
+        Parameters:
+            A: The type of the aggregate context. This is the type that will be returned as a pointer.
+
         Args:
             n_bytes: Number of bytes to allocate (0 to query existing context).
 
         Returns:
             A pointer to the aggregate context, or a null pointer on allocation failure.
         """
-        return sqlite_ffi()[].aggregate_context(self.ctx, c_int(n_bytes))
+        var ptr = sqlite_ffi()[].aggregate_context(self.ctx, c_int(n_bytes))
+        if not ptr:
+            return None
+        return ptr.bitcast[A]()
 
     fn user_data(self) -> MutExternalPointer[NoneType]:
         """Get the user data pointer that was passed to `create_scalar_function`,
