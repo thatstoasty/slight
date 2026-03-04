@@ -11,12 +11,13 @@ from slight.statement import Statement
 @fieldwise_init
 struct BindIndexError(Movable, Writable):
     """An error type for invalid bind parameter indexing."""
+
     var msg: String
     """A message describing the error."""
 
     fn write_to(self, mut writer: Some[Writer]):
         """Writes the error message to the provided writer.
-        
+
         Args:
             writer: A mutable reference to a Writer where the error message will be written.
         """

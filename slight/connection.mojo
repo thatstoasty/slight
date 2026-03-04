@@ -1,22 +1,22 @@
-from std.pathlib import Path
-from std.memory import Pointer
-from std.reflection import get_type_name
-from std.ffi import c_int
 from slight.c.api import sqlite_ffi
 from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
-from slight.functions import FunctionFlags, Context
-from slight.result import SQLite3Result
-from slight.inner_connection import InnerConnection
-from slight.flags import PrepFlag, OpenFlag
-from slight.params import Params
-from slight.raw_statement import RawStatement
-from slight.statement import Statement
-from slight.row import Row, Int  # RowIndex extension for Int
-from slight.types.to_sql import ToSQL
-from slight.types.from_sql import FromSQL
 from slight.column import ColumnMetadata
-from slight.transaction import Transaction, Savepoint, TransactionBehavior
+from slight.flags import OpenFlag, PrepFlag
+from slight.functions import Context, FunctionFlags
+from slight.inner_connection import InnerConnection
+from slight.params import Params
 from slight.pragma import Sql
+from slight.raw_statement import RawStatement
+from slight.result import SQLite3Result
+from slight.row import Int, Row  # RowIndex extension for Int
+from slight.statement import Statement
+from slight.transaction import Savepoint, Transaction, TransactionBehavior
+from slight.types.from_sql import FromSQL
+from slight.types.to_sql import ToSQL
+from std.ffi import c_int
+from std.memory import Pointer
+from std.pathlib import Path
+from std.reflection import get_type_name
 
 
 struct Connection(Movable):
@@ -81,7 +81,7 @@ struct Connection(Movable):
         Args:
             flags: The flags to use when opening the database. Defaults to
                    `SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_URI`.
-        
+
         Returns:
             The newly created in-memory connection.
 
@@ -115,7 +115,7 @@ struct Connection(Movable):
         """Closes the connection when it is deleted."""
         if self.db:
             _ = self^.close()
-    
+
     fn __enter__(var self) -> Self:
         """Enter the context manager.
 
@@ -204,7 +204,7 @@ struct Connection(Movable):
 
         Returns:
             The prepared statement.
-        
+
         Raises:
             Error: If the underlying SQLite prepare call fails or if multiple statements are found in the SQL string.
         """
@@ -219,7 +219,7 @@ struct Connection(Movable):
                 )
 
         return Statement(Pointer(to=self), RawStatement(stmt))
-    
+
     fn execute[P: AnyType](self, var sql: String, params: P = ()) raises -> Int64:
         """Executes a SQL statement with the given parameters.
 
@@ -232,11 +232,15 @@ struct Connection(Movable):
 
         Returns:
             The number of rows affected by the statement.
-        
+
         Raises:
             Error: If parameter binding fails or the underlying SQLite call fails.
         """
-        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`. Try a tuple or a list of parameters.")
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ",
+            get_type_name[P](),
+            " does not implement `Params`. Try a tuple or a list of parameters.",
+        )
         var stmt = self.prepare(sql^)
         try:
             return stmt.execute(params)
@@ -248,7 +252,7 @@ struct Connection(Movable):
 
         Args:
             sql: The batch of SQL statements to execute.
-        
+
         Raises:
             Error: If the underlying SQLite call fails or if any of the statements in the batch return results, which is not supported.
         """
@@ -257,7 +261,7 @@ struct Connection(Movable):
             # Is it possible to copy the sql string less here? I don't want to keep allocating strings.
             var stmt, tail = self.db.prepare(current_sql.copy(), PrepFlag.PREPARE_PERSISTENT)
             if stmt and Statement(Pointer(to=self), RawStatement(stmt)).step():
-                pass # some pragmas return results
+                pass  # some pragmas return results
                 # raise Error("ExecuteReturnedResults: The executed batch returned results, which is not supported.")
 
             if tail == 0 or Int(tail) >= len(current_sql):
@@ -275,12 +279,12 @@ struct Connection(Movable):
 
     fn last_insert_row_id(self) -> Int64:
         """Returns the row ID of the last inserted row.
-        
+
         Returns:
             The row ID of the last inserted row.
         """
         return self.db.last_insert_row_id()
-    
+
     # fn one_column[P: AnyType, //, T: FromSQL](self, var sql: String, params: P = ()) raises -> T:
     #     """Fetches a single column from the first row of the result set.
 
@@ -291,10 +295,10 @@ struct Connection(Movable):
     #     Args:
     #         sql: The SQL query to execute.
     #         params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
-        
+
     #     Returns:
     #         The value of the first column in the first row of the result set.
-        
+
     #     Raises:
     #         Error: If the query fails or no rows are returned.
     #     """
@@ -303,9 +307,9 @@ struct Connection(Movable):
     #         return row.get[T](0)
 
     #     return self.prepare(sql^).query[get_item](params)
-    
+
     fn one_row[
-        T: Movable, P: AnyType, //, transform: fn (Row) raises -> T
+        T: Movable, P: AnyType, //, transform: fn(Row) raises -> T
     ](self, var sql: String, params: P = ()) raises -> T:
         """Executes a SQL query and returns a single row.
 
@@ -324,7 +328,11 @@ struct Connection(Movable):
         Raises:
             Error: If the query fails or does not return exactly one row.
         """
-        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`. Try a tuple or a list of parameters.")
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ",
+            get_type_name[P](),
+            " does not implement `Params`. Try a tuple or a list of parameters.",
+        )
         var rows = self.prepare(sql^).query[transform](params)
         try:
             return next(rows)
@@ -476,7 +484,7 @@ struct Connection(Movable):
 
         Raises:
             Error: If the underlying SQLite call fails.
-        
+
                 #### Example:
 
         ```mojo
@@ -511,7 +519,7 @@ struct Connection(Movable):
 
         Raises:
             Error: If the underlying SQLite call fails.
-        
+
         #### Example:
 
         ```mojo
@@ -531,12 +539,10 @@ struct Connection(Movable):
             return Savepoint(Pointer(to=self))
 
     fn pragma_query_value[
-        T: Movable, //, transform: fn (Row) raises -> T,
-    ](
-        self,
-        pragma: String,
-        schema: Optional[String] = None,
-    ) raises -> T:
+        T: Movable,
+        //,
+        transform: fn(Row) raises -> T,
+    ](self, pragma: String, schema: Optional[String] = None,) raises -> T:
         """Query the current value of a pragma.
 
         Some pragmas will return multiple rows/values which cannot be retrieved
@@ -558,7 +564,7 @@ struct Connection(Movable):
 
         Raises:
             Error: If the underlying SQLite call fails.
-        
+
         #### Example:
 
         ```mojo
@@ -579,12 +585,8 @@ struct Connection(Movable):
         return self.one_row[transform](String(query))
 
     fn pragma_query[
-        callback: fn (Row) raises -> None
-    ](
-        self,
-        schema: Optional[String],
-        pragma: String,
-    ) raises:
+        callback: fn(Row) raises -> None
+    ](self, schema: Optional[String], pragma: String,) raises:
         """Query the current rows/values of a pragma.
 
         Prefer [PRAGMA function](https://sqlite.org/pragma.html#pragfunc) introduced in SQLite 3.20:
@@ -599,7 +601,7 @@ struct Connection(Movable):
 
         Raises:
             Error: If the underlying SQLite call fails.
-        
+
         #### Example:
 
         ```mojo
@@ -621,13 +623,8 @@ struct Connection(Movable):
             callback(row)
 
     fn pragma[
-        T: AnyType, //, callback: fn (Row) raises -> None
-    ](
-        self,
-        pragma: StringSlice,
-        value: T,
-        schema: Optional[String] = None,
-    ) raises:
+        T: AnyType, //, callback: fn(Row) raises -> None
+    ](self, pragma: StringSlice, value: T, schema: Optional[String] = None,) raises:
         """Query the current value(s) of a pragma associated with a value.
 
         This method can be used with query-only pragmas which need an argument
@@ -648,7 +645,7 @@ struct Connection(Movable):
 
         Raises:
             Error: If the underlying SQLite call fails.
-        
+
         #### Example:
 
         ```mojo
@@ -664,7 +661,9 @@ struct Connection(Movable):
             db.pragma[print_column]("table_info", "sqlite_master")
         ```
         """
-        comptime assert conforms_to(T, ToSQL), String("`value` must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`.")
+        comptime assert conforms_to(T, ToSQL), String(
+            "`value` must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+        )
         var sql = Sql()
         sql.push_pragma(pragma, schema)
         # The argument may be either in parentheses or separated by an equal sign
@@ -674,12 +673,9 @@ struct Connection(Movable):
         for row in self.prepare(String(sql)).query(()):
             callback(row)
 
-    fn pragma_update[T: AnyType, //](
-        self,
-        pragma: StringSlice,
-        value: T,
-        schema: Optional[String] = None,
-    ) raises:
+    fn pragma_update[
+        T: AnyType, //
+    ](self, pragma: StringSlice, value: T, schema: Optional[String] = None,) raises:
         """Set a new value to a pragma.
 
         Some pragmas will return the updated value which cannot be retrieved
@@ -695,7 +691,7 @@ struct Connection(Movable):
 
         Raises:
             Error: If the underlying SQLite call fails.
-        
+
         #### Example:
 
         ```mojo
@@ -714,13 +710,8 @@ struct Connection(Movable):
         self.execute_batch(String(sql))
 
     fn pragma_update_and_check[
-        T: Movable, V: AnyType, //, transform: fn (Row) raises -> T
-    ](
-        self,
-        pragma: StringSlice,
-        value: V,
-        schema: Optional[String] = None,
-    ) raises -> T:
+        T: Movable, V: AnyType, //, transform: fn(Row) raises -> T
+    ](self, pragma: StringSlice, value: V, schema: Optional[String] = None,) raises -> T:
         """Set a new value to a pragma and return the updated value.
 
         Only a few pragmas automatically return the updated value.
@@ -740,7 +731,7 @@ struct Connection(Movable):
 
         Raises:
             Error: If the underlying SQLite call fails.
-        
+
                 #### Example:
 
         ```mojo
@@ -758,16 +749,20 @@ struct Connection(Movable):
             print(mode)
         ```
         """
-        comptime assert conforms_to(V, ToSQL), String("`value` must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`.")
+        comptime assert conforms_to(V, ToSQL), String(
+            "`value` must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`."
+        )
         var sql = Sql()
         sql.push_pragma(pragma, schema)
         # The argument may be either in parentheses or separated by an equal sign
         sql.push_equal_sign()
         sql.push_value(value)
         return self.one_row[transform](String(sql))
-    
+
     # TODO: V should be constrained to ToSQL.
-    fn create_scalar_function[T: Copyable & ImplicitlyDestructible, V: ImplicitlyDestructible, //, x_func: fn (Context) raises -> V](
+    fn create_scalar_function[
+        T: Copyable & ImplicitlyDestructible, V: ImplicitlyDestructible, //, x_func: fn(Context) raises -> V
+    ](
         self,
         fn_name: String,
         n_arg: Int,
@@ -790,7 +785,7 @@ struct Connection(Movable):
         Args:
             fn_name: Name of the SQL function to create.
             n_arg: Number of arguments the function accepts (-1 for variable number).
-            user_data: An opaque pointer that is passed to the callback when the function is called. Can be used to store context or state for the function.
+            user_data: Data that is passed to the callback when the function is called. Can be used to store context or state for the function.
             flags: Function flags (encoding, determinism, etc.). Defaults to UTF-8 encoding and deterministic behavior.
 
         Raises:
@@ -801,9 +796,11 @@ struct Connection(Movable):
         # NULL for the unused callbacks.
         var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags, user_data.copy())
         self.raise_if_error(result)
-    
+
     # TODO: When extensions work, switch to ToSQL
-    fn create_scalar_function[V: ImplicitlyDestructible, //, x_func: fn (Context) raises -> V](
+    fn create_scalar_function[
+        V: ImplicitlyDestructible, //, x_func: fn(Context) raises -> V
+    ](
         self,
         fn_name: String,
         n_arg: Int,
@@ -832,15 +829,20 @@ struct Connection(Movable):
         # For scalar functions, SQLite requires xFunc to be non-NULL and
         # xStep/xFinal to be NULL. We call the raw C API directly to pass
         # NULL for the unused callbacks.
-        comptime assert conforms_to(V, ToSQL), String("Return type V must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`.")
+        comptime assert conforms_to(V, ToSQL), String(
+            "Return type V must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`."
+        )
         var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags)
         self.raise_if_error(result)
-    
+
     fn create_aggregate_function[
-        A: Movable & ImplicitlyDestructible, T: Movable & ImplicitlyDestructible, P: Copyable & ImplicitlyDestructible, //,
-        init_fn: fn (mut ctx: Context) raises -> A,
-        step_fn: fn (mut ctx: Context, mut acc: A) raises,
-        final_fn: fn (mut ctx: Context, acc: A) raises -> T,
+        A: Movable & ImplicitlyDestructible,
+        T: Movable & ImplicitlyDestructible,
+        P: Copyable & ImplicitlyDestructible,
+        //,
+        init_fn: fn(mut ctx: Context) raises -> A,
+        step_fn: fn(mut ctx: Context, mut acc: A) raises,
+        final_fn: fn(mut ctx: Context, acc: A) raises -> T,
     ](
         self,
         fn_name: String,
@@ -868,7 +870,7 @@ struct Connection(Movable):
         Args:
             fn_name: Name of the SQL aggregate function to create.
             n_arg: Number of arguments (-1 for variable number).
-            user_data: An opaque pointer that is passed to the callbacks when the function is called. Can be used to store context or state for the function.
+            user_data: Data that is passed to the callbacks when the function is called. Can be used to store context or state for the function.
             flags: Function flags.
 
         Raises:
@@ -876,15 +878,19 @@ struct Connection(Movable):
         """
         # For aggregate functions, SQLite requires xFunc to be NULL and
         # xStep/xFinal to be non-NULL.
-        comptime assert conforms_to(T, ToSQL), String("Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`.")
+        comptime assert conforms_to(T, ToSQL), String(
+            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+        )
         var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags, user_data)
         self.raise_if_error(result)
 
     fn create_aggregate_function[
-        A: Movable & ImplicitlyDestructible, T: Movable & ImplicitlyDestructible, //,
-        init_fn: fn (mut ctx: Context) raises -> A,
-        step_fn: fn (mut ctx: Context, mut acc: A) raises,
-        final_fn: fn (mut ctx: Context, acc: A) raises -> T,
+        A: Movable & ImplicitlyDestructible,
+        T: Movable & ImplicitlyDestructible,
+        //,
+        init_fn: fn(mut ctx: Context) raises -> A,
+        step_fn: fn(mut ctx: Context, mut acc: A) raises,
+        final_fn: fn(mut ctx: Context, acc: A) raises -> T,
     ](
         self,
         fn_name: String,
@@ -917,132 +923,113 @@ struct Connection(Movable):
         """
         # For aggregate functions, SQLite requires xFunc to be NULL and
         # xStep/xFinal to be non-NULL.
-        comptime assert conforms_to(T, ToSQL), String("Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`.")
+        comptime assert conforms_to(T, ToSQL), String(
+            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+        )
         var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags)
         self.raise_if_error(result)
 
-    # fn create_window_function[
-    #     step_origin: MutOrigin,
-    #     inverse_origin: MutOrigin,
-    # ](
-    #     self,
-    #     mut fn_name: String,
-    #     n_arg: Int,
-    #     flags: FunctionFlags,
-    #     x_step: fn (
-    #         MutExternalPointer[sqlite3_context],
-    #         c_int,
-    #         MutUnsafePointer[MutExternalPointer[sqlite3_value], step_origin],
-    #     ) -> NoneType,
-    #     x_final: fn (MutExternalPointer[sqlite3_context]) -> NoneType,
-    #     x_value: fn (MutExternalPointer[sqlite3_context]) -> NoneType,
-    #     x_inverse: fn (
-    #         MutExternalPointer[sqlite3_context],
-    #         c_int,
-    #         MutUnsafePointer[MutExternalPointer[sqlite3_value], inverse_origin],
-    #     ) -> NoneType,
-    # ) raises:
-    #     """Attach a user-defined aggregate window function to a database connection.
+    fn create_window_function[
+        A: Copyable & ImplicitlyDestructible,
+        T: Movable & ImplicitlyDestructible,
+        P: Copyable & ImplicitlyDestructible,
+        //,
+        init_fn: fn(mut ctx: Context) raises -> A,
+        step_fn: fn(mut ctx: Context, mut acc: A) raises,
+        final_fn: fn(mut ctx: Context, acc: A) raises -> T,
+        value_fn: fn(acc: Optional[A]) raises -> T,
+        inverse_fn: fn(mut ctx: Context, mut acc: A) raises,
+    ](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        user_data: P,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    ) raises:
+        """Attach a user-defined aggregate window function to a database connection.
 
-    #     Window functions operate over a sliding window of rows. In addition to
-    #     the `x_step` and `x_final` callbacks (like aggregate functions), they require
-    #     `x_value` (to return the current aggregate value without finalizing) and
-    #     `x_inverse` (to remove a row leaving the window frame).
+        Window functions operate over a sliding window of rows. In addition to
+        the `x_step` and `x_final` callbacks (like aggregate functions), they require
+        `x_value` (to return the current aggregate value without finalizing) and
+        `x_inverse` (to remove a row leaving the window frame).
 
-    #     See https://sqlite.org/windowfunctions.html#udfwinfunc for more information.
+        See https://sqlite.org/windowfunctions.html#udfwinfunc for more information.
 
-    #     Parameters:
-    #         step_origin: The origin of the xStep callback pointer.
-    #         inverse_origin: The origin of the xInverse callback pointer.
+        Parameters:
+            A: The type of the aggregate state. Must be Movable.
+            T: The return type of the aggregate function. Must conform to `ToSQL`.
+            P: The type of the application data to pass to the callbacks.
+            init_fn: The callback to initialize the aggregate state for a new group.
+            step_fn: The callback to update the aggregate state for each row in the group.
+            final_fn: The callback to compute the final result from the aggregate state.
+            value_fn: The callback to compute the current aggregate value without finalizing.
+            inverse_fn: The callback to update the aggregate state when a row leaves the window frame.
 
-    #     Args:
-    #         fn_name: Name of the SQL window function to create.
-    #         n_arg: Number of arguments (-1 for variable number).
-    #         flags: Function flags.
-    #         x_step: Called for each row entering the window.
-    #         x_final: Called to compute the final aggregate value.
-    #         x_value: Called to get the current aggregate value.
-    #         x_inverse: Called for each row leaving the window.
+        Args:
+            fn_name: Name of the SQL aggregate function to create.
+            n_arg: Number of arguments (-1 for variable number).
+            user_data: Data that is passed to the callbacks when the function is called. Can be used to store context or state for the function.
+            flags: Function flags.
 
-    #     Raises:
-    #         Error: If the function could not be attached to the connection.
-    #     """
-    #     # Window functions use sqlite3_create_window_function (no NULL slots needed).
-    #     var result = sqlite_ffi()[].create_window_function(
-    #         self.db,
-    #         fn_name.as_c_string_slice().unsafe_ptr(),
-    #         c_int(n_arg),
-    #         flags.value,
-    #         MutExternalPointer[NoneType](),  # pApp = NULL
-    #         x_step,
-    #         x_final,
-    #         x_value,
-    #         x_inverse,
-    #         MutExternalPointer[NoneType](),  # destructor = NULL
-    #     )
-    #     self.raise_if_error(self.db, SQLite3Result(result))
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        comptime assert conforms_to(T, ToSQL), String(
+            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+        )
+        var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
+            fn_name, n_arg, flags, user_data
+        )
+        self.raise_if_error(result)
 
-    # fn create_window_function_with_data[
-    #     app_origin: MutOrigin,
-    #     step_origin: MutOrigin,
-    #     inverse_origin: MutOrigin,
-    # ](
-    #     self,
-    #     mut fn_name: String,
-    #     n_arg: Int,
-    #     flags: FunctionFlags,
-    #     p_app: MutOpaquePointer[app_origin],
-    #     x_step: fn (
-    #         MutExternalPointer[sqlite3_context],
-    #         c_int,
-    #         MutUnsafePointer[MutExternalPointer[sqlite3_value], step_origin],
-    #     ) -> NoneType,
-    #     x_final: fn (MutExternalPointer[sqlite3_context]) -> NoneType,
-    #     x_value: fn (MutExternalPointer[sqlite3_context]) -> NoneType,
-    #     x_inverse: fn (
-    #         MutExternalPointer[sqlite3_context],
-    #         c_int,
-    #         MutUnsafePointer[MutExternalPointer[sqlite3_value], inverse_origin],
-    #     ) -> NoneType,
-    #     destructor: ResultDestructorFn,
-    # ) raises:
-    #     """Attach a user-defined window function with user data to a database connection.
+    fn create_window_function[
+        A: Copyable & ImplicitlyDestructible,
+        T: Movable & ImplicitlyDestructible,
+        //,
+        init_fn: fn(mut ctx: Context) raises -> A,
+        step_fn: fn(mut ctx: Context, mut acc: A) raises,
+        final_fn: fn(mut ctx: Context, acc: A) raises -> T,
+        value_fn: fn(acc: Optional[A]) raises -> T,
+        inverse_fn: fn(mut ctx: Context, mut acc: A) raises,
+    ](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    ) raises:
+        """Attach a user-defined aggregate window function to a database connection.
 
-    #     This variant allows passing application data (`p_app`) that can be retrieved
-    #     inside the callbacks using `FunctionContext.user_data()`.
+        Window functions operate over a sliding window of rows. In addition to
+        the `x_step` and `x_final` callbacks (like aggregate functions), they require
+        `x_value` (to return the current aggregate value without finalizing) and
+        `x_inverse` (to remove a row leaving the window frame).
 
-    #     Parameters:
-    #         app_origin: The origin of the pApp pointer.
-    #         step_origin: The origin of the xStep callback pointer.
-    #         inverse_origin: The origin of the xInverse callback pointer.
+        See https://sqlite.org/windowfunctions.html#udfwinfunc for more information.
 
-    #     Args:
-    #         fn_name: Name of the SQL window function to create.
-    #         n_arg: Number of arguments (-1 for variable number).
-    #         flags: Function flags.
-    #         p_app: User data pointer passed to callbacks via `sqlite3_user_data()`.
-    #         x_step: Called for each row entering the window.
-    #         x_final: Called to compute the final aggregate value.
-    #         x_value: Called to get the current aggregate value.
-    #         x_inverse: Called for each row leaving the window.
-    #         destructor: Callback invoked when the function is deleted to free p_app.
+        Parameters:
+            A: The type of the aggregate state. Must be Movable.
+            T: The return type of the aggregate function. Must conform to `ToSQL`.
+            init_fn: The callback to initialize the aggregate state for a new group.
+            step_fn: The callback to update the aggregate state for each row in the group.
+            final_fn: The callback to compute the final result from the aggregate state.
+            value_fn: The callback to compute the current aggregate value without finalizing.
+            inverse_fn: The callback to update the aggregate state when a row leaves the window frame.
 
-    #     Raises:
-    #         Error: If the function could not be attached to the connection.
-    #     """
-    #     var result = sqlite_ffi()[].create_window_function(
-    #         self.db,
-    #         fn_name.as_c_string_slice().unsafe_ptr(),
-    #         c_int(n_arg),
-    #         flags.value,
-    #         p_app,
-    #         x_step,
-    #         x_final,
-    #         x_value,
-    #         x_inverse,
-    #         destructor,
-    #     )
-    #     self.raise_if_error(self.db, SQLite3Result(result))
+        Args:
+            fn_name: Name of the SQL aggregate function to create.
+            n_arg: Number of arguments (-1 for variable number).
+            flags: Function flags.
+
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        comptime assert conforms_to(T, ToSQL), String(
+            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+        )
+        var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
+            fn_name, n_arg, flags
+        )
+        self.raise_if_error(result)
 
     # fn remove_function(
     #     self,

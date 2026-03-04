@@ -1,13 +1,12 @@
-from std.testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
 import std.tempfile
-from std.pathlib import Path
-
-from slight.connection import Connection
-from slight.statement import eq_ignore_ascii_case
-from slight.row import Row
-from slight.flags import OpenFlag
-from slight.c.raw_bindings import sqlite3_stmt, SQLITE_OK
 from slight.c.api import sqlite_ffi
+from slight.c.raw_bindings import SQLITE_OK, sqlite3_stmt
+from slight.connection import Connection
+from slight.flags import OpenFlag
+from slight.row import Row
+from slight.statement import eq_ignore_ascii_case
+from std.pathlib import Path
+from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 
 # # @fieldwise_init

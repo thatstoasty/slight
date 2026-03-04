@@ -1,6 +1,5 @@
-from std.ffi import _get_global
-
 from slight.c.bindings import sqlite3
+from std.ffi import _get_global
 
 
 fn _init_global() -> OpaquePointer[MutExternalOrigin]:

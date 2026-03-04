@@ -1,29 +1,25 @@
-from std.sys import stderr
-from std.os import abort
-from std.utils import Variant
-from std.reflection import get_type_name
-from slight.result import SQLite3Result
 from slight.c.raw_bindings import sqlite3_stmt
 from slight.c.sqlite_string import SQLiteMallocString
-from slight.c.types import (
-    DataType,
-    DestructorHint,
-    ResultDestructorFn,
-    MutExternalPointer,
-)
+from slight.c.types import DataType, DestructorHint, MutExternalPointer, ResultDestructorFn
 from slight.connection import Connection
-from slight.params import Params, List
+from slight.params import List, Params
 from slight.raw_statement import RawStatement
-from slight.row import Row, Rows, TypedRows, MappedRows
-from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
+from slight.result import SQLite3Result
+from slight.row import MappedRows, Row, Rows, TypedRows
 from slight.types.from_sql import FromSQL
 from slight.types.to_sql import ToSQL
+from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
 from slight.util import as_byte
+from std.os import abort
+from std.reflection import get_type_name
+from std.sys import stderr
+from std.utils import Variant
 
 
 @fieldwise_init
-struct InvalidColumnIndexError(Movable, Writable, TrivialRegisterPassable):
+struct InvalidColumnIndexError(Movable, TrivialRegisterPassable, Writable):
     """An error type for invalid column index indexing."""
+
     comptime msg = "InvalidColumnIndex: Index provided is greater than the number of columns."
     """Error message."""
 
@@ -39,6 +35,7 @@ struct InvalidColumnIndexError(Movable, Writable, TrivialRegisterPassable):
 @fieldwise_init
 struct InvalidColumnNameError(Movable, Writable):
     """An error type for invalid column name indexing."""
+
     comptime msg = "InvalidColumnNameError: Name provided does not match any column. Column name: "
     """Error message."""
     var column: String
@@ -54,10 +51,10 @@ struct InvalidColumnNameError(Movable, Writable):
         writer.write_string(self.column)
 
 
-
 @fieldwise_init
 struct InvalidColumnError(Movable, Writable):
     """An error type for invalid column indexing, encompassing both index and name errors."""
+
     comptime msg = "InvalidColumnNameError: Name provided does not match any column. Column name: "
     """Error message."""
     var err: Variant[InvalidColumnNameError, InvalidColumnIndexError]
@@ -66,16 +63,16 @@ struct InvalidColumnError(Movable, Writable):
     @implicit
     fn __init__(out self, var e: InvalidColumnNameError):
         """Initializes the InvalidColumnError.
-        
+
         Args:
             e: The original error.
         """
         self.err = e^
-    
+
     @implicit
     fn __init__(out self, e: InvalidColumnIndexError):
         """Initializes the InvalidColumnError.
-        
+
         Args:
             e: The original error.
         """
@@ -150,7 +147,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
     fn __repr__(self) -> String:
         """Returns a string representation of the statement for debugging purposes.
-        
+
         Returns:
             A string representation of the statement.
         """
@@ -187,8 +184,12 @@ struct Statement[conn: ImmutOrigin](Movable):
             return ValueRef[origin_of(self)](SQLite3Real(self.stmt.column_double(col)))
         elif DataType.TEXT == column_type:
             try:
-                return ValueRef[origin_of(self)](SQLite3Text(
-                    StringSlice(unsafe_from_utf8_ptr=self.stmt.column_text(col).unsafe_origin_cast[origin_of(self)]()))
+                return ValueRef[origin_of(self)](
+                    SQLite3Text(
+                        StringSlice(
+                            unsafe_from_utf8_ptr=self.stmt.column_text(col).unsafe_origin_cast[origin_of(self)]()
+                        )
+                    )
                 )
             except e:
                 abort(String(e))
@@ -271,7 +272,7 @@ struct Statement[conn: ImmutOrigin](Movable):
                 raise Error(error[])
             else:
                 raise Error("Unknown error occurred during step execution: ", r)
-    
+
     fn execute[P: AnyType](self, params: P = ()) raises -> Int64:
         """Executes the statement with the given parameters and returns the number of affected rows.
 
@@ -291,7 +292,9 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If the statement returns rows (use query() for SELECT statements),
                    or if any other error occurs during execution.
         """
-        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`.")
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`."
+        )
         trait_downcast[Params](params).bind(self)
         return self._execute()
 
@@ -342,7 +345,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If the bind operation fails.
         """
         self.connection[].raise_if_error(self.stmt.bind_text(index, value, destructor_callback))
-    
+
     fn bind_blob(self, index: UInt, value: Span[Byte], destructor_callback: ResultDestructorFn) raises -> None:
         """Binds a blob value to the specified parameter.
 
@@ -366,7 +369,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             The 1-based index of the parameter.
         """
         return self.stmt.bind_parameter_index(name^)
-    
+
     fn bind_parameter[T: AnyType](self, parameter: T, index: UInt) raises:
         """Binds a parameter to a specific position in the statement.
 
@@ -380,7 +383,9 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If the parameter type is unsupported or binding fails.
         """
-        comptime assert conforms_to(T, ToSQL), String("`parameter` must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`.")
+        comptime assert conforms_to(T, ToSQL), String(
+            "`parameter` must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+        )
         var value = trait_downcast[ToSQL](parameter).to_sql()
         if value.isa[SQLite3Null]():
             self.bind_null(index)
@@ -395,7 +400,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             self.bind_blob(index, value[SQLite3Blob[value.stmt]].value, DestructorHint.transient_destructor())
         else:
             raise Error("Unsupported parameter type")
-    
+
     fn query[P: AnyType](self, params: P = ()) raises -> Rows[Self.conn, origin_of(self)]:
         """Executes the statement as a query and returns an iterator over the result rows.
 
@@ -414,12 +419,14 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If parameter binding fails or the query execution fails.
         """
-        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`.")
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`."
+        )
         trait_downcast[Params](params).bind(self)
         return Rows(Pointer(to=self))
-    
+
     fn query[
-        T: Movable, P: AnyType, //, transform: fn (Row) raises -> T
+        T: Movable, P: AnyType, //, transform: fn(Row) raises -> T
     ](self, params: P = ()) raises -> MappedRows[Self.conn, origin_of(self), transform]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
@@ -440,11 +447,15 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If parameter binding fails or the query execution fails.
         """
-        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`.")
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`."
+        )
         return MappedRows[Self.conn, origin_of(self), transform](self.query(params))
 
     fn query[
-        P: AnyType, //, T: Defaultable & Movable,
+        P: AnyType,
+        //,
+        T: Defaultable & Movable,
     ](self, params: P = ()) raises -> TypedRows[Self.conn, origin_of(self), T]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
@@ -464,7 +475,9 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If parameter binding fails or the query execution fails.
         """
-        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`.")
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`."
+        )
         return TypedRows[Self.conn, origin_of(self), T](self.query(params))
 
     fn exists[P: AnyType](self, params: P = ()) raises -> Bool:
@@ -486,17 +499,17 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If parameter binding fails or the query execution fails.
         """
-        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`.")
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`."
+        )
         var rows = self.query(params)
         try:
             _ = rows.__next__()
             return True
         except StopIteration:
             return False
-    
-    fn one_row[
-        T: Movable, P: AnyType, //, transform: fn (Row) raises -> T
-    ](self, params: P = ()) raises -> T:
+
+    fn one_row[T: Movable, P: AnyType, //, transform: fn(Row) raises -> T](self, params: P = ()) raises -> T:
         """Executes a SQL query and returns a single row.
 
         Parameters:
@@ -513,7 +526,9 @@ struct Statement[conn: ImmutOrigin](Movable):
         Raises:
             Error: If the query fails or does not return exactly one row.
         """
-        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`.")
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`."
+        )
         var rows = self.query[transform](params)
         try:
             return next(rows)
@@ -589,9 +604,9 @@ struct Statement[conn: ImmutOrigin](Movable):
             # which we've already checked.
             if eq_ignore_ascii_case(name.as_bytes(), self.column_name(UInt(i)).as_bytes()):
                 return UInt(i)
-            
+
         raise Error("InvalidColumnNameError: no column with the specified name exists.")
-    
+
     fn insert[P: AnyType](self, params: P = ()) raises -> Int64:
         """Executes an INSERT statement and returns the last inserted row ID.
 
@@ -612,7 +627,9 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If the number of affected rows is not exactly one,
             or if any error occurs during execution.
         """
-        comptime assert conforms_to(P, Params), String("`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`.")
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`."
+        )
         var changes = self.execute(params)
         if changes == 1:
             return self.connection[].last_insert_row_id()
@@ -631,7 +648,7 @@ struct Statement[conn: ImmutOrigin](Movable):
 
     fn is_read_only(self) -> Bool:
         """Returns whether the prepared statement is read-only.
-        
+
         A read-only statement is one that does not modify the database (e.g., SELECT).
 
         Returns:

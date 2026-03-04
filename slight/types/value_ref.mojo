@@ -1,5 +1,5 @@
-from std.utils import Variant
 from std.os import abort
+from std.utils import Variant
 
 
 trait SQLType(Copyable):
@@ -38,7 +38,7 @@ struct SQLite3Integer(SQLType):
             value: The value to wrap.
         """
         self.value = value
-    
+
     @implicit
     fn __init__(out self, value: Int):
         """Initialize a `SQLite3Integer` with the given `Int` value.
@@ -172,7 +172,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
             value: The SQLite3Blob value to store.
         """
         self.value = value^
-    
+
     fn __init__(out self, value: Self._type):
         """Initialize a ValueRef by copying another ValueRef.
 
@@ -191,7 +191,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
             self.value = value[SQLite3Blob[Self.stmt]].copy()
         else:
             abort("UNREACHABLE: invalid variant type for ValueRef initialization")
-    
+
     fn write_to(self, mut writer: Some[Writer]):
         """Write the string representation of the SQL value to the given writer.
 
@@ -228,7 +228,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         """
         return self.value.isa[T]()
 
-    fn __getitem__[T: SQLType](self) -> ref [self.value] T:
+    fn __getitem__[T: SQLType](self) -> ref[self.value] T:
         """Get the value as the specified type T.
 
         This method provides type-safe access to the stored SQL value. The type T
@@ -250,7 +250,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A String representing the SQL value.
-        
+
         Raises:
             Error: If the value is not of type TEXT.
         """
@@ -267,7 +267,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A String representing the SQL value, or None if the value is NULL.
-        
+
         Raises:
             Error: If the value is not of type TEXT or NULL.
         """
@@ -286,7 +286,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             An Int64 representing the SQL value.
-        
+
         Raises:
             Error: If the value is not of type INTEGER.
         """
@@ -303,7 +303,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             An Int64 representing the SQL value, or None if the value is NULL.
-        
+
         Raises:
             Error: If the value is not of type INTEGER or NULL.
         """
@@ -322,7 +322,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A Float64 representing the SQL value, or None if the value is NULL.
-        
+
         Raises:
             Error: If the value is not of type REAL.
         """
@@ -339,7 +339,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A Float64 representing the SQL value, or None if the value is NULL.
-        
+
         Raises:
             Error: If the value is not of type REAL or NULL.
         """
@@ -358,7 +358,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A Span of Bytes representing the SQL value.
-        
+
         Raises:
             Error: If the value is not of type BLOB.
         """
@@ -375,7 +375,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A Span of Bytes representing the SQL value, or None if the value is NULL.
-        
+
         Raises:
             Error: If the value is not of type BLOB or NULL.
         """
@@ -393,7 +393,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A Span of Bytes representing the SQL value.
-        
+
         Raises:
             Error: If the value is not of type BLOB or TEXT.
         """
@@ -411,7 +411,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         Returns:
             A Span of Bytes representing the SQL value, or None if the value is NULL.
-        
+
         Raises:
             Error: If the value is not of type BLOB, TEXT, or NULL.
         """

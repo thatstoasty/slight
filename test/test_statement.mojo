@@ -1,8 +1,7 @@
-from testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
-
 from slight.connection import Connection
-from slight.statement import eq_ignore_ascii_case
 from slight.row import Row
+from slight.statement import eq_ignore_ascii_case
+from testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 
 fn test_execute_named() raises:

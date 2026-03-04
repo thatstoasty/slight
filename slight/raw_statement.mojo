@@ -1,8 +1,8 @@
-from std.os import abort
 from slight.c.api import sqlite_ffi
-from slight.result import SQLite3Result
-from slight.c.types import sqlite3_stmt, ResultDestructorFn, TextEncoding, MutExternalPointer, ImmutExternalPointer
 from slight.c.sqlite_string import SQLiteMallocString
+from slight.c.types import ImmutExternalPointer, MutExternalPointer, ResultDestructorFn, TextEncoding, sqlite3_stmt
+from slight.result import SQLite3Result
+from std.os import abort
 
 
 @fieldwise_init
@@ -23,7 +23,7 @@ struct RawStatement(Movable):
 
     fn __bool__(self) -> Bool:
         """Returns True if the statement is valid (i.e., the stmt pointer is not null).
-        
+
         Returns:
             True if the statement is valid, False otherwise.
         """
@@ -62,7 +62,7 @@ struct RawStatement(Movable):
 
         Returns:
             The value of the specified column as a StringSlice.
-        
+
         Raises:
             Error: If the column contains NULL data.
         """
@@ -143,7 +143,7 @@ struct RawStatement(Movable):
 
         Args:
             index: The 1-based index of the parameter to bind.
-        
+
         Returns:
             The SQLite result code from binding the NULL value.
         """
@@ -155,7 +155,7 @@ struct RawStatement(Movable):
         Args:
             index: The 1-based index of the parameter to bind.
             value: The integer value to bind.
-        
+
         Returns:
             The SQLite result code from binding the integer value.
         """
@@ -167,7 +167,7 @@ struct RawStatement(Movable):
         Args:
             index: The 1-based index of the parameter to bind.
             value: The float value to bind.
-        
+
         Returns:
             The SQLite result code from binding the float value.
         """
@@ -180,14 +180,14 @@ struct RawStatement(Movable):
             index: The 1-based index of the parameter to bind.
             value: The string value to bind.
             destructor_callback: The destructor function to call when SQLite is done with the text.
-        
+
         Returns:
             The SQLite result code from binding the text value.
         """
         return sqlite_ffi()[].bind_text64(
             self.stmt, Int32(index), value, UInt64(len(value)), TextEncoding.UTF8, destructor_callback
         )
-    
+
     fn bind_blob(self, index: UInt, value: Span[Byte], destructor_callback: ResultDestructorFn) -> SQLite3Result:
         """Binds a blob value to the specified parameter.
 
@@ -195,7 +195,7 @@ struct RawStatement(Movable):
             index: The 1-based index of the parameter to bind.
             value: The blob value to bind.
             destructor_callback: The destructor function to call when SQLite is done with the blob.
-        
+
         Returns:
             The SQLite result code from binding the blob value.
         """
@@ -214,9 +214,7 @@ struct RawStatement(Movable):
 
         # We don't really know the origin of this string, it's a pointer returned by SQLite.
         # But it should be valid as long as the statement is valid, so we use the same origin as the statement.
-        return StringSlice(
-            unsafe_from_utf8_ptr=sqlite_ffi()[].sql(self.stmt).unsafe_origin_cast[origin_of(self)]()
-        )
+        return StringSlice(unsafe_from_utf8_ptr=sqlite_ffi()[].sql(self.stmt).unsafe_origin_cast[origin_of(self)]())
 
     fn expanded_sql(self) -> Optional[SQLiteMallocString]:
         """Returns the SQL text of the prepared statement with bound parameters expanded.
@@ -303,7 +301,7 @@ struct RawStatement(Movable):
 
     fn is_read_only(self) -> Bool:
         """Returns whether the prepared statement is read-only.
-        
+
         A read-only statement is one that does not modify the database (e.g., a SELECT statement).
 
         Returns:

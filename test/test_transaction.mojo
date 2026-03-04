@@ -1,8 +1,9 @@
-from std.testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
-
 from slight.connection import Connection
-from slight.transaction import Transaction, Savepoint, TransactionBehavior, DropBehavior
-from slight import Row, String, Int, Bool, SIMD, Params
+from slight.transaction import DropBehavior, Savepoint, Transaction, TransactionBehavior
+from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
+
+from slight import SIMD, Bool, Int, Params, Row, String
+
 
 comptime dummy_int: Int = 1
 

@@ -1,12 +1,12 @@
-from std.ffi import c_char
 from slight.c.api import sqlite_ffi
 from slight.c.types import MutExternalPointer
+from std.ffi import c_char
 
 
 @fieldwise_init
 struct SQLiteMallocString(Movable):
     """A string we are in charge of freeing that's allocated on the SQLite heap.
-    
+
     Automatically calls `sqlite3_free` when deleted."""
 
     var ptr: MutExternalPointer[c_char]
@@ -16,10 +16,10 @@ struct SQLiteMallocString(Movable):
         """Frees the C string using `sqlite3_free` when the `SQLiteMallocString` is deleted."""
         if self.ptr:
             sqlite_ffi()[].free(self.ptr.bitcast[NoneType]())
-    
+
     fn unsafe_ptr[
         origin: Origin, address_space: AddressSpace, //
-    ](ref [origin, address_space]self) -> UnsafePointer[c_char, origin, address_space=address_space]:
+    ](ref[origin, address_space] self) -> UnsafePointer[c_char, origin, address_space=address_space]:
         """Retrieves a pointer to the underlying memory.
 
         Parameters:

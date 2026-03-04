@@ -29,33 +29,25 @@ fn main() raises:
 ```
 """
 
-from std.ffi import c_int, c_uint, c_char, c_uchar
-from std.memory import MutUnsafePointer, MutOpaquePointer
-from std.os import abort
-
 from slight.c.api import sqlite_ffi
+from slight.c.raw_bindings import sqlite3_connection as _sqlite3_connection
 from slight.c.types import (
-    MutExternalPointer,
-    ImmutExternalPointer,
-    ResultDestructorFn,
     DataType,
-    TextEncoding,
     DestructorHint,
+    ImmutExternalPointer,
+    MutExternalPointer,
+    ResultDestructorFn,
+    TextEncoding,
     sqlite3_connection,
     sqlite3_context,
     sqlite3_value,
 )
-from slight.c.raw_bindings import sqlite3_connection as _sqlite3_connection
+from slight.error import decode_error, raise_if_error
 from slight.result import SQLite3Result
-from slight.error import raise_if_error, decode_error
-from slight.types.value_ref import (
-    ValueRef,
-    SQLite3Null,
-    SQLite3Integer,
-    SQLite3Real,
-    SQLite3Text,
-    SQLite3Blob,
-)
+from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
+from std.ffi import c_char, c_int, c_uchar, c_uint
+from std.memory import MutOpaquePointer, MutUnsafePointer
+from std.os import abort
 
 
 # ===----------------------------------------------------------------------=== #
@@ -134,12 +126,12 @@ struct FunctionFlags(ImplicitlyCopyable):
 
 #         Returns:
 #             An instance of the aggregation context type `A`, which will be passed to the `update
-        
+
 #         Raises:
 #             Any errors that occur during initialization process.
 #         """
 #         ...
-    
+
 #     fn step(self, mut ctx: Context, mut acc: A) raises:
 #         """Processes a single row of input for the aggregate function.
 
@@ -153,7 +145,7 @@ struct FunctionFlags(ImplicitlyCopyable):
 #             Any errors that occur during the processing of a row.
 #         """
 #         ...
-    
+
 #     fn finalize(self, mut ctx: Context, acc: Optional[A]) raises -> T:
 #         """Finalizes the aggregate function and computes the result.
 
@@ -221,7 +213,9 @@ struct Context(Movable, Sized):
         self.ctx = ctx
         self.args = []
 
-    fn __init__[argv_origin: MutOrigin](
+    fn __init__[
+        argv_origin: MutOrigin
+    ](
         out self,
         ctx: MutExternalPointer[sqlite3_context],
         argc: c_int,
@@ -280,23 +274,13 @@ struct Context(Movable, Sized):
         if DataType.NULL.value == value_type.value:
             return ValueRef[origin_of(self)](SQLite3Null())
         elif DataType.INTEGER.value == value_type.value:
-            return ValueRef[origin_of(self)](
-                SQLite3Integer(sqlite_ffi()[].value_int64(value))
-            )
+            return ValueRef[origin_of(self)](SQLite3Integer(sqlite_ffi()[].value_int64(value)))
         elif DataType.FLOAT.value == value_type.value:
-            return ValueRef[origin_of(self)](
-                SQLite3Real(sqlite_ffi()[].value_double(value))
-            )
+            return ValueRef[origin_of(self)](SQLite3Real(sqlite_ffi()[].value_double(value)))
         elif DataType.TEXT.value == value_type.value:
             var text_ptr = sqlite_ffi()[].value_text(value)
             return ValueRef[origin_of(self)](
-                SQLite3Text(
-                    StringSlice(
-                        unsafe_from_utf8_ptr=text_ptr.unsafe_origin_cast[
-                            origin_of(self)
-                        ]()
-                    )
-                )
+                SQLite3Text(StringSlice(unsafe_from_utf8_ptr=text_ptr.unsafe_origin_cast[origin_of(self)]()))
             )
         elif DataType.BLOB.value == value_type.value:
             var blob_ptr = sqlite_ffi()[].value_blob(value)
@@ -304,16 +288,13 @@ struct Context(Movable, Sized):
             return ValueRef[origin_of(self)](
                 SQLite3Blob(
                     Span[Byte, origin_of(self)](
-                        ptr=blob_ptr.bitcast[Byte]()
-                        .unsafe_origin_cast[origin_of(self)](),
+                        ptr=blob_ptr.bitcast[Byte]().unsafe_origin_cast[origin_of(self)](),
                         length=n_bytes,
                     )
                 )
             )
         else:
-            abort(
-                "[UNREACHABLE] sqlite3_value_type returned an invalid value"
-            )
+            abort("[UNREACHABLE] sqlite3_value_type returned an invalid value")
 
     fn get_int64(self, idx: Int) -> Int64:
         """Returns the `idx`th argument as an Int64.
@@ -360,11 +341,7 @@ struct Context(Movable, Sized):
         """
         debug_assert(idx < len(self), "Argument index out of bounds")
         var text_ptr = sqlite_ffi()[].value_text(self.args[idx])
-        return StringSlice(
-            unsafe_from_utf8_ptr=text_ptr.unsafe_origin_cast[
-                origin_of(self)
-            ]()
-        )
+        return StringSlice(unsafe_from_utf8_ptr=text_ptr.unsafe_origin_cast[origin_of(self)]())
 
     fn get_blob(self, idx: Int) -> Span[Byte, origin_of(self)]:
         """Returns the `idx`th argument as a Span of bytes (BLOB).
@@ -577,12 +554,9 @@ struct Context(Movable, Sized):
         """
         return sqlite_ffi()[].get_auxdata(self.ctx, c_int(arg))
 
-    fn set_auxdata[data_origin: MutOrigin](
-        self,
-        arg: Int,
-        data: MutOpaquePointer[data_origin],
-        destructor: ResultDestructorFn,
-    ):
+    fn set_auxdata[
+        data_origin: MutOrigin
+    ](self, arg: Int, data: MutOpaquePointer[data_origin], destructor: ResultDestructorFn,):
         """Set the auxiliary data associated with a particular parameter.
 
         This saves metadata that can be retrieved later using `get_auxdata`.

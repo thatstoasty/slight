@@ -1,6 +1,6 @@
 from slight.c.api import sqlite_ffi
-from slight.c.types import MutExternalPointer
 from slight.c.bindings import sqlite3_connection
+from slight.c.types import MutExternalPointer
 from slight.result import SQLite3Result
 
 
@@ -67,4 +67,7 @@ fn error_from_sqlite_code(code: SQLite3Result, msg: Optional[String]) -> String:
     """
     if msg:
         return t"sqlite3 Error ({code.value}): {msg.value()}"
-    return t"sqlite3 Error ({code.value}): Unknown error has occurred. The provided code was invalid and could not get the error via sqlite3 handle."
+    return (
+        t"sqlite3 Error ({code.value}): Unknown error has occurred. The provided code was invalid and could not get the"
+        " error via sqlite3 handle."
+    )

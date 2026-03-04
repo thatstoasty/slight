@@ -5,8 +5,8 @@ for atomic database operations with rollback capabilities.
 """
 
 from slight.connection import Connection
-from slight.transaction import Transaction, Savepoint, TransactionBehavior, DropBehavior
 from slight.row import Row
+from slight.transaction import DropBehavior, Savepoint, Transaction, TransactionBehavior
 
 
 fn print_account_balances(db: Connection) raises:

@@ -1,7 +1,7 @@
-from std.sys.intrinsics import _type_is_eq
+from slight.types.value_ref import ValueRef
 from std.builtin.rebind import downcast
 from std.reflection import get_type_name
-from slight.types.value_ref import ValueRef
+from std.sys.intrinsics import _type_is_eq
 
 
 trait FromSQL(Copyable):
@@ -12,7 +12,7 @@ trait FromSQL(Copyable):
 
         Args:
             value: The SQL value to construct the type from.
-        
+
         Raises:
             Error: If the value cannot be converted to the type.
         """
@@ -25,7 +25,7 @@ __extension Int(FromSQL):
 
         Args:
             value: The SQL value to construct the type from.
-        
+
         Raises:
             Error: If the value cannot be converted to the type.
         """
@@ -37,7 +37,11 @@ __extension Optional(FromSQL):
         # Assert T conforms to FromSQL at compile time.
         # Then that enables us to safely downcast the value to T and call its FromSQL initializer.
         # We rely on the that initializer to properly construct itself from the sqlite value.
-        comptime assert conforms_to(Self.T, FromSQL), String("Optional can only be used with types that implement `FromSQL`. ", get_type_name[Self.T](), " does not implement `FromSQL`.")
+        comptime assert conforms_to(Self.T, FromSQL), String(
+            "Optional can only be used with types that implement `FromSQL`. ",
+            get_type_name[Self.T](),
+            " does not implement `FromSQL`.",
+        )
         if value.isa[SQLite3Null]():
             self = Optional[Self.T](None)
         else:
@@ -50,7 +54,7 @@ __extension String(FromSQL):
 
         Args:
             value: The SQL value to construct the type from.
-        
+
         Raises:
             Error: If the value cannot be converted to the type.
         """
@@ -69,7 +73,7 @@ __extension Bool(FromSQL):
 
         Args:
             value: The SQL value to construct the type from.
-        
+
         Raises:
             Error: If the value cannot be converted to the type.
         """
@@ -82,7 +86,7 @@ __extension NoneType(FromSQL):
 
         Args:
             value: The SQL value to construct the type from.
-        
+
         Raises:
             Error: If the value cannot be converted to the type.
         """
@@ -95,14 +99,23 @@ __extension SIMD(FromSQL):
 
         Args:
             value: The SQL value to construct the type from.
-        
+
         Raises:
             Error: If the value cannot be converted to the type.
         """
         comptime if dtype in (DType.float16, DType.float32, DType.float64):
             self = Scalar[dtype](value.as_float64())
-        elif dtype in (DType.int8, DType.int16, DType.int32, DType.int64,
-                       DType.uint, DType.uint8, DType.uint16, DType.uint32, DType.uint64):
+        elif dtype in (
+            DType.int8,
+            DType.int16,
+            DType.int32,
+            DType.int64,
+            DType.uint,
+            DType.uint8,
+            DType.uint16,
+            DType.uint32,
+            DType.uint64,
+        ):
             self = Scalar[dtype](value.as_int64())
         else:
             raise Error("InvalidColumnTypeError: Unsupported value type")
@@ -117,11 +130,11 @@ __extension List(FromSQL):
 
         Args:
             value: The SQL value to construct the type from.
-        
+
         Raises:
             Error: If the value cannot be converted to the type.
         """
-        comptime assert _type_is_eq[Self.T, Byte](), String("List can only be used with Byte type for `FromSQL`. ", get_type_name[Self.T](), " is not Byte.")
-        self = rebind_var[List[Self.T]](
-            List[Byte](value.as_blob())
+        comptime assert _type_is_eq[Self.T, Byte](), String(
+            "List can only be used with Byte type for `FromSQL`. ", get_type_name[Self.T](), " is not Byte."
         )
+        self = rebind_var[List[Self.T]](List[Byte](value.as_blob()))

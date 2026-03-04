@@ -1,8 +1,9 @@
+from std.ffi import c_char, c_int
 from std.memory import OpaquePointer
 from std.utils import StaticTuple
-from std.ffi import c_char, c_int
 
-comptime ImmutExternalPointer = ImmutUnsafePointer[origin = ImmutExternalOrigin]
+
+comptime ImmutExternalPointer = ImmutUnsafePointer[origin=ImmutExternalOrigin]
 """Immutable External Pointer.
 
 Parameters:
@@ -14,7 +15,7 @@ comptime ImmutExternalOpaquePointer = ImmutExternalPointer[NoneType]
 Parameters:
     type: The type of the data the pointer points to.
 """
-comptime MutExternalPointer = MutUnsafePointer[origin = MutExternalOrigin]
+comptime MutExternalPointer = MutUnsafePointer[origin=MutExternalOrigin]
 """Mutable External Pointer.
 
 Parameters:
@@ -29,18 +30,19 @@ Parameters:
 
 
 @fieldwise_init
-struct DataType(Movable, Equatable, TrivialRegisterPassable):
+struct DataType(Equatable, Movable, TrivialRegisterPassable):
     """Fundamental Datatypes.
-    
+
     Every value in SQLite has one of five fundamental datatypes:
     * 64-bit signed integer
     * 64-bit IEEE floating point number
     * string
     * BLOB
     * NULL
-    
+
     These constants are codes for each of those types.
     """
+
     var value: Int32
     """Internal enum value."""
     comptime INTEGER = Self(1)
@@ -59,18 +61,18 @@ struct DataType(Movable, Equatable, TrivialRegisterPassable):
 
         Args:
             other: The other `DataType` to compare against.
-        
+
         Returns:
             True if both `DataType` instances have the same value, False otherwise.
         """
         return self.value == other.value
-    
+
     fn __eq__(self, other: Int32) -> Bool:
         """Checks if this value is equal to a raw integer value.
 
         Args:
             other: The raw integer value to compare against.
-        
+
         Returns:
             True if the `DataType`'s value is equal to the raw integer value, False otherwise.
         """
@@ -80,10 +82,11 @@ struct DataType(Movable, Equatable, TrivialRegisterPassable):
 @fieldwise_init
 struct TextEncoding(Movable, TrivialRegisterPassable):
     """Text Encodings.
-    
+
     These constant define integer codes that represent the various
     text encodings supported by SQLite.
     """
+
     var value: UInt8
     """Internal enum value."""
     comptime UTF8 = Self(1)
@@ -125,7 +128,7 @@ struct sqlite3_file(Movable):
 # Callback Type Aliases
 # ===----------------------------------------------------------------------=== #
 
-comptime ScalarFnCallback = fn (
+comptime ScalarFnCallback = fn(
     MutExternalPointer[sqlite3_context],
     c_int,
     MutExternalPointer[MutExternalPointer[sqlite3_value]],
@@ -140,7 +143,7 @@ The callback receives:
 Use `Context` to conveniently access arguments and set results.
 """
 
-comptime AggStepCallback = fn (
+comptime AggStepCallback = fn(
     MutExternalPointer[sqlite3_context],
     c_int,
     MutExternalPointer[MutExternalPointer[sqlite3_value]],
@@ -150,33 +153,29 @@ comptime AggStepCallback = fn (
 Called once for each row in an aggregate group.
 """
 
-comptime AggFinalCallback = fn (
-    MutExternalPointer[sqlite3_context],
-) -> NoneType
+comptime AggFinalCallback = fn(MutExternalPointer[sqlite3_context],) -> NoneType
 """Callback type for the finalize function of an aggregate SQL function.
 
 Called once after all rows have been processed to compute the final result.
 """
 
-comptime WindowValueCallback = fn (
-    MutExternalPointer[sqlite3_context],
-) -> NoneType
+comptime WindowValueCallback = fn(MutExternalPointer[sqlite3_context],) -> NoneType
 """Callback type for the value function of a window aggregate function.
 
 Returns the current value of the aggregate without finalizing.
 """
 
-comptime WindowInverseCallback = fn (
+comptime WindowInverseCallback = fn(
     MutExternalPointer[sqlite3_context],
     c_int,
-    MutUnsafePointer[MutExternalPointer[sqlite3_value]],
+    MutExternalPointer[MutExternalPointer[sqlite3_value]],
 ) -> NoneType
 """Callback type for the inverse function of a window aggregate function.
 
 Called when a row leaves the window frame.
 """
 
-comptime ResultDestructorFn = fn (MutExternalPointer[NoneType]) -> NoneType
+comptime ResultDestructorFn = fn(MutExternalPointer[NoneType]) -> NoneType
 """Constants Defining Special Destructor Behavior.
 
 These are special values for the destructor that is passed in as the
@@ -207,28 +206,28 @@ struct DestructorHint(Movable, TrivialRegisterPassable):
     """`SQLITE_STATIC`: The content pointer is constant and will never change."""
     comptime TRANSIENT = Self(-1)
     """`SQLITE_TRANSIENT`: The content will likely change in the near future and SQLite should make its own private copy of the content before returning."""
-    
+
     # Why do I have to do this cursed conversion?
     @staticmethod
     fn static_destructor() -> ResultDestructorFn:
         """Returns a function pointer representing the `SQLITE_STATIC` destructor.
-        
+
         Returns:
             A function pointer representing the `SQLITE_STATIC` destructor.
         """
         return UnsafePointer(to=Self.STATIC.value).bitcast[ResultDestructorFn]()[]
-    
+
     @staticmethod
     fn transient_destructor() -> ResultDestructorFn:
         """Returns a function pointer representing the `SQLITE_TRANSIENT` destructor.
-        
+
         Returns:
             A function pointer representing the `SQLITE_TRANSIENT` destructor.
         """
         return UnsafePointer(to=Self.TRANSIENT.value).bitcast[ResultDestructorFn]()[]
 
 
-comptime ExecCallbackFn = fn[argv_origin: MutOrigin, col_name_origin: MutOrigin] (
+comptime ExecCallbackFn = fn[argv_origin: MutOrigin, col_name_origin: MutOrigin](
     data: MutOpaquePointer,
     argc: Int32,
     argv: MutUnsafePointer[MutUnsafePointer[c_char, argv_origin]],
@@ -238,7 +237,7 @@ comptime ExecCallbackFn = fn[argv_origin: MutOrigin, col_name_origin: MutOrigin]
 
 comptime AuthCallbackFn = fn[
     origin: MutOrigin, origin2: ImmutOrigin, origin3: ImmutOrigin, origin4: ImmutOrigin, origin5: ImmutOrigin
-] (
+](
     MutOpaquePointer[origin],
     c_int,
     ImmutUnsafePointer[c_char, origin2],
@@ -248,12 +247,13 @@ comptime AuthCallbackFn = fn[
 ) -> c_int
 """Callback Function Type for `sqlite3_set_authorizer()`."""
 
+
 struct sqlite3_backup(Movable):
     """Online Backup Object.
 
     The sqlite3_backup object records state information about an ongoing
     online backup operation.
-    
+
     The sqlite3_backup object is created by a call to `sqlite3_backup_init()` and is destroyed by a call to
     `sqlite3_backup_finish()`."""
 
@@ -312,7 +312,7 @@ struct sqlite3_value(Movable):
     SQLite uses the `sqlite3_value` object to represent all values
     that can be stored in a database table. SQLite uses dynamic typing
     for the values it stores.
-    
+
     Values stored in `sqlite3_value` objects
     can be integers, floating point values, strings, BLOBs, or NULL.
     An sqlite3_value object may be either "protected" or "unprotected".
@@ -334,19 +334,19 @@ struct sqlite3_value(Movable):
     for maximum code portability it is recommended that applications
     still make the distinction between protected and unprotected
     `sqlite3_value` objects even when not strictly required.
-    
+
     The `sqlite3_value` objects that are passed as parameters into the
     implementation of `application-defined SQL functions` are protected.
-    
+
     The `sqlite3_value` objects returned by `sqlite3_vtab_rhs_value()`
     are protected.
-    
+
     The `sqlite3_value` object returned by
     `sqlite3_column_value()` is unprotected.
     Unprotected `sqlite3_value` objects may only be used as arguments
     to `sqlite3_result_value()`, `sqlite3_bind_value()`, and
     `sqlite3_value_dup()`.
-    
+
     The `sqlite3_value_blob | sqlite3_value_type()` family of
     interfaces require protected `sqlite3_value` objects."""
 
@@ -355,7 +355,7 @@ struct sqlite3_value(Movable):
 
 struct sqlite3_context(Movable):
     """SQL Function Context Object.
-    
+
     The context in which an SQL function executes is stored in an
     sqlite3_context object.  ^A pointer to an sqlite3_context object
     is always first parameter to `application-defined SQL functions`.
@@ -371,6 +371,7 @@ struct sqlite3_context(Movable):
 # TODO: Implement this later
 struct sqlite3_module(Movable):
     """Virtual Table Module."""
+
     pass
 
 
@@ -488,6 +489,7 @@ struct _sqlite3_index_info_sqlite3_index_constraint(Movable):
 
 struct sqlite3_index_info(Movable):
     """Information about query constraints passed to the xBestIndex method of a virtual table module."""
+
     var nConstraint: Int32
     """The number of entries in the aConstraint array."""
     var aConstraint: MutExternalPointer[_sqlite3_index_info_sqlite3_index_constraint]
@@ -529,6 +531,7 @@ struct sqlite3_vtab(Movable):
 
 struct sqlite3_vtab_cursor(Movable):
     """Cursor Object for Virtual Tables."""
+
     var pVtab: MutExternalPointer[sqlite3_vtab]
     """A pointer to the virtual table that this cursor is associated with. This is set by the xOpen method of the module and is used by SQLite to call the appropriate methods on the module when executing queries against the virtual table."""
 
@@ -544,4 +547,5 @@ struct sqlite3_blob(Movable):
     * The `sqlite3_blob_read()` and `sqlite3_blob_write()` interfaces
     can be used to read or write small subsections of the BLOB.
     * The `sqlite3_blob_bytes()` interface returns the size of the BLOB in bytes."""
+
     pass

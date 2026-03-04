@@ -1,40 +1,41 @@
 from slight.c.raw_bindings import (
-    SQLITE_OK,
-    SQLITE_ERROR,
-    SQLITE_ROW,
-    SQLITE_INTERNAL,
-    SQLITE_PERM,
     SQLITE_ABORT,
+    SQLITE_AUTH,
     SQLITE_BUSY,
-    SQLITE_LOCKED,
-    SQLITE_NOMEM,
-    SQLITE_READONLY,
+    SQLITE_CANTOPEN,
+    SQLITE_CONSTRAINT,
+    SQLITE_CORRUPT,
+    SQLITE_DONE,
+    SQLITE_EMPTY,
+    SQLITE_ERROR,
+    SQLITE_FORMAT,
+    SQLITE_FULL,
+    SQLITE_INTERNAL,
     SQLITE_INTERRUPT,
     SQLITE_IOERR,
-    SQLITE_CORRUPT,
-    SQLITE_NOTFOUND,
-    SQLITE_FULL,
-    SQLITE_CANTOPEN,
-    SQLITE_PROTOCOL,
-    SQLITE_EMPTY,
-    SQLITE_SCHEMA,
-    SQLITE_TOOBIG,
-    SQLITE_CONSTRAINT,
+    SQLITE_LOCKED,
     SQLITE_MISMATCH,
     SQLITE_MISUSE,
     SQLITE_NOLFS,
-    SQLITE_AUTH,
-    SQLITE_FORMAT,
-    SQLITE_RANGE,
+    SQLITE_NOMEM,
     SQLITE_NOTADB,
+    SQLITE_NOTFOUND,
     SQLITE_NOTICE,
+    SQLITE_OK,
+    SQLITE_PERM,
+    SQLITE_PROTOCOL,
+    SQLITE_RANGE,
+    SQLITE_READONLY,
+    SQLITE_ROW,
+    SQLITE_SCHEMA,
+    SQLITE_TOOBIG,
     SQLITE_WARNING,
-    SQLITE_DONE,
 )
 
 
-struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, Writable, TrivialRegisterPassable):
+struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, TrivialRegisterPassable, Writable):
     """A wrapper around SQLite result codes that provides more descriptive error handling and utilities."""
+
     var value: Int32
     """The underlying SQLite result code value."""
     comptime OK = Self(SQLITE_OK)
@@ -122,7 +123,7 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, Writable, TrivialRe
 
         Args:
             other: The other SQLite3Result to compare against.
-        
+
         Returns:
             True if both SQLite3Result instances have the same result code value, False otherwise.
         """
@@ -133,18 +134,18 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, Writable, TrivialRe
 
         Args:
             other: The raw integer result code to compare against.
-        
+
         Returns:
             True if the SQLite3Result's value is equal to the raw integer result code, False otherwise.
         """
         return self.value == other
-    
+
     fn __ne__(self, other: Int32) -> Bool:
         """Checks if this SQLite3Result is not equal to a raw integer result code.
 
         Args:
             other: The raw integer result code to compare against.
-        
+
         Returns:
             True if the SQLite3Result's value is not equal to the raw integer result code, False otherwise.
         """
@@ -157,7 +158,7 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, Writable, TrivialRe
             writer: A mutable reference to a Writer where the integer value will be written.
         """
         writer.write(self.value)
-    
+
     fn write_repr_to(self) -> String:
         """Returns a string representation of the SQLite3Result, including its integer value.
 
@@ -165,7 +166,7 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, Writable, TrivialRe
             A string representation of the SQLite3Result.
         """
         return t"SQLite3Result({self.value})"
-    
+
     fn __str__(self) -> String:
         """Returns a human-readable string representation of the SQLite3Result, including a description of the result code.
 

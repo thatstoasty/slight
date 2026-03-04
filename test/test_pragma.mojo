@@ -1,7 +1,8 @@
-from std.testing import assert_equal, assert_true, assert_false, assert_not_equal, TestSuite, assert_raises
+from slight.pragma import Sql, is_identifier
+from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 from slight import Connection, Row
-from slight.pragma import Sql, is_identifier
+
 
 comptime dummy: Int = 0
 """For some reason, using the extended type explicitly makes the extensions start working after it in the

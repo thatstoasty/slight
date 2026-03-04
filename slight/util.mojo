@@ -3,7 +3,7 @@ fn as_byte[char: StringSlice]() -> Byte:
 
     Parameters:
         char: A StringSlice that must contain exactly one character.
-    
+
     Returns:
         The Byte representation of the single character.
     """
