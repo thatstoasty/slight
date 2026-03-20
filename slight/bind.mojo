@@ -1,8 +1,9 @@
 """Bind parameter indexing for SQLite statements.
 
 This module provides the BindIndex trait and implementations for types that can
-be used to index into parameters of a SQL statement. It allows parameters to be
-referenced by position (Int/UInt) or by name (String/StringSlice).
+be used to index into parameters of a SQL statement.
+
+It allows parameters to be referenced by position (Int/UInt) or by name (String/StringSlice).
 """
 
 from slight.statement import Statement
