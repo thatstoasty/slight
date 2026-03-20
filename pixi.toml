@@ -26,22 +26,22 @@ build_and_publish = [{ task = "build" }, { task = "publish" }]
 
 [package]
 name = "slight"
-version = "26.2.1"
+version = "26.2.2"
 
 [package.build]
 backend = { name = "pixi-build-mojo", version = "*" }
 
 [dependencies]
-mojo = ">=0.26.1.0,<0.26.2.0"
+mojo = ">=0.26.2.0,<0.26.3.0"
 sqlite = ">=3.50.4"
 
 [package.build-dependencies]
-mojo-compiler = ">=0.26.1.0,<0.26.2.0"
+mojo-compiler = ">=0.26.2.0,<0.26.3.0"
 
 [package.host-dependencies]
-mojo-compiler = ">=0.26.1.0,<0.26.2.0"
+mojo-compiler = ">=0.26.2.0,<0.26.3.0"
 sqlite = ">=3.50.4"
 
 [package.run-dependencies]
-mojo-compiler = ">=0.26.1.0,<0.26.2.0"
+mojo-compiler = ">=0.26.2.0,<0.26.3.0"
 sqlite = ">=3.50.4"
