@@ -43,7 +43,7 @@ There's two ways to build `slight` from source: directly from the Git repository
 Run the following commands in your terminal:
 
 ```bash
-pixi add -g "https://github.com/thatstoasty/slight.git" --tag v0.1.0 && pixi install
+pixi add -g "https://github.com/thatstoasty/slight.git" --tag v0.1.2 && pixi install
 ```
 
 #### Building from source: Local
