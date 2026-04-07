@@ -34,6 +34,8 @@ First, you'll need to enable the `pixi-build` preview by adding this to the `wor
 preview = ["pixi-build"]
 ```
 
+Then, add `"https://prefix.dev/pixi-build-backends"` to the list of channels in your `pixi.toml` file.
+
 ### Building it from source
 
 There's two ways to build `slight` from source: directly from the Git repository or by cloning the repository locally.
