@@ -28,17 +28,11 @@
 
 ## Adding the `slight` package to your project
 
-First, you'll need to configure your `pixi.toml` file to include the Modular community Conda channel. Add `"https://repo.prefix.dev/modular-community"` to the list of channels.
-
-### Installing it from the `modular-community` Conda channel
-
-Run the following commands in your terminal:
+First, you'll need to enable the `pixi-build` preview by adding this to the `workspace` section of your `pixi.toml` file.
 
 ```bash
-pixi add slight && pixi install
+preview = ["pixi-build"]
 ```
-
-This will add `slight` to your project's dependencies and install it along with its dependencies.
 
 ### Building it from source
 
@@ -49,7 +43,7 @@ There's two ways to build `slight` from source: directly from the Git repository
 Run the following commands in your terminal:
 
 ```bash
-pixi add -g "https://github.com/thatstoasty/slight.git" && pixi install
+pixi add -g "https://github.com/thatstoasty/slight.git" --tag v0.1.0 && pixi install
 ```
 
 #### Building from source: Local
