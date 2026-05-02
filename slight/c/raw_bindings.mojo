@@ -1,4 +1,4 @@
-from std import os, pathlib
+from std import os
 from slight.c.types import (
     AggFinalCallback,
     AggStepCallback,
@@ -150,6 +150,34 @@ comptime SQLITE_DONE: Int32 = 101
 """SQLITE Result Code: sqlite3_step() has finished executing."""
 
 
+def _find_sqlite3_library() raises -> String:
+    """Locate ``libsqlite3`` via ``$CONDA_PREFIX`` (pixi).
+
+    Returns:
+        Library path string for ``OwnedDLHandle``.
+    
+    Raises:
+        Error: If the library path cannot be determined from either the environment variable or the conda prefix.
+    """
+    var path = os.getenv("SQLITE_LIB_PATH")
+    if path != "":
+        return path
+
+    var prefix = os.getenv("CONDA_PREFIX", "")
+    if prefix != "":
+        comptime if CompilationTarget.is_macos():
+            return String(t"{prefix}/lib/libsqlite3.dylib")
+        else:
+            return String(t"{prefix}/lib/libsqlite3.so")
+    else:
+        raise Error(
+            "The path to the SQLite library is not set. Set the path as either a compilation variable with `-D"
+            " SQLITE_LIB_PATH=/path/to/libsqlite3.dylib` or `-D SQLITE_LIB_PATH=/path/to/libsqlite3.so`."
+            " Or set the `SQLITE_LIB_PATH` environment variable to the path to the sqlite3 library like"
+            " `SQLITE_LIB_PATH=/path/to/libsqlite3.dylib` or `SQLITE_LIB_PATH=/path/to/libsqlite3.so`."
+        )
+
+
 @fieldwise_init
 struct _sqlite3(Movable):
     """SQLite3 C API binding struct.
@@ -161,6 +189,9 @@ struct _sqlite3(Movable):
     """
 
     var lib: OwnedDLHandle
+    """Handle to the dynamically loaded SQLite3 library."""
+    var _fn_sqlite3_libversion: def() abi("C") thin -> ImmutExternalPointer[c_char]
+
 
     def __init__(out self):
         """Initialize the SQLite3 binding by loading the dynamic library.
@@ -170,32 +201,18 @@ struct _sqlite3(Movable):
 
         Aborts if the SQLite3 library cannot be loaded.
         """
-        var path = String(get_defined_string["SQLITE_LIB_PATH", ""]())
-
-        # If the program was not compiled with a specific path, then check if it was set via environment variable.
-        if path == "":
-            path = os.getenv("SQLITE_LIB_PATH")
-
         try:
-            # If its not explicitly set, then assume the program is running from the root of the project.
-            if path == "":
-                comptime if CompilationTarget.is_macos():
-                    path = String(pathlib.cwd() / ".pixi/envs/default/lib/libsqlite3.dylib")
-                else:
-                    path = String(pathlib.cwd() / ".pixi/envs/default/lib/libsqlite3.so")
+            var defined_path = get_defined_string["SQLITE_LIB_PATH", ""]()
+            if defined_path != "":
+                self.lib = OwnedDLHandle(defined_path, RTLD.LAZY)
+            else:
+                self.lib = OwnedDLHandle(_find_sqlite3_library(), RTLD.LAZY)
 
-            if not pathlib.Path(path).exists():
-                os.abort(
-                    "The path to the SQLite library is not set. Set the path as either a compilation variable with `-D"
-                    " SQLITE_LIB_PATH=/path/to/libsqlite3.dylib` or SQLITE_LIB_PATH=/path/to/libsqlite3.so`."
-                    " Or set the `SQLITE_LIB_PATH` environment variable to the path to the sqlite3 library like"
-                    " `SQLITE_LIB_PATH=/path/to/libsqlite3.dylib` or `SQLITE_LIB_PATH=/path/to/libsqlite3.so`."
-                    " The default path is `.pixi/envs/default/lib/libsqlite3.dylib (or .so)`, but this"
-                    " error indicates that the library did not exist at that location."
-                )
-            self.lib = OwnedDLHandle(path, RTLD.LAZY)
+            self._fn_sqlite3_libversion = self.lib.get_function[def() abi("C") thin -> ImmutExternalPointer[c_char]](
+                "sqlite3_libversion"
+            )
         except e:
-            os.abort(String("Failed to load the SQLite library: ", e))
+            os.abort(String(t"Failed to load the SQLite library: {e}"))
 
     def sqlite3_libversion(self) -> ImmutExternalPointer[c_char]:
         """Get the SQLite library version string.
@@ -207,7 +224,7 @@ struct _sqlite3(Movable):
         Returns:
             Pointer to a null-terminated string containing the SQLite version.
         """
-        return self.lib.get_function[def()  abi("C") thin -> ImmutExternalPointer[c_char]]("sqlite3_libversion")()
+        return self._fn_sqlite3_libversion()
 
     def sqlite3_sourceid(self) -> ImmutExternalPointer[c_char]:
         """Get the SQLite source ID.
@@ -218,7 +235,7 @@ struct _sqlite3(Movable):
         Returns:
             Pointer to a string containing the SQLite source identifier.
         """
-        return self.lib.get_function[def()  abi("C") thin -> ImmutExternalPointer[c_char]]("sqlite3_sourceid")()
+        return self.lib.get_function[def() abi("C") thin -> ImmutExternalPointer[c_char]]("sqlite3_sourceid")()
 
     def sqlite3_libversion_number(self) -> c_int:
         """Get the SQLite library version number.

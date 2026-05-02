@@ -181,4 +181,4 @@ kgen.*
 .DS_Store
 
 .github/copilot-instructions.md
-rusqlite
+rusqlite/**

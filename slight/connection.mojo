@@ -943,107 +943,107 @@ struct Connection(Movable):
         var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags)
         self.raise_if_error(result)
 
-    def create_window_function[
-        A: CopyDestructible,
-        T: MoveDestructible,
-        P: CopyDestructible,
-        //,
-        init_fn: AggregateInitUDF[A],
-        step_fn: AggregateStepUDF[A],
-        final_fn: AggregateFinalUDF[A, T],
-        value_fn: WindowAggregateValueUDF[A, T],
-        inverse_fn: WindowAggregateInverseUDF[A],
-    ](
-        self,
-        fn_name: String,
-        n_arg: Int,
-        user_data: P,
-        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
-    ) raises:
-        """Attach a user-defined aggregate window function to a database connection.
+    # def create_window_function[
+    #     A: CopyDestructible,
+    #     T: MoveDestructible,
+    #     P: CopyDestructible,
+    #     //,
+    #     init_fn: AggregateInitUDF[A],
+    #     step_fn: AggregateStepUDF[A],
+    #     final_fn: AggregateFinalUDF[A, T],
+    #     value_fn: WindowAggregateValueUDF[A, T],
+    #     inverse_fn: WindowAggregateInverseUDF[A],
+    # ](
+    #     self,
+    #     fn_name: String,
+    #     n_arg: Int,
+    #     user_data: P,
+    #     flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    # ) raises:
+    #     """Attach a user-defined aggregate window function to a database connection.
 
-        Window functions operate over a sliding window of rows. In addition to
-        the `x_step` and `x_final` callbacks (like aggregate functions), they require
-        `x_value` (to return the current aggregate value without finalizing) and
-        `x_inverse` (to remove a row leaving the window frame).
+    #     Window functions operate over a sliding window of rows. In addition to
+    #     the `x_step` and `x_final` callbacks (like aggregate functions), they require
+    #     `x_value` (to return the current aggregate value without finalizing) and
+    #     `x_inverse` (to remove a row leaving the window frame).
 
-        See https://sqlite.org/windowfunctions.html#udfwinfunc for more information.
+    #     See https://sqlite.org/windowfunctions.html#udfwinfunc for more information.
 
-        Parameters:
-            A: The type of the aggregate state. Must be Movable.
-            T: The return type of the aggregate function. Must conform to `ToSQL`.
-            P: The type of the application data to pass to the callbacks.
-            init_fn: The callback to initialize the aggregate state for a new group.
-            step_fn: The callback to update the aggregate state for each row in the group.
-            final_fn: The callback to compute the final result from the aggregate state.
-            value_fn: The callback to compute the current aggregate value without finalizing.
-            inverse_fn: The callback to update the aggregate state when a row leaves the window frame.
+    #     Parameters:
+    #         A: The type of the aggregate state. Must be Movable.
+    #         T: The return type of the aggregate function. Must conform to `ToSQL`.
+    #         P: The type of the application data to pass to the callbacks.
+    #         init_fn: The callback to initialize the aggregate state for a new group.
+    #         step_fn: The callback to update the aggregate state for each row in the group.
+    #         final_fn: The callback to compute the final result from the aggregate state.
+    #         value_fn: The callback to compute the current aggregate value without finalizing.
+    #         inverse_fn: The callback to update the aggregate state when a row leaves the window frame.
 
-        Args:
-            fn_name: Name of the SQL aggregate function to create.
-            n_arg: Number of arguments (-1 for variable number).
-            user_data: Data that is passed to the callbacks when the function is called. Can be used to store context or state for the function.
-            flags: Function flags.
+    #     Args:
+    #         fn_name: Name of the SQL aggregate function to create.
+    #         n_arg: Number of arguments (-1 for variable number).
+    #         user_data: Data that is passed to the callbacks when the function is called. Can be used to store context or state for the function.
+    #         flags: Function flags.
 
-        Raises:
-            Error: If the function could not be attached to the connection.
-        """
-        comptime assert conforms_to(T, ToSQL), String(
-            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
-        )
-        var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
-            fn_name, n_arg, flags, user_data,
-        )
-        self.raise_if_error(result)
+    #     Raises:
+    #         Error: If the function could not be attached to the connection.
+    #     """
+    #     comptime assert conforms_to(T, ToSQL), String(
+    #         "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+    #     )
+    #     var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
+    #         fn_name, n_arg, flags, user_data,
+    #     )
+    #     self.raise_if_error(result)
 
-    def create_window_function[
-        A: CopyDestructible,
-        T: MoveDestructible,
-        //,
-        init_fn: AggregateInitUDF[A],
-        step_fn: AggregateStepUDF[A],
-        final_fn: AggregateFinalUDF[A, T],
-        value_fn: WindowAggregateValueUDF[A, T],
-        inverse_fn: WindowAggregateInverseUDF[A],
-    ](
-        self,
-        fn_name: String,
-        n_arg: Int,
-        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
-    ) raises:
-        """Attach a user-defined aggregate window function to a database connection.
+    # def create_window_function[
+    #     A: CopyDestructible,
+    #     T: MoveDestructible,
+    #     //,
+    #     init_fn: AggregateInitUDF[A],
+    #     step_fn: AggregateStepUDF[A],
+    #     final_fn: AggregateFinalUDF[A, T],
+    #     value_fn: WindowAggregateValueUDF[A, T],
+    #     inverse_fn: WindowAggregateInverseUDF[A],
+    # ](
+    #     self,
+    #     fn_name: String,
+    #     n_arg: Int,
+    #     flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    # ) raises:
+    #     """Attach a user-defined aggregate window function to a database connection.
 
-        Window functions operate over a sliding window of rows. In addition to
-        the `x_step` and `x_final` callbacks (like aggregate functions), they require
-        `x_value` (to return the current aggregate value without finalizing) and
-        `x_inverse` (to remove a row leaving the window frame).
+    #     Window functions operate over a sliding window of rows. In addition to
+    #     the `x_step` and `x_final` callbacks (like aggregate functions), they require
+    #     `x_value` (to return the current aggregate value without finalizing) and
+    #     `x_inverse` (to remove a row leaving the window frame).
 
-        See https://sqlite.org/windowfunctions.html#udfwinfunc for more information.
+    #     See https://sqlite.org/windowfunctions.html#udfwinfunc for more information.
 
-        Parameters:
-            A: The type of the aggregate state. Must be Movable.
-            T: The return type of the aggregate function. Must conform to `ToSQL`.
-            init_fn: The callback to initialize the aggregate state for a new group.
-            step_fn: The callback to update the aggregate state for each row in the group.
-            final_fn: The callback to compute the final result from the aggregate state.
-            value_fn: The callback to compute the current aggregate value without finalizing.
-            inverse_fn: The callback to update the aggregate state when a row leaves the window frame.
+    #     Parameters:
+    #         A: The type of the aggregate state. Must be Movable.
+    #         T: The return type of the aggregate function. Must conform to `ToSQL`.
+    #         init_fn: The callback to initialize the aggregate state for a new group.
+    #         step_fn: The callback to update the aggregate state for each row in the group.
+    #         final_fn: The callback to compute the final result from the aggregate state.
+    #         value_fn: The callback to compute the current aggregate value without finalizing.
+    #         inverse_fn: The callback to update the aggregate state when a row leaves the window frame.
 
-        Args:
-            fn_name: Name of the SQL aggregate function to create.
-            n_arg: Number of arguments (-1 for variable number).
-            flags: Function flags.
+    #     Args:
+    #         fn_name: Name of the SQL aggregate function to create.
+    #         n_arg: Number of arguments (-1 for variable number).
+    #         flags: Function flags.
 
-        Raises:
-            Error: If the function could not be attached to the connection.
-        """
-        comptime assert conforms_to(T, ToSQL), String(
-            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
-        )
-        var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
-            fn_name, n_arg, flags
-        )
-        self.raise_if_error(result)
+    #     Raises:
+    #         Error: If the function could not be attached to the connection.
+    #     """
+    #     comptime assert conforms_to(T, ToSQL), String(
+    #         "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+    #     )
+    #     var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
+    #         fn_name, n_arg, flags
+    #     )
+    #     self.raise_if_error(result)
 
     def remove_function(self, fn_name: String, n_arg: Int) raises:
         """Remove a user-defined function from a database connection.

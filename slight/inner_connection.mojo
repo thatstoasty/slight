@@ -458,114 +458,114 @@ struct InnerConnection(Movable):
             _call_final_callback[final_fn],
         )
 
-    def create_window_function[
-        A: CopyDestructible,
-        T: MoveDestructible,
-        P: CopyDestructible,
-        //,
-        init_fn: AggregateInitUDF[A],
-        step_fn: AggregateStepUDF[A],
-        final_fn: AggregateFinalUDF[A, T],
-        value_fn: WindowAggregateValueUDF[A, T],
-        inverse_fn: WindowAggregateInverseUDF[A],
-    ](self, fn_name: String, n_arg: Int, flags: FunctionFlags, pApp: P) -> SQLite3Result:
-        """Attach a user-defined aggregate function to a database connection.
+    # def create_window_function[
+    #     A: CopyDestructible,
+    #     T: MoveDestructible,
+    #     P: CopyDestructible,
+    #     //,
+    #     init_fn: AggregateInitUDF[A],
+    #     step_fn: AggregateStepUDF[A],
+    #     final_fn: AggregateFinalUDF[A, T],
+    #     value_fn: WindowAggregateValueUDF[A, T],
+    #     inverse_fn: WindowAggregateInverseUDF[A],
+    # ](self, fn_name: String, n_arg: Int, flags: FunctionFlags, pApp: P) -> SQLite3Result:
+    #     """Attach a user-defined aggregate function to a database connection.
 
-        Aggregate functions process multiple rows and produce a single result.
-        The `x_step` callback is called once per row, and `x_final` is called
-        once at the end to produce the result.
+    #     Aggregate functions process multiple rows and produce a single result.
+    #     The `x_step` callback is called once per row, and `x_final` is called
+    #     once at the end to produce the result.
 
-        Use `FunctionContext.aggregate_context()` inside the callbacks to manage
-        per-group state.
+    #     Use `FunctionContext.aggregate_context()` inside the callbacks to manage
+    #     per-group state.
 
-        Parameters:
-            A: The type of the aggregate state.
-            T: The return type of the aggregate function. Must conform to `ToSQL`.
-            P: The type of the application data to be passed to the callbacks.
-            init_fn: The callback to initialize the aggregate state for a new group.
-            step_fn: The callback to update the aggregate state for each row in the group.
-            final_fn: The callback to compute the final result from the aggregate state.
-            value_fn: The callback to compute the current value of the window function without finalizing (for use in window frames).
-            inverse_fn: The callback to update the aggregate state when a row is removed from a window.
+    #     Parameters:
+    #         A: The type of the aggregate state.
+    #         T: The return type of the aggregate function. Must conform to `ToSQL`.
+    #         P: The type of the application data to be passed to the callbacks.
+    #         init_fn: The callback to initialize the aggregate state for a new group.
+    #         step_fn: The callback to update the aggregate state for each row in the group.
+    #         final_fn: The callback to compute the final result from the aggregate state.
+    #         value_fn: The callback to compute the current value of the window function without finalizing (for use in window frames).
+    #         inverse_fn: The callback to update the aggregate state when a row is removed from a window.
 
-        Args:
-            fn_name: Name of the SQL aggregate function to create.
-            n_arg: Number of arguments (-1 for variable number).
-            flags: Function flags.
-            pApp: An optional pointer to application data that will be passed to the callbacks.
+    #     Args:
+    #         fn_name: Name of the SQL aggregate function to create.
+    #         n_arg: Number of arguments (-1 for variable number).
+    #         flags: Function flags.
+    #         pApp: An optional pointer to application data that will be passed to the callbacks.
 
-        Returns:
-            The SQLite3Result code from the create function operation.
-        """
-        comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
-        )
+    #     Returns:
+    #         The SQLite3Result code from the create function operation.
+    #     """
+    #     comptime assert conforms_to(T, ToSQL), String(
+    #         t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
+    #     )
 
-        # Copy data to the heap and pass a pointer to it as pApp.
-        # The data will be freed using the default destructor when the function is removed or when the connection is closed.
-        var pAppPtr = ptr_copy(pApp)
-        return sqlite_ffi()[].create_window_function(
-            self.db,
-            fn_name,
-            c_int(n_arg),
-            flags.value,
-            pAppPtr.bitcast[NoneType](),
-            _call_step_callback[init_fn, step_fn],
-            _call_final_callback[final_fn],
-            _call_value_callback[value_fn],
-            _call_inverse_callback[inverse_fn],
-            _default_destructor,
-        )
+    #     # Copy data to the heap and pass a pointer to it as pApp.
+    #     # The data will be freed using the default destructor when the function is removed or when the connection is closed.
+    #     var pAppPtr = ptr_copy(pApp)
+    #     return sqlite_ffi()[].create_window_function(
+    #         self.db,
+    #         fn_name,
+    #         c_int(n_arg),
+    #         flags.value,
+    #         pAppPtr.bitcast[NoneType](),
+    #         _call_step_callback[init_fn, step_fn],
+    #         _call_final_callback[final_fn],
+    #         _call_value_callback[value_fn],
+    #         _call_inverse_callback[inverse_fn],
+    #         _default_destructor,
+    #     )
 
-    def create_window_function[
-        A: CopyDestructible,
-        T: MoveDestructible,
-        //,
-        init_fn: AggregateInitUDF[A],
-        step_fn: AggregateStepUDF[A],
-        final_fn: AggregateFinalUDF[A, T],
-        value_fn: WindowAggregateValueUDF[A, T],
-        inverse_fn: WindowAggregateInverseUDF[A],
-    ](self, fn_name: String, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
-        """Attach a user-defined aggregate function to a database connection.
+    # def create_window_function[
+    #     A: CopyDestructible,
+    #     T: MoveDestructible,
+    #     //,
+    #     init_fn: AggregateInitUDF[A],
+    #     step_fn: AggregateStepUDF[A],
+    #     final_fn: AggregateFinalUDF[A, T],
+    #     value_fn: WindowAggregateValueUDF[A, T],
+    #     inverse_fn: WindowAggregateInverseUDF[A],
+    # ](self, fn_name: String, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
+    #     """Attach a user-defined aggregate function to a database connection.
 
-        Aggregate functions process multiple rows and produce a single result.
-        The `x_step` callback is called once per row, and `x_final` is called
-        once at the end to produce the result.
+    #     Aggregate functions process multiple rows and produce a single result.
+    #     The `x_step` callback is called once per row, and `x_final` is called
+    #     once at the end to produce the result.
 
-        Use `FunctionContext.aggregate_context()` inside the callbacks to manage
-        per-group state.
+    #     Use `FunctionContext.aggregate_context()` inside the callbacks to manage
+    #     per-group state.
 
-        Parameters:
-            A: The type of the aggregate state.
-            T: The return type of the aggregate function. Must conform to `ToSQL`.
-            init_fn: The callback to initialize the aggregate state for a new group.
-            step_fn: The callback to update the aggregate state for each row in the group.
-            final_fn: The callback to compute the final result from the aggregate state.
-            value_fn: The callback to compute the current value of the window function without finalizing (for use in window frames).
-            inverse_fn: The callback to update the aggregate state when a row is removed from a window.
+    #     Parameters:
+    #         A: The type of the aggregate state.
+    #         T: The return type of the aggregate function. Must conform to `ToSQL`.
+    #         init_fn: The callback to initialize the aggregate state for a new group.
+    #         step_fn: The callback to update the aggregate state for each row in the group.
+    #         final_fn: The callback to compute the final result from the aggregate state.
+    #         value_fn: The callback to compute the current value of the window function without finalizing (for use in window frames).
+    #         inverse_fn: The callback to update the aggregate state when a row is removed from a window.
 
-        Args:
-            fn_name: Name of the SQL aggregate function to create.
-            n_arg: Number of arguments (-1 for variable number).
-            flags: Function flags.
+    #     Args:
+    #         fn_name: Name of the SQL aggregate function to create.
+    #         n_arg: Number of arguments (-1 for variable number).
+    #         flags: Function flags.
 
-        Returns:
-            The SQLite3Result code from the create function operation.
-        """
-        comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
-        )
-        return sqlite_ffi()[].create_window_function(
-            self.db,
-            fn_name,
-            c_int(n_arg),
-            flags.value,
-            _call_step_callback[init_fn, step_fn],
-            _call_final_callback[final_fn],
-            _call_value_callback[value_fn],
-            _call_inverse_callback[inverse_fn],
-        )
+    #     Returns:
+    #         The SQLite3Result code from the create function operation.
+    #     """
+    #     comptime assert conforms_to(T, ToSQL), String(
+    #         t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
+    #     )
+    #     return sqlite_ffi()[].create_window_function(
+    #         self.db,
+    #         fn_name,
+    #         c_int(n_arg),
+    #         flags.value,
+    #         _call_step_callback[init_fn, step_fn],
+    #         _call_final_callback[final_fn],
+    #         _call_value_callback[value_fn],
+    #         _call_inverse_callback[inverse_fn],
+    #     )
 
     def remove_function(
         self,
