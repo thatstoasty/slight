@@ -11,33 +11,33 @@ from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal,
 # ===----------------------------------------------------------------------=== #
 
 
-fn double_it(ctx: Context) raises -> Int64:
+def double_it(ctx: Context) raises -> Int64:
     """Return the first argument multiplied by 2."""
     return ctx.get_int64(0) * 2
 
 
-fn add_two(ctx: Context) raises -> Float64:
+def add_two(ctx: Context) raises -> Float64:
     """Return the sum of the first two arguments as a Float64."""
     return ctx.get_double(0) + ctx.get_double(1)
 
 
-fn greet(ctx: Context) raises -> String:
+def greet(ctx: Context) raises -> String:
     """Return a greeting string from two text arguments."""
     return String("Hello, ") + String(ctx.get_text(0)) + String("!")
 
 
-fn constant_42(ctx: Context) raises -> Int64:
+def constant_42(ctx: Context) raises -> Int64:
     """Return 42 regardless of arguments (zero-arg function)."""
     return 42
 
 
-fn user_data_adder(ctx: Context) raises -> Int64:
+def user_data_adder(ctx: Context) raises -> Int64:
     """Add the user_data value (Int64) to the first argument."""
     var offset = ctx.user_data().bitcast[Int64]()[]
     return ctx.get_int64(0) + offset
 
 
-fn nullable_double(ctx: Context) raises -> Optional[Int64]:
+def nullable_double(ctx: Context) raises -> Optional[Int64]:
     """Return arg*2 if arg is non-zero, else None (NULL)."""
     var v = ctx.get_int64(0)
     if v == 0:
@@ -50,7 +50,7 @@ fn nullable_double(ctx: Context) raises -> Optional[Int64]:
 # ===----------------------------------------------------------------------=== #
 
 
-fn _setup_numbers_table(db: Connection) raises:
+def _setup_numbers_table(db: Connection) raises:
     """Helper: create a numbers table with values 1-5."""
     db.execute_batch(
         """
@@ -64,12 +64,12 @@ fn _setup_numbers_table(db: Connection) raises:
     )
 
 
-fn test_scalar_int64() raises:
+def test_scalar_int64() raises:
     """Test a scalar function that doubles an integer."""
     var db = Connection.open_in_memory()
     db.create_scalar_function[double_it]("double_it", n_arg=1)
 
-    fn get_int(row: Row) raises -> Int64:
+    def get_int(row: Row) raises -> Int64:
         return row.get[Int64](0)
 
     assert_equal(db.one_row[get_int]("SELECT double_it(5)"), 10)
@@ -77,42 +77,42 @@ fn test_scalar_int64() raises:
     assert_equal(db.one_row[get_int]("SELECT double_it(0)"), 0)
 
 
-fn test_scalar_float64() raises:
+def test_scalar_float64() raises:
     """Test a scalar function that adds two floats."""
     var db = Connection.open_in_memory()
     db.create_scalar_function[add_two]("add_two", n_arg=2)
 
-    fn get_float(row: Row) raises -> Float64:
+    def get_float(row: Row) raises -> Float64:
         return row.get[Float64](0)
 
     assert_equal(db.one_row[get_float]("SELECT add_two(1.5, 2.5)"), 4.0)
     assert_equal(db.one_row[get_float]("SELECT add_two(0.0, 0.0)"), 0.0)
 
 
-fn test_scalar_text() raises:
+def test_scalar_text() raises:
     """Test a scalar function that returns a greeting string."""
     var db = Connection.open_in_memory()
     db.create_scalar_function[greet]("greet", n_arg=1)
 
-    fn get_text(row: Row) raises -> String:
+    def get_text(row: Row) raises -> String:
         return row.get[String](0)
 
     assert_equal(db.one_row[get_text]("SELECT greet('World')"), "Hello, World!")
     assert_equal(db.one_row[get_text]("SELECT greet('Mojo')"), "Hello, Mojo!")
 
 
-fn test_scalar_zero_args() raises:
+def test_scalar_zero_args() raises:
     """Test a scalar function that takes no arguments."""
     var db = Connection.open_in_memory()
     db.create_scalar_function[constant_42]("constant_42", n_arg=0)
 
-    fn get_int(row: Row) raises -> Int64:
+    def get_int(row: Row) raises -> Int64:
         return row.get[Int64](0)
 
     assert_equal(db.one_row[get_int]("SELECT constant_42()"), 42)
 
 
-fn test_scalar_with_user_data() raises:
+def test_scalar_with_user_data() raises:
     """Test a scalar function that uses user_data."""
     var db = Connection.open_in_memory()
     db.create_scalar_function[user_data_adder](
@@ -121,7 +121,7 @@ fn test_scalar_with_user_data() raises:
         user_data=Int64(100),
     )
 
-    fn get_int(row: Row) raises -> Int64:
+    def get_int(row: Row) raises -> Int64:
         return row.get[Int64](0)
 
     assert_equal(db.one_row[get_int]("SELECT add_offset(5)"), 105)
@@ -129,12 +129,12 @@ fn test_scalar_with_user_data() raises:
 
 
 # CRASHING
-# fn test_scalar_nullable_result() raises:
+# def test_scalar_nullable_result() raises:
 #     """Test a scalar function that can return NULL."""
 #     var db = Connection.open_in_memory()
 #     db.create_scalar_function[nullable_double]("nullable_double", n_arg=1)
 
-#     fn get_optional_int(row: Row) raises -> Optional[Int64]:
+#     def get_optional_int(row: Row) raises -> Optional[Int64]:
 #         return row.get[Optional[Int64]](0)
 
 #     var result = db.one_row[get_optional_int]("SELECT nullable_double(3)")
@@ -145,13 +145,13 @@ fn test_scalar_with_user_data() raises:
 #     assert_false(null_result)
 
 
-fn test_scalar_used_in_where_clause() raises:
+def test_scalar_used_in_where_clause() raises:
     """Test a scalar function used inside a WHERE clause."""
     var db = Connection.open_in_memory()
     _setup_numbers_table(db)
     db.create_scalar_function[double_it]("double_it", n_arg=1)
 
-    fn get_int(row: Row) raises -> Int64:
+    def get_int(row: Row) raises -> Int64:
         return row.get[Int64](0)
 
     # double_it(value) > 6 means value > 3, so values 4 and 5 match
@@ -165,13 +165,13 @@ fn test_scalar_used_in_where_clause() raises:
     assert_equal(results[1], 5)
 
 
-fn test_scalar_multiple_functions() raises:
+def test_scalar_multiple_functions() raises:
     """Test registering multiple scalar functions on the same connection."""
     var db = Connection.open_in_memory()
     db.create_scalar_function[double_it]("double_it", n_arg=1)
     db.create_scalar_function[constant_42]("constant_42", n_arg=0)
 
-    fn get_int(row: Row) raises -> Int64:
+    def get_int(row: Row) raises -> Int64:
         return row.get[Int64](0)
 
     # Use both in one query
@@ -180,12 +180,12 @@ fn test_scalar_multiple_functions() raises:
         84,
     )
 
-fn test_remove_function() raises:
+def test_remove_function() raises:
     """Test a scalar function that doubles an integer."""
     var db = Connection.open_in_memory()
     db.create_scalar_function[double_it]("double_it", n_arg=1)
 
-    fn get_int(row: Row) raises -> Int64:
+    def get_int(row: Row) raises -> Int64:
         return row.get[Int64](0)
     
     db.remove_function("double_it", n_arg=1)
@@ -193,7 +193,7 @@ fn test_remove_function() raises:
         _ = db.one_row[get_int]("SELECT double_it(5)")
 
 
-fn my_concat(ctx: Context) raises -> String:
+def my_concat(ctx: Context) raises -> String:
     """Concatenate all string arguments into a single string."""
     var ret = ""
     for idx in range(len(ctx)):
@@ -201,12 +201,12 @@ fn my_concat(ctx: Context) raises -> String:
     return ret^
 
 
-fn test_varargs_function() raises:
+def test_varargs_function() raises:
     """Test a scalar function that accepts a variable number of arguments."""
     var db = Connection.open_in_memory()
     db.create_scalar_function[my_concat]("my_concat", n_arg=-1)
 
-    fn get_text(row: Row) raises -> String:
+    def get_text(row: Row) raises -> String:
         return row.get[String](0)
 
     assert_equal(db.one_row[get_text]("SELECT my_concat()"), "")
@@ -214,7 +214,7 @@ fn test_varargs_function() raises:
     assert_equal(db.one_row[get_text]("SELECT my_concat('a', 'b', 'c')"), "abc")
 
 
-fn blob_len(ctx: Context) raises -> Int:
+def blob_len(ctx: Context) raises -> Int:
     """Return the length of a blob argument, or 0 if NULL."""
     var raw = ctx.get_raw(0)
     if raw.isa[SQLite3Null]():
@@ -224,12 +224,12 @@ fn blob_len(ctx: Context) raises -> Int:
     return 0
 
 
-fn test_blob() raises:
+def test_blob() raises:
     """Test a scalar function that returns the byte-length of a BLOB argument."""
     var db = Connection.open_in_memory()
     db.create_scalar_function[blob_len]("test_len", n_arg=1)
 
-    fn get_int(row: Row) raises -> Int:
+    def get_int(row: Row) raises -> Int:
         return row.get[Int](0)
 
     # X'53514C697465' is the hex encoding of "SQLite" (6 bytes)
@@ -240,5 +240,5 @@ fn test_blob() raises:
     assert_equal(db.one_row[get_int]("SELECT test_len(NULL)"), 0)
 
 
-fn main() raises:
+def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()

@@ -1,4 +1,4 @@
-"""[Unlock Notification](http://sqlite.org/unlock_notify.html)
+"""[Unlock Notification](http://sqlite.org/unlock_notify.html).
 
 This module provides the unlock-notify mechanism for SQLite shared-cache mode.
 When a connection receives `SQLITE_LOCKED` due to shared-cache contention,
@@ -23,7 +23,7 @@ from slight.c.types import MutExternalPointer, MutOpaquePointer
 from slight.result import SQLite3Result
 
 
-fn _unlock_notify_cb(
+def _unlock_notify_cb(
     ap_arg: MutUnsafePointer[MutExternalPointer[NoneType], MutExternalOrigin],
     n_arg: c_int,
 ) -> NoneType:
@@ -42,7 +42,7 @@ fn _unlock_notify_cb(
     return None
 
 
-fn is_locked(
+def is_locked(
     db: MutExternalPointer[sqlite3_connection], rc: SQLite3Result
 ) -> Bool:
     """Check whether a result code indicates shared-cache lock contention.
@@ -62,7 +62,7 @@ fn is_locked(
     )
 
 
-fn wait_for_unlock_notify(
+def wait_for_unlock_notify(
     db: MutExternalPointer[sqlite3_connection],
 ) -> SQLite3Result:
     """Block until an unlock-notify callback fires, then return SQLITE_OK.

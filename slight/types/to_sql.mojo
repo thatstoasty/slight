@@ -15,10 +15,10 @@ from std.utils.variant import Variant
 #     var data: ValueRef[Self.origin]
 #     """The underlying SQLite value reference."""
 
-#     fn isa[T: SQLTypeRef](self) -> Bool:
+#     def isa[T: SQLTypeRef](self) -> Bool:
 #         return self.data.isa[T]()
 
-#     fn __getitem__[T: SQLTypeRef](self) -> ref [self.data.value] T:
+#     def __getitem__[T: SQLTypeRef](self) -> ref [self.data.value] T:
 #         return self.data[T]
 
 
@@ -38,17 +38,17 @@ from std.utils.variant import Variant
 #     ]
 
 #     @implicit
-#     fn __init__(out self, var value: Owned):
+#     def __init__(out self, var value: Owned):
 #         self.value = value^
 
 #     @implicit
-#     fn __init__(out self, var value: Borrowed[Self.origin]):
+#     def __init__(out self, var value: Borrowed[Self.origin]):
 #         self.value = value^
 
-#     fn isa[T: AnyType](self) -> Bool:
+#     def isa[T: AnyType](self) -> Bool:
 #         return self.value.isa[T]()
 
-#     fn __getitem__[T: AnyType](self) -> ref [self.value] T:
+#     def __getitem__[T: AnyType](self) -> ref [self.value] T:
 #         return self.value[T]
 
 
@@ -62,7 +62,7 @@ trait ToSQL(Copyable):
 
     # TODO: How can I enforce an immutable origin here? If I don't use ref, then
     # it complains that self might be a register_passable type.
-    fn to_sql(ref self) raises -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) raises -> ValueRef[origin_of(self)]:
         """Convert this value to a Parameter that can be bound to SQL.
 
         Returns:
@@ -75,7 +75,7 @@ trait ToSQL(Copyable):
 
 
 __extension Optional(ToSQL):
-    fn to_sql(ref self) raises -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) raises -> ValueRef[origin_of(self)]:
         """Convert an Optional value to a SQL parameter, handling None as NULL.
 
         Returns:
@@ -104,7 +104,7 @@ __extension Optional(ToSQL):
 
 
 __extension Bool(ToSQL):
-    fn to_sql(ref self) -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) -> ValueRef[origin_of(self)]:
         """Convert a Bool to a SQL parameter (as INTEGER 0 or 1).
 
         Returns:
@@ -114,7 +114,7 @@ __extension Bool(ToSQL):
 
 
 __extension Int(ToSQL):
-    fn to_sql(ref self) -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) -> ValueRef[origin_of(self)]:
         """Convert an Int to a SQL parameter.
 
         Returns:
@@ -124,8 +124,8 @@ __extension Int(ToSQL):
 
 
 __extension SIMD(ToSQL):
-    # fn to_sql(ref self) raises -> ValueRef[origin_of(self)] where size == 1:
-    fn to_sql(ref self) raises -> ValueRef[origin_of(self)]:
+    # def to_sql(ref self) raises -> ValueRef[origin_of(self)] where size == 1:
+    def to_sql(ref self) raises -> ValueRef[origin_of(self)]:
         """Convert a SIMD scalar to a SQL parameter.
 
         Returns:
@@ -152,7 +152,7 @@ __extension SIMD(ToSQL):
 
 
 __extension String(ToSQL):
-    fn to_sql(ref self) -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) -> ValueRef[origin_of(self)]:
         """Convert a String to a SQL parameter.
 
         Returns:
@@ -162,7 +162,7 @@ __extension String(ToSQL):
 
 
 __extension NoneType(ToSQL):
-    fn to_sql(ref self) -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) -> ValueRef[origin_of(self)]:
         """Convert None to a SQL NULL parameter.
 
         Returns:
@@ -172,10 +172,10 @@ __extension NoneType(ToSQL):
 
 
 __extension List(ToSQL):
-    # fn to_sql(ref self) raises -> ValueRef[origin_of(self)] where _type_is_eq_parse_time[
+    # def to_sql(ref self) raises -> ValueRef[origin_of(self)] where _type_is_eq_parse_time[
     #     Self.T, Byte
     # ]():
-    fn to_sql(ref self) raises -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) raises -> ValueRef[origin_of(self)]:
         """Convert Bytes to a SQL Blob parameter.
 
         Returns:
@@ -185,10 +185,10 @@ __extension List(ToSQL):
 
 
 __extension Span(ToSQL):
-    # fn to_sql(ref self) raises -> ValueRef[origin_of(self)] where _type_is_eq_parse_time[
+    # def to_sql(ref self) raises -> ValueRef[origin_of(self)] where _type_is_eq_parse_time[
     #     Self.T, Byte
     # ]():
-    fn to_sql(ref self) raises -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) raises -> ValueRef[origin_of(self)]:
         """Convert Bytes to a SQL Blob parameter.
 
         Returns:

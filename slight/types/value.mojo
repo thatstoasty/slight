@@ -80,7 +80,7 @@
 #     var value: Self._type
 #     """The actual value stored in the variant."""
 
-#     fn __init__(out self, var value: SQLite3Null):
+#     def __init__(out self, var value: SQLite3Null):
 #         """Initialize a ValueRef with a NULL value.
 
 #         Args:
@@ -88,7 +88,7 @@
 #         """
 #         self.value = value^
 
-#     fn __init__(out self, var value: SQLite3Integer):
+#     def __init__(out self, var value: SQLite3Integer):
 #         """Initialize a ValueRef with an INTEGER value.
 
 #         Args:
@@ -96,7 +96,7 @@
 #         """
 #         self.value = value^
 
-#     fn __init__(out self, var value: SQLite3Real):
+#     def __init__(out self, var value: SQLite3Real):
 #         """Initialize a ValueRef with a REAL (floating-point) value.
 
 #         Args:
@@ -104,7 +104,7 @@
 #         """
 #         self.value = value^
 
-#     fn __init__(out self, var value: SQLite3Text):
+#     def __init__(out self, var value: SQLite3Text):
 #         """Initialize a ValueRef with a TEXT value.
 
 #         Args:
@@ -112,7 +112,7 @@
 #         """
 #         self.value = value^
 
-#     fn __init__(out self, var value: SQLite3Blob):
+#     def __init__(out self, var value: SQLite3Blob):
 #         """Initialize a ValueRef with a BLOB value.
 
 #         Args:
@@ -120,7 +120,7 @@
 #         """
 #         self.value = value^
 
-#     fn isa[T: SQLType](self) -> Bool:
+#     def isa[T: SQLType](self) -> Bool:
 #         """Check if the value is of the specified type T.
 
 #         This method allows runtime type checking of the stored SQL value.
@@ -133,7 +133,7 @@
 #         """
 #         return self.value.isa[T]()
 
-#     fn __getitem__[T: SQLType](self) -> ref [self.value] T:
+#     def __getitem__[T: SQLType](self) -> ref [self.value] T:
 #         """Get the value as the specified type T.
 
 #         This method provides type-safe access to the stored SQL value. The type T
@@ -147,7 +147,7 @@
 #         """
 #         return self.value[T]
 
-#     fn as_string(ref self) raises -> String:
+#     def as_string(ref self) raises -> String:
 #         """Convert the SQL value to its string representation.
 
 #         This method provides a way to get a human-readable string representation
@@ -161,7 +161,7 @@
 
 #         raise Error(InvalidColumnTypeError)
 
-#     fn as_string_slice_or_null(self) raises -> Optional[String]:
+#     def as_string_slice_or_null(self) raises -> Optional[String]:
 #         """Convert the SQL value to its string representation.
 
 #         This method provides a way to get a human-readable string representation
@@ -177,7 +177,7 @@
 
 #         raise Error(InvalidColumnTypeError)
 
-#     fn as_int64(self) raises -> Int64:
+#     def as_int64(self) raises -> Int64:
 #         """Convert the SQL value to its Int64 representation.
 
 #         This method provides a way to get the integer representation
@@ -191,7 +191,7 @@
 
 #         raise Error(InvalidColumnTypeError)
 
-#     fn as_int64_or_null(self) raises -> Optional[Int64]:
+#     def as_int64_or_null(self) raises -> Optional[Int64]:
 #         """Convert the SQL value to its Int64 representation.
 
 #         This method provides a way to get the integer representation
@@ -207,7 +207,7 @@
 
 #         raise Error(InvalidColumnTypeError)
 
-#     fn as_float64(self) raises -> Float64:
+#     def as_float64(self) raises -> Float64:
 #         """Convert the SQL value to its Float64 representation.
 
 #         This method provides a way to get the floating-point representation
@@ -221,7 +221,7 @@
 
 #         raise Error(InvalidColumnTypeError)
 
-#     fn as_float64_or_null(self) raises -> Optional[Float64]:
+#     def as_float64_or_null(self) raises -> Optional[Float64]:
 #         """Convert the SQL value to its Float64 representation.
 
 #         This method provides a way to get the floating-point representation
@@ -237,7 +237,7 @@
 
 #         raise Error(InvalidColumnTypeError)
 
-#     fn as_blob(self) raises -> List[Byte]:
+#     def as_blob(self) raises -> List[Byte]:
 #         """Convert the SQL value to its BLOB representation.
 
 #         This method provides a way to get the binary data representation
@@ -251,7 +251,7 @@
 
 #         raise Error(InvalidColumnTypeError)
 
-#     fn as_blob_or_null(self) raises -> Optional[List[Byte]]:
+#     def as_blob_or_null(self) raises -> Optional[List[Byte]]:
 #         """Convert the SQL value to its BLOB representation.
 
 #         This method provides a way to get the binary data representation
@@ -267,7 +267,7 @@
 
 #         raise Error(InvalidColumnTypeError)
 
-#     fn as_bytes(self) raises -> List[Byte]:
+#     def as_bytes(self) raises -> List[Byte]:
 #         """Convert the SQL value to a byte representation.
 
 #         This method provides a way to get byte data for either BLOB or TEXT SQL values.
@@ -282,7 +282,7 @@
 
 #         raise Error(InvalidColumnTypeError)
 
-#     fn as_bytes_or_null(self) raises -> Optional[List[Byte]]:
+#     def as_bytes_or_null(self) raises -> Optional[List[Byte]]:
 #         """Convert the SQL value to a byte representation.
 
 #         This method provides a way to get byte data for either BLOB or TEXT SQL values.

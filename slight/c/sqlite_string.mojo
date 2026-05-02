@@ -12,12 +12,12 @@ struct SQLiteMallocString(Movable):
     var ptr: MutExternalPointer[c_char]
     """A pointer to the C string allocated by SQLite."""
 
-    fn __del__(deinit self):
+    def __del__(deinit self):
         """Frees the C string using `sqlite3_free` when the `SQLiteMallocString` is deleted."""
         if self.ptr:
             sqlite_ffi()[].free(self.ptr.bitcast[NoneType]())
 
-    fn unsafe_ptr[
+    def unsafe_ptr[
         origin: Origin, address_space: AddressSpace, //
     ](ref[origin, address_space] self) -> UnsafePointer[c_char, origin, address_space=address_space]:
         """Retrieves a pointer to the underlying memory.
@@ -31,7 +31,7 @@ struct SQLiteMallocString(Movable):
         """
         return self.ptr.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().address_space_cast[address_space]()
 
-    fn as_string_slice(mut self) -> StringSlice[origin_of(self)]:
+    def as_string_slice(mut self) -> StringSlice[origin_of(self)]:
         """Returns the C string to a `StringSlice`.
 
         Returns:

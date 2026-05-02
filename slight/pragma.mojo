@@ -4,10 +4,10 @@ This module provides utilities for building and executing SQLite PRAGMA statemen
 as well as helper methods for common pragma operations.
 """
 
+from std.reflection import get_type_name
 from slight.c.raw_bindings import SQLITE_MISUSE
 from slight.types.to_sql import ToSQL
 from slight.types.value_ref import SQLite3Integer, SQLite3Real, SQLite3Text
-from std.reflection import get_type_name
 
 
 struct Sql(Movable, Writable):
@@ -20,11 +20,11 @@ struct Sql(Movable, Writable):
     var buf: String
     """The internal buffer storing the SQL statement."""
 
-    fn __init__(out self):
+    def __init__(out self):
         """Create a new empty SQL builder."""
         self.buf = String()
 
-    fn write_to(self, mut writer: Some[Writer]):
+    def write_to(self, mut writer: Some[Writer]):
         """Get the current SQL statement.
 
         Args:
@@ -32,7 +32,7 @@ struct Sql(Movable, Writable):
         """
         writer.write(self.buf)
 
-    fn as_string_slice(self) -> StringSlice[origin_of(self.buf)]:
+    def as_string_slice(self) -> StringSlice[origin_of(self.buf)]:
         """Get the current SQL statement as a string slice.
 
         Returns:
@@ -40,7 +40,7 @@ struct Sql(Movable, Writable):
         """
         return StringSlice(self.buf)
 
-    fn push_pragma(mut self, pragma: StringSlice, schema: Optional[String] = None) raises:
+    def push_pragma(mut self, pragma: StringSlice, schema: Optional[String] = None) raises:
         """Push a PRAGMA statement prefix to the buffer.
 
         Args:
@@ -58,7 +58,7 @@ struct Sql(Movable, Writable):
 
         self.push_keyword(pragma)
 
-    fn push_keyword(mut self, keyword: StringSlice) raises:
+    def push_keyword(mut self, keyword: StringSlice) raises:
         """Push a SQL keyword to the buffer.
 
         Args:
@@ -67,12 +67,12 @@ struct Sql(Movable, Writable):
         Raises:
             Error: If the keyword is empty or not a valid identifier.
         """
-        if len(keyword) > 0 and is_identifier(keyword):
+        if keyword.byte_length() > 0 and is_identifier(keyword):
             self.buf.write_string(keyword)
         else:
             raise Error(SQLITE_MISUSE, 'Invalid keyword "' + keyword + '"')
 
-    fn push_schema(mut self, schema: StringSlice):
+    def push_schema(mut self, schema: StringSlice):
         """Push a schema name to the buffer, escaping if necessary.
 
         Args:
@@ -80,7 +80,7 @@ struct Sql(Movable, Writable):
         """
         self.push_identifier(schema)
 
-    fn push_identifier(mut self, s: StringSlice):
+    def push_identifier(mut self, s: StringSlice):
         """Push an identifier to the buffer, escaping if necessary.
 
         Args:
@@ -91,7 +91,7 @@ struct Sql(Movable, Writable):
         else:
             self.wrap_and_escape(s, '"')
 
-    fn push_value[T: AnyType, //](mut self, value: T) raises:
+    def push_value[T: AnyType, //](mut self, value: T) raises:
         """Push a parameter value to the buffer.
 
         Parameters:
@@ -117,7 +117,7 @@ struct Sql(Movable, Writable):
         else:
             raise Error(SQLITE_MISUSE, " Unsupported parameter type for pragma value")
 
-    fn push_string_literal(mut self, s: StringSlice):
+    def push_string_literal(mut self, s: StringSlice):
         """Push a string literal to the buffer, properly escaped.
 
         Args:
@@ -125,7 +125,7 @@ struct Sql(Movable, Writable):
         """
         self.wrap_and_escape(s, "'")
 
-    fn push_int(mut self, i: Int):
+    def push_int(mut self, i: Int):
         """Push an integer value to the buffer.
 
         Args:
@@ -133,7 +133,7 @@ struct Sql(Movable, Writable):
         """
         self.buf.write(i)
 
-    fn push_real(mut self, f: Float64):
+    def push_real(mut self, f: Float64):
         """Push a floating-point value to the buffer.
 
         Args:
@@ -141,27 +141,27 @@ struct Sql(Movable, Writable):
         """
         self.buf.write(f)
 
-    fn push_space(mut self):
+    def push_space(mut self):
         """Push a space character to the buffer."""
         self.buf.write_string(" ")
 
-    fn push_dot(mut self):
+    def push_dot(mut self):
         """Push a dot character to the buffer."""
         self.buf.write_string(".")
 
-    fn push_equal_sign(mut self):
+    def push_equal_sign(mut self):
         """Push an equal sign to the buffer."""
         self.buf.write_string("=")
 
-    fn open_brace(mut self):
+    def open_brace(mut self):
         """Push an opening parenthesis to the buffer."""
         self.buf.write_string("(")
 
-    fn close_brace(mut self):
+    def close_brace(mut self):
         """Push a closing parenthesis to the buffer."""
         self.buf.write_string(")")
 
-    fn wrap_and_escape(mut self, s: StringSlice, quote: StringSlice):
+    def wrap_and_escape(mut self, s: StringSlice, quote: StringSlice):
         """Wrap a string in quotes and escape internal quotes by doubling.
 
         Args:
@@ -177,7 +177,7 @@ struct Sql(Movable, Writable):
         self.buf.write_string(quote)
 
 
-fn is_identifier(s: StringSlice) -> Bool:
+def is_identifier(s: StringSlice) -> Bool:
     """Check if a string is a valid SQL identifier.
 
     Args:
@@ -186,7 +186,7 @@ fn is_identifier(s: StringSlice) -> Bool:
     Returns:
         True if the string is a valid identifier, False otherwise.
     """
-    if len(s) == 0:
+    if s.byte_length() == 0:
         return False
 
     var i = 0
@@ -201,7 +201,7 @@ fn is_identifier(s: StringSlice) -> Bool:
     return True
 
 
-fn is_identifier_start(c: StringSlice) -> Bool:
+def is_identifier_start(c: StringSlice) -> Bool:
     """Check if a character can start an identifier.
 
     Args:
@@ -210,7 +210,7 @@ fn is_identifier_start(c: StringSlice) -> Bool:
     Returns:
         True if the character can start an identifier.
     """
-    if len(c) != 1:
+    if c.byte_length() != 1:
         return False
 
     var byte = ord(c)
@@ -229,7 +229,7 @@ fn is_identifier_start(c: StringSlice) -> Bool:
     return False
 
 
-fn is_identifier_continue(c: StringSlice) -> Bool:
+def is_identifier_continue(c: StringSlice) -> Bool:
     """Check if a character can continue an identifier.
 
     Args:
@@ -238,7 +238,7 @@ fn is_identifier_continue(c: StringSlice) -> Bool:
     Returns:
         True if the character can continue an identifier.
     """
-    if len(c) != 1:
+    if c.byte_length() != 1:
         return False
 
     var byte = ord(c)

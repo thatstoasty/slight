@@ -4,7 +4,7 @@ from slight.c.types import MutExternalPointer
 from slight.result import SQLite3Result
 
 
-fn error_msg(db: MutExternalPointer[sqlite3_connection], code: SQLite3Result) -> Optional[String]:
+def error_msg(db: MutExternalPointer[sqlite3_connection], code: SQLite3Result) -> Optional[String]:
     """Checks for the error message set in sqlite3, or what the description of the provided code is.
 
     Args:
@@ -26,7 +26,7 @@ fn error_msg(db: MutExternalPointer[sqlite3_connection], code: SQLite3Result) ->
     return String(unsafe_from_utf8_ptr=ptr)
 
 
-fn raise_if_error(db: MutExternalPointer[sqlite3_connection], code: SQLite3Result) raises:
+def raise_if_error(db: MutExternalPointer[sqlite3_connection], code: SQLite3Result) raises:
     """Raises if the SQLite error code is not `SQLITE_OK`.
 
     Args:
@@ -42,7 +42,7 @@ fn raise_if_error(db: MutExternalPointer[sqlite3_connection], code: SQLite3Resul
     raise Error(error_from_sqlite_code(code, error_msg(db, code)))
 
 
-fn decode_error(db: MutExternalPointer[sqlite3_connection], code: SQLite3Result) -> Error:
+def decode_error(db: MutExternalPointer[sqlite3_connection], code: SQLite3Result) -> Error:
     """Returns an Error if the SQLite error code is not `SQLITE_OK`.
 
     Args:
@@ -55,7 +55,7 @@ fn decode_error(db: MutExternalPointer[sqlite3_connection], code: SQLite3Result)
     return Error(error_from_sqlite_code(code, error_msg(db, code)))
 
 
-fn error_from_sqlite_code(code: SQLite3Result, msg: Optional[String]) -> String:
+def error_from_sqlite_code(code: SQLite3Result, msg: Optional[String]) -> String:
     """Constructs an error message from the SQLite error code and message.
 
     Args:
@@ -66,5 +66,5 @@ fn error_from_sqlite_code(code: SQLite3Result, msg: Optional[String]) -> String:
         A string containing the formatted error message.
     """
     if msg:
-        return t"sqlite3 Error ({code.value}): {msg.value()}"
-    return t"sqlite3 Error ({code.value}): Unknown error has occurred. The provided code was invalid and could not get the error via sqlite3 handle."
+        return String(t"sqlite3 Error ({code.value}): {msg.value()}")
+    return String(t"sqlite3 Error ({code.value}): Unknown error has occurred. The provided code was invalid and could not get the error via sqlite3 handle.")

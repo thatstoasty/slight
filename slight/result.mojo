@@ -105,7 +105,7 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, TrivialRegisterPass
     """A table in the database is locked (shared cache)."""
 
     @implicit
-    fn __init__(out self, value: Int32):
+    def __init__(out self, value: Int32):
         """Initializes a SQLite3Result with the given result code value.
 
         Args:
@@ -113,7 +113,7 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, TrivialRegisterPass
         """
         self.value = value
 
-    fn __int__(self) -> Int:
+    def __int__(self) -> Int:
         """Converts the SQLite3Result to its underlying integer value.
 
         Returns:
@@ -121,7 +121,7 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, TrivialRegisterPass
         """
         return Int(self.value)
 
-    fn __eq__(self, other: Self) -> Bool:
+    def __eq__(self, other: Self) -> Bool:
         """Checks if this SQLite3Result is equal to another SQLite3Result.
 
         Args:
@@ -132,7 +132,7 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, TrivialRegisterPass
         """
         return self.value == other.value
 
-    fn __eq__(self, other: Int32) -> Bool:
+    def __eq__(self, other: Int32) -> Bool:
         """Checks if this SQLite3Result is equal to a raw integer result code.
 
         Args:
@@ -143,7 +143,7 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, TrivialRegisterPass
         """
         return self.value == other
 
-    fn __ne__(self, other: Int32) -> Bool:
+    def __ne__(self, other: Int32) -> Bool:
         """Checks if this SQLite3Result is not equal to a raw integer result code.
 
         Args:
@@ -154,15 +154,15 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, TrivialRegisterPass
         """
         return self.value != other
 
-    fn write_repr_to(self) -> String:
+    def write_repr_to(self) -> String:
         """Returns a string representation of the SQLite3Result, including its integer value.
 
         Returns:
             A string representation of the SQLite3Result.
         """
-        return t"SQLite3Result({self.value})"
+        return String(t"SQLite3Result({self.value})")
 
-    fn write_to(self, mut writer: Some[Writer]):
+    def write_to(self, mut writer: Some[Writer]):
         """Writes a human-readable string representation of the SQLite3Result, including a description of the result code.
         """
         if self.value == SQLITE_OK:

@@ -4,56 +4,50 @@ from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal,
 from slight import Connection, Row
 
 
-comptime dummy: Int = 0
-"""For some reason, using the extended type explicitly makes the extensions start working after it in the
-file."""
-comptime dummy_str: String = ""
-
-
-fn test_pragma_query_value() raises:
+def test_pragma_query_value() raises:
     """Test querying a single value from a pragma."""
     var db = Connection.open_in_memory()
     
-    fn get_int(r: Row) raises -> Int:
+    def get_int(r: Row) raises -> Int:
         return r.get[Int](0)
     
     var user_version = db.pragma_query_value[get_int]("user_version")
     assert_equal(user_version, 0)
 
 
-# fn test_pragma_query_no_schema() raises:
+# def test_pragma_query_no_schema() raises:
 #     """Test querying pragma without schema name."""
 #     var db = Connection.open_in_memory()
 #     var user_version: Int = -1
     
 #     @parameter
-#     fn set_version(r: Row) raises:
+#     def set_version(r: Row) raises:
 #         user_version = r.get[Int](0)
     
 #     db.pragma_query[callback=set_version]("user_version")
 #     assert_equal(user_version, 0)
 
 
-# fn test_pragma_query_with_schema() raises:
+# def test_pragma_query_with_schema() raises:
 #     """Test querying pragma with schema name."""
 #     var db = Connection.open_in_memory()
 #     var user_version: Int = -1
     
 #     @parameter
-#     fn set_version(r: Row) raises:
+#     def set_version(r: Row) raises:
 #         user_version = r.get[Int](0)
     
 #     db.pragma_query[callback=set_version]("main", "user_version")
 #     assert_equal(user_version, 0)
 
 
-# fn test_pragma() raises:
+# def test_pragma() raises:
 #     """Test pragma with argument (table_info)."""
 #     var db = Connection.open_in_memory()
 #     var columns = List[String]()
     
 #     @parameter
-#     fn collect_column(r: Row) raises:
+#     def collect_column(r: Row) raises:
 #         var column = r.get[String](1)
 #         columns.append(column)
     
@@ -61,7 +55,7 @@ fn test_pragma_query_value() raises:
 #     assert_equal(len(columns), 5)
 
 
-fn test_pragma_func() raises:
+def test_pragma_func() raises:
     """Test using PRAGMA function syntax."""
     var db = Connection.open_in_memory()
     var table_info = db.prepare("SELECT * FROM pragma_table_info(?1)")
@@ -75,24 +69,24 @@ fn test_pragma_func() raises:
     assert_equal(len(columns), 5)
 
 
-fn test_pragma_update() raises:
+def test_pragma_update() raises:
     """Test updating a pragma value."""
     var db = Connection.open_in_memory()
     db.pragma_update("user_version", 1)
     
     # Verify the update worked
-    fn get_int(r: Row) raises -> Int:
+    def get_int(r: Row) raises -> Int:
         return r.get[Int](0)
     
     var user_version = db.pragma_query_value[get_int]("user_version")
     assert_equal(user_version, 1)
 
 
-fn test_pragma_update_and_check() raises:
+def test_pragma_update_and_check() raises:
     """Test updating a pragma and checking the returned value."""
     var db = Connection.open_in_memory()
     
-    fn get_string(r: Row) raises -> String:
+    def get_string(r: Row) raises -> String:
         return r.get[String](0)
     
     var journal_mode = db.pragma_update_and_check[get_string](
@@ -101,7 +95,7 @@ fn test_pragma_update_and_check() raises:
     # Result may be "off" or "memory" depending on SQLite version and build
     assert_true(
         journal_mode == "off" or journal_mode == "memory",
-        t"Unexpected journal mode: {journal_mode}"
+        String(t"Unexpected journal mode: {journal_mode}")
     )
     
     # Second call to ensure consistency
@@ -110,11 +104,11 @@ fn test_pragma_update_and_check() raises:
     )
     assert_true(
         mode2 == "off" or mode2 == "memory",
-        t"Unexpected journal mode: {mode2}"
+        String(t"Unexpected journal mode: {mode2}")
     )
 
 
-fn test_is_identifier() raises:
+def test_is_identifier() raises:
     """Test identifier validation."""
     assert_true(is_identifier("full"))
     assert_true(is_identifier("r2d2"))
@@ -123,7 +117,7 @@ fn test_is_identifier() raises:
     assert_false(is_identifier(""))
 
 
-fn test_double_quote() raises:
+def test_double_quote() raises:
     """Test double quote escaping in schema names."""
     var sql = Sql()
     sql.push_schema("schema\";--")
@@ -131,7 +125,7 @@ fn test_double_quote() raises:
     assert_equal(result, "\"schema\"\";--\"")
 
 
-fn test_wrap_and_escape() raises:
+def test_wrap_and_escape() raises:
     """Test string literal escaping."""
     var sql = Sql()
     sql.push_string_literal("value'; --")
@@ -139,21 +133,21 @@ fn test_wrap_and_escape() raises:
     assert_equal(result, "'value''; --'")
 
 
-fn test_locking_mode() raises:
+def test_locking_mode() raises:
     """Test setting locking mode pragma."""
     var db = Connection.open_in_memory()
     # TODO: Pragma returns a result set sometimes which causes execute_batch to throw
     db.pragma_update("locking_mode", "exclusive")
     
     # Verify it was set
-    fn get_string(r: Row) raises -> String:
+    def get_string(r: Row) raises -> String:
         return r.get[String](0)
     
     var mode = db.pragma_query_value[get_string]("locking_mode")
     assert_equal(mode, "exclusive")
 
 
-fn test_sql_builder_keyword() raises:
+def test_sql_builder_keyword() raises:
     """Test SQL builder keyword validation."""
     var sql = Sql()
     
@@ -172,7 +166,7 @@ fn test_sql_builder_keyword() raises:
         sql3.push_keyword("")
 
 
-fn test_sql_builder_pragma() raises:
+def test_sql_builder_pragma() raises:
     """Test building PRAGMA statements."""
     var sql = Sql()
     sql.push_pragma("user_version")
@@ -184,7 +178,7 @@ fn test_sql_builder_pragma() raises:
     assert_equal(String(sql2), "PRAGMA main.user_version")
 
 
-fn test_sql_builder_value() raises:
+def test_sql_builder_value() raises:
     """Test pushing different value types."""
     var sql = Sql()
     sql.push_int(42)
@@ -200,7 +194,7 @@ fn test_sql_builder_value() raises:
     assert_equal(String(sql3), "'hello'")
 
 
-fn test_sql_builder_complete_statement() raises:
+def test_sql_builder_complete_statement() raises:
     """Test building a complete PRAGMA statement with value."""
     var sql = Sql()
     sql.push_pragma("user_version")
@@ -209,7 +203,7 @@ fn test_sql_builder_complete_statement() raises:
     assert_equal(String(sql), "PRAGMA user_version=5")
 
 
-fn test_identifier_edge_cases() raises:
+def test_identifier_edge_cases() raises:
     """Test edge cases for identifier validation."""
     # Valid identifiers
     assert_true(is_identifier("_underscore"))
@@ -224,12 +218,12 @@ fn test_identifier_edge_cases() raises:
     assert_false(is_identifier("has.dot"))
 
 
-# fn test_pragma_with_int_value() raises:
+# def test_pragma_with_int_value() raises:
 #     """Test pragma with integer parameter."""
 #     var db = Connection.open_in_memory()
 #     var columns = List[String]()
     
-#     fn collect_column(r: Row) raises:
+#     def collect_column(r: Row) raises:
 #         var column = r.get[String](1)
 #         columns.append(column)
     
@@ -241,5 +235,5 @@ fn test_identifier_edge_cases() raises:
 #     assert_equal(len(columns), 2)
 
 
-fn main() raises:
+def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()

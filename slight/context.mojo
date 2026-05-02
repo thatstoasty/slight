@@ -1,3 +1,6 @@
+from std.ffi import c_int
+from std.os import abort
+from std.memory import ImmutSpan
 from slight.c.types import MutExternalPointer, sqlite3_connection, sqlite3_context, sqlite3_value, DataType, DestructorHint, TextEncoding, ResultDestructorFn
 from slight.c.api import sqlite_ffi
 from slight.types.value_ref import (
@@ -8,10 +11,6 @@ from slight.types.value_ref import (
     SQLite3Text,
     SQLite3Blob,
 )
-
-from std.ffi import c_int
-from std.os import abort
-from std.memory import ImmutSpan
 
 @fieldwise_init
 struct Context(Movable, Sized):
@@ -27,7 +26,7 @@ struct Context(Movable, Sized):
     from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
     from slight.context import Context
 
-    fn my_func(
+    def my_func(
         raw_ctx: MutExternalPointer[sqlite3_context],
         argc: Int32,
         argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
@@ -43,7 +42,7 @@ struct Context(Movable, Sized):
     var args: List[MutExternalPointer[sqlite3_value]]
     """The number of arguments passed to the function."""
 
-    fn __init__(
+    def __init__(
         out self,
         ctx: MutExternalPointer[sqlite3_context],
     ):
@@ -55,7 +54,7 @@ struct Context(Movable, Sized):
         self.ctx = ctx
         self.args = []
 
-    fn __init__(
+    def __init__(
         out self,
         ctx: MutExternalPointer[sqlite3_context],
         argc: c_int,
@@ -76,7 +75,7 @@ struct Context(Movable, Sized):
     # ===------------------------------------------------------------------=== #
 
     @always_inline
-    fn __len__(self) -> Int:
+    def __len__(self) -> Int:
         """Returns the number of arguments to the function.
 
         Returns:
@@ -85,7 +84,7 @@ struct Context(Movable, Sized):
         return len(self.args)
 
     @always_inline
-    fn is_empty(self) -> Bool:
+    def is_empty(self) -> Bool:
         """Returns True when there are no arguments.
 
         Returns:
@@ -93,7 +92,7 @@ struct Context(Movable, Sized):
         """
         return len(self.args) == 0
 
-    fn get_raw(self, idx: Int) -> ValueRef[origin_of(self)]:
+    def get_raw(self, idx: Int) -> ValueRef[origin_of(self)]:
         """Returns the `idx`th argument as a `ValueRef`.
 
         This reads the type and value from the raw sqlite3_value pointer.
@@ -133,7 +132,7 @@ struct Context(Movable, Sized):
         else:
             abort("[UNREACHABLE] sqlite3_value_type returned an invalid value")
 
-    fn get_int64(self, idx: Int) -> Int64:
+    def get_int64(self, idx: Int) -> Int64:
         """Returns the `idx`th argument as an Int64.
 
         This calls `sqlite3_value_int64` directly, performing SQLite's type
@@ -148,7 +147,7 @@ struct Context(Movable, Sized):
         debug_assert(idx < len(self), "Argument index out of bounds")
         return sqlite_ffi()[].value_int64(self.args[idx])
 
-    fn get_double(self, idx: Int) -> Float64:
+    def get_double(self, idx: Int) -> Float64:
         """Returns the `idx`th argument as a Float64.
 
         This calls `sqlite3_value_double` directly, performing SQLite's type
@@ -163,7 +162,7 @@ struct Context(Movable, Sized):
         debug_assert(idx < len(self), "Argument index out of bounds")
         return sqlite_ffi()[].value_double(self.args[idx])
 
-    fn get_text(self, idx: Int) -> StringSlice[origin_of(self)]:
+    def get_text(self, idx: Int) -> StringSlice[origin_of(self)]:
         """Returns the `idx`th argument as a StringSlice.
 
         This calls `sqlite3_value_text` directly. The returned slice
@@ -180,7 +179,7 @@ struct Context(Movable, Sized):
         var text_ptr = sqlite_ffi()[].value_text(self.args[idx])
         return StringSlice(unsafe_from_utf8_ptr=text_ptr.unsafe_origin_cast[origin_of(self)]())
 
-    fn get_blob(self, idx: Int) -> Span[Byte, origin_of(self)]:
+    def get_blob(self, idx: Int) -> Span[Byte, origin_of(self)]:
         """Returns the `idx`th argument as a Span of bytes (BLOB).
 
         This calls `sqlite3_value_blob` and `sqlite3_value_bytes` directly.
@@ -202,7 +201,7 @@ struct Context(Movable, Sized):
             length=n_bytes,
         )
 
-    fn get_subtype(self, idx: Int) -> UInt32:
+    def get_subtype(self, idx: Int) -> UInt32:
         """Returns the subtype of the `idx`th argument.
 
         Args:
@@ -214,7 +213,7 @@ struct Context(Movable, Sized):
         debug_assert(idx < len(self), "Argument index out of bounds")
         return sqlite_ffi()[].value_subtype(self.args[idx])
 
-    fn get_value_type(self, idx: Int) -> DataType:
+    def get_value_type(self, idx: Int) -> DataType:
         """Returns the fundamental datatype of the `idx`th argument.
 
         Args:
@@ -230,7 +229,7 @@ struct Context(Movable, Sized):
     # Result Setting
     # ===------------------------------------------------------------------=== #
 
-    fn result_int64(self, value: Int64):
+    def result_int64(self, value: Int64):
         """Set the result of the function to a 64-bit integer.
 
         Args:
@@ -238,7 +237,7 @@ struct Context(Movable, Sized):
         """
         sqlite_ffi()[].result_int64(self.ctx, value)
 
-    fn result_double(self, value: Float64):
+    def result_double(self, value: Float64):
         """Set the result of the function to a floating-point value.
 
         Args:
@@ -246,7 +245,7 @@ struct Context(Movable, Sized):
         """
         sqlite_ffi()[].result_double(self.ctx, value)
 
-    fn result_text(self, var value: String):
+    def result_text(self, var value: String):
         """Set the result of the function to a text string.
 
         SQLite makes its own copy of the string (uses SQLITE_TRANSIENT).
@@ -257,16 +256,16 @@ struct Context(Movable, Sized):
         sqlite_ffi()[].result_text64(
             self.ctx,
             value,
-            UInt64(len(value)),
+            UInt64(value.byte_length()),
             TextEncoding.UTF8.value,
             DestructorHint.transient_destructor(),
         )
 
-    fn result_null(self):
+    def result_null(self):
         """Set the result of the function to NULL."""
         sqlite_ffi()[].result_null(self.ctx)
 
-    fn result_blob(self, data: ImmutSpan[Byte, ...]):
+    def result_blob(self, data: ImmutSpan[Byte, ...]):
         """Set the result of the function to a BLOB value.
 
         SQLite makes its own copy of the data (uses SQLITE_TRANSIENT).
@@ -281,16 +280,16 @@ struct Context(Movable, Sized):
             DestructorHint.transient_destructor(),
         )
 
-    fn result_error(self, msg: String):
+    def result_error(self, msg: Some[Writable]):
         """Set the result of the function to an error.
 
         Args:
             msg: The error message string.
         """
-        var msg_copy = msg.copy()
+        var msg_copy = String(msg)
         sqlite_ffi()[].result_error(self.ctx, msg_copy, c_int(-1))
 
-    fn result_error_code(self, code: Int32):
+    def result_error_code(self, code: Int32):
         """Set the result of the function to an error code.
 
         Args:
@@ -298,15 +297,15 @@ struct Context(Movable, Sized):
         """
         sqlite_ffi()[].result_error_code(self.ctx, code)
 
-    fn result_error_no_mem(self):
+    def result_error_no_mem(self):
         """Set the result of the function to SQLITE_NOMEM (out of memory)."""
         sqlite_ffi()[].result_error_nomem(self.ctx)
 
-    fn result_error_too_big(self):
+    def result_error_too_big(self):
         """Set the result of the function to SQLITE_TOOBIG (too big)."""
         sqlite_ffi()[].result_error_toobig(self.ctx)
 
-    fn result_value(self, value: MutExternalPointer[sqlite3_value]):
+    def result_value(self, value: MutExternalPointer[sqlite3_value]):
         """Set the result of the function to a copy of another sqlite3_value.
 
         Args:
@@ -314,7 +313,7 @@ struct Context(Movable, Sized):
         """
         sqlite_ffi()[].result_value(self.ctx, value)
 
-    fn result_zero_blob(self, n: Int32):
+    def result_zero_blob(self, n: Int32):
         """Set the result of the function to a zero-filled BLOB.
 
         Args:
@@ -322,7 +321,7 @@ struct Context(Movable, Sized):
         """
         sqlite_ffi()[].result_zeroblob(self.ctx, n)
 
-    fn result_subtype(self, subtype: UInt32):
+    def result_subtype(self, subtype: UInt32):
         """Set the subtype of the function result.
 
         Args:
@@ -330,7 +329,7 @@ struct Context(Movable, Sized):
         """
         sqlite_ffi()[].result_subtype(self.ctx, subtype)
     
-    fn set_result(self, result: ValueRef[_]):
+    def set_result(self, result: ValueRef[_]):
         """Set the function result based on a ValueRef.
 
         This is a convenience method that checks the type of the ValueRef and
@@ -361,7 +360,7 @@ struct Context(Movable, Sized):
     # Aggregate Helpers
     # ===------------------------------------------------------------------=== #
 
-    fn aggregate_context[A: Movable](self, n_bytes: Int) -> Optional[MutExternalPointer[A]]:
+    def aggregate_context[A: Movable](self, n_bytes: Int) -> Optional[MutExternalPointer[A]]:
         """Get or allocate the aggregate function context.
 
         On the first call for a particular aggregate instance, `n_bytes` of
@@ -385,7 +384,7 @@ struct Context(Movable, Sized):
             return None
         return ptr.bitcast[A]()
 
-    fn user_data(self) -> MutExternalPointer[NoneType]:
+    def user_data(self) -> MutExternalPointer[NoneType]:
         """Get the user data pointer that was passed to `create_scalar_function`,
         `create_aggregate_function`, or `create_window_function`.
 
@@ -396,7 +395,7 @@ struct Context(Movable, Sized):
         """
         return sqlite_ffi()[].user_data(self.ctx)
 
-    fn context_db_handle(self) -> MutExternalPointer[sqlite3_connection]:
+    def context_db_handle(self) -> MutExternalPointer[sqlite3_connection]:
         """Get the database connection handle from the function context.
 
         Returns:
@@ -404,7 +403,7 @@ struct Context(Movable, Sized):
         """
         return sqlite_ffi()[].context_db_handle(self.ctx)
 
-    fn get_auxdata(self, arg: Int) -> MutExternalPointer[NoneType]:
+    def get_auxdata(self, arg: Int) -> MutExternalPointer[NoneType]:
         """Get the auxiliary data associated with a particular parameter.
 
         Returns the auxiliary data that was previously set using `set_auxdata`.
@@ -418,7 +417,7 @@ struct Context(Movable, Sized):
         """
         return sqlite_ffi()[].get_auxdata(self.ctx, c_int(arg))
 
-    fn set_auxdata[
+    def set_auxdata[
         data_origin: MutOrigin
     ](self, arg: Int, data: MutOpaquePointer[data_origin], destructor: ResultDestructorFn):
         """Set the auxiliary data associated with a particular parameter.

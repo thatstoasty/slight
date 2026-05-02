@@ -3,19 +3,20 @@ from slight.c.types import MutExternalPointer
 from std.ffi import _get_global
 
 
-fn _init_global() -> MutExternalPointer[NoneType]:
+def _init_global() -> Optional[MutExternalPointer[NoneType]]:
     var ptr = alloc[sqlite3](1)
     ptr[] = sqlite3()
     return ptr.bitcast[NoneType]()
 
 
-fn _destroy_global(lib: MutExternalPointer[NoneType]):
-    var p = lib.bitcast[sqlite3]()
-    p.free()
+def _destroy_global(lib: Optional[MutExternalPointer[NoneType]]):
+    if lib:
+        var p = lib.value().bitcast[sqlite3]()
+        p.free()
 
 
 @always_inline
-fn sqlite_ffi() -> MutExternalPointer[sqlite3]:
+def sqlite_ffi() -> MutExternalPointer[sqlite3]:
     """Initializes or gets the global sqlite3 handle.
 
     DO NOT FREE THE POINTER MANUALLY. It will be freed automatically on program exit.
@@ -23,4 +24,4 @@ fn sqlite_ffi() -> MutExternalPointer[sqlite3]:
     Returns:
         A pointer to the global sqlite3 handle.
     """
-    return _get_global["sqlite3", _init_global, _destroy_global]().bitcast[sqlite3]()
+    return _get_global["sqlite3", _init_global, _destroy_global]().value().bitcast[sqlite3]()

@@ -38,7 +38,7 @@ struct FunctionFlags(ImplicitlyCopyable):
     comptime SELFORDER1 = Self(0x002000000)
     """Indicates that the function is an aggregate that internally orders the values provided to the first argument."""
 
-    fn __or__(self, other: Self) -> Self:
+    def __or__(self, other: Self) -> Self:
         """Combines two FunctionFlags using a bitwise OR operation.
 
         This allows multiple flags to be set at once when creating a SQL function.
@@ -52,7 +52,7 @@ struct FunctionFlags(ImplicitlyCopyable):
         return Self(self.value | other.value)
 
 
-fn _default_destructor(pApp: MutExternalPointer[NoneType]):
+def _default_destructor(pApp: MutExternalPointer[NoneType]):
     """Default destructor for user-defined function application data.
 
     This function is used as the destructor callback when creating user-defined functions
@@ -68,14 +68,14 @@ fn _default_destructor(pApp: MutExternalPointer[NoneType]):
 # For scalar functions, SQLite requires xFunc to be non-NULL and
 # xStep/xFinal to be NULL. We call the raw C API directly to pass
 # NULL for the unused callbacks.
-comptime ScalarUDF[V: MoveDestructible] = fn(Context) raises -> V
+comptime ScalarUDF[V: MoveDestructible] = def(Context) raises thin -> V
 """User provided scalar function callback.
 
 Parameters:
     V: The return type of the scalar function, which must conform to `ToSQL`.
 """
 
-fn _call_scalar_callback[
+def _call_scalar_callback[
     V: MoveDestructible, //,
     func: ScalarUDF[V]
 ](
@@ -120,19 +120,19 @@ fn _call_scalar_callback[
     context.set_result(result)
     return
 
-comptime AggregateInitUDF[A: MoveDestructible] = fn(mut ctx: Context) raises -> A
+comptime AggregateInitUDF[A: MoveDestructible] = def(mut ctx: Context) raises thin -> A
 """User provided aggregate function initialization callback.
 
 Parameters:
     A: The type of the aggregate context, which must be initialized by this function and updated by the step function.
 """
-comptime AggregateStepUDF[A: MoveDestructible] = fn(mut ctx: Context, mut acc: A) raises
+comptime AggregateStepUDF[A: MoveDestructible] = def(mut ctx: Context, mut acc: A) raises thin
 """User provided aggregate function step callback.
 
 Parameters:
     A: The type of the aggregate context, which is initialized by the init function on the first call and updated by this function on each call.
 """
-comptime AggregateFinalUDF[A: MoveDestructible, T: MoveDestructible] = fn(mut ctx: Context, acc: A) raises -> T
+comptime AggregateFinalUDF[A: MoveDestructible, T: MoveDestructible] = def(mut ctx: Context, acc: A) raises thin -> T
 """User provided aggregate function final callback.
 
 Parameters:
@@ -140,7 +140,7 @@ Parameters:
     T: The return type of the final function, which must conform to `ToSQL`.
 """
 
-fn _call_step_callback[
+def _call_step_callback[
     A: MoveDestructible,
     //,
     init_fn: AggregateInitUDF[A],
@@ -177,7 +177,7 @@ fn _call_step_callback[
             # If the user's init function raises an error, we need to convert it to a SQLite error result.
             context.result_error(t"Error in aggregate init function: {e}")
             return
-        agg_context = Optional(agg_context_ptr)
+        agg_context = Optional[UnsafePointer[A, MutExternalOrigin]](agg_context_ptr)
 
     try:
         step_fn(context, agg_context.value()[])
@@ -187,7 +187,7 @@ fn _call_step_callback[
     return
 
 
-fn _call_final_callback[
+def _call_final_callback[
     A: MoveDestructible,
     T: MoveDestructible,
     //,
@@ -235,24 +235,25 @@ fn _call_final_callback[
     return
 
 
-comptime WindowAggregateValueUDF[A: CopyDestructible, T: MoveDestructible] = fn(acc: Optional[A]) raises -> T
+comptime WindowAggregateValueUDF[A: CopyDestructible, T: MoveDestructible] = def(acc: Optional[A]) raises thin -> T
 """User provided aggregate function initialization callback.
 
 Parameters:
     A: The type of the aggregate context, which is updated by the xStep callback and passed to this function to compute the current value of the window function for window frames.
     T: The return type of the value function, which must conform to `ToSQL`.
 """
-comptime WindowAggregateInverseUDF[A: CopyDestructible] = fn(mut ctx: Context, mut acc: A) raises
+comptime WindowAggregateInverseUDF[A: CopyDestructible] = def(mut ctx: Context, mut acc: A) raises thin
 """User provided aggregate function initialization callback.
 
 Parameters:
     A: The type of the aggregate context, which is updated by the xStep callback and passed to this function to compute the current value of the window function for window frames.
 """
 
-fn _call_value_callback[
+def _call_value_callback[
     A: CopyDestructible,
     T: MoveDestructible,
-    //, value_fn: WindowAggregateValueUDF[A, T]
+    //,
+    value_fn: WindowAggregateValueUDF[A, T]
 ](ctx: MutExternalPointer[sqlite3_context]) -> NoneType:
     """The xValue callback for the window function.
 
@@ -293,7 +294,7 @@ fn _call_value_callback[
     context.set_result(result)
     return
 
-fn _call_inverse_callback[
+def _call_inverse_callback[
     A: CopyDestructible, //, inverse_fn: WindowAggregateInverseUDF[A]
 ](
     ctx: MutExternalPointer[sqlite3_context],

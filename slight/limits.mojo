@@ -64,7 +64,7 @@ struct Limit(Copyable, ImplicitlyCopyable, Movable, Writable, TrivialRegisterPas
     """The maximum number of auxiliary worker threads that a single prepared
     statement may start."""
 
-    fn write_to(self, mut writer: Some[Writer]):
+    def write_to(self, mut writer: Some[Writer]):
         """Write a human-readable representation.
 
         Args:

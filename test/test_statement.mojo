@@ -4,7 +4,7 @@ from slight.statement import eq_ignore_ascii_case
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 
-fn test_execute_named() raises:
+def test_execute_named() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo(x INTEGER)")
 
@@ -22,7 +22,7 @@ fn test_execute_named() raises:
         1
     )
 
-    fn get_int32(r: Row) raises -> Int32:
+    def get_int32(r: Row) raises -> Int32:
         return Int32(r.get[Int](0))
 
     assert_equal(
@@ -42,7 +42,7 @@ fn test_execute_named() raises:
 
 
 # BROKEN
-fn test_stmt_execute_named() raises:
+def test_stmt_execute_named() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, flag INTEGER)")
 
@@ -50,7 +50,7 @@ fn test_stmt_execute_named() raises:
     _ = stmt.execute({":name": "one"})
     _ = stmt.execute({":name": "one"})
 
-    fn get_count(r: Row) raises -> Int:
+    def get_count(r: Row) raises -> Int:
         return r.get[Int](0)
 
     var stmt2 = db.prepare("SELECT COUNT(*) FROM test WHERE name = :name")
@@ -60,7 +60,7 @@ fn test_stmt_execute_named() raises:
     )
 
 
-fn test_query_named() raises:
+def test_query_named() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""CREATE TABLE test (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, flag INTEGER);
     INSERT INTO test(id, name) VALUES (1, "one");""")
@@ -71,7 +71,7 @@ fn test_query_named() raises:
         assert_equal(row.get[Int](0), 1)
 
 
-fn test_query_params() raises:
+def test_query_params() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""CREATE TABLE test (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, flag INTEGER);
     INSERT INTO test(id, name) VALUES (1, "one");""")
@@ -82,12 +82,12 @@ fn test_query_params() raises:
         assert_equal(row.get[Int](0), 1)
 
 
-fn test_query_map_named() raises:
+def test_query_map_named() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""CREATE TABLE test (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, flag INTEGER);
     INSERT INTO test(id, name) VALUES (1, "one");""")
 
-    fn get_doubled_id(r: Row) -> Int:
+    def get_doubled_id(r: Row) -> Int:
         try:
             return r.get[Int](0) * 2
         except:
@@ -104,13 +104,13 @@ struct TestStruct(Defaultable, Movable):
     var name: String
     var flag: Int
 
-    fn __init__(out self):
+    def __init__(out self):
         self.id = 0
         self.name = ""
         self.flag = 0
 
 
-fn test_query_as_type_named() raises:
+def test_query_as_type_named() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""CREATE TABLE test (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, flag INTEGER);
     INSERT INTO test(id, name) VALUES (1, "one");""")
@@ -120,13 +120,13 @@ fn test_query_as_type_named() raises:
         assert_equal(row.id, 1)
 
 
-fn test_unbound_parameters_are_null() raises:
+def test_unbound_parameters_are_null() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (x TEXT, y TEXT)")
 
     var stmt = db.prepare("INSERT INTO test (x, y) VALUES (:x, :y)")
     _ = stmt.execute({":x": "one"})
-    fn get_value(r: Row) raises -> NoneType:
+    def get_value(r: Row) raises -> NoneType:
         var result = r.get_string_slice(0)
         if not result:
             return
@@ -135,7 +135,7 @@ fn test_unbound_parameters_are_null() raises:
     _ = db.one_row[get_value]("SELECT y FROM test WHERE x = 'one'")
 
 
-fn test_unbound_parameters_are_reused() raises:
+def test_unbound_parameters_are_reused() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (x TEXT, y TEXT)")
 
@@ -143,14 +143,14 @@ fn test_unbound_parameters_are_reused() raises:
     _ = stmt.execute({":x": "one"})
     _ = stmt.execute({":y": "two"})
 
-    fn get_value(r: Row) raises -> String:
+    def get_value(r: Row) raises -> String:
         return r.get[String](0)
 
     var result = db.one_row[get_value]("SELECT x FROM test WHERE y = 'two'")
     assert_equal(result, "one")
 
 
-fn test_insert() raises:
+def test_insert() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo(x INTEGER UNIQUE)")
     var stmt = db.prepare("INSERT OR IGNORE INTO foo (x) VALUES (?1)")
@@ -165,7 +165,7 @@ fn test_insert() raises:
         _ = multi.insert()
 
 
-fn test_insert_different_tables() raises:
+def test_insert_different_tables() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""
     CREATE TABLE foo(x INTEGER);
@@ -179,7 +179,7 @@ fn test_insert_different_tables() raises:
     assert_equal(stmt.insert(), 1)
 
 
-fn test_exists() raises:
+def test_exists() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""CREATE TABLE foo(x INTEGER);
     INSERT INTO foo VALUES(1);
@@ -194,17 +194,17 @@ fn test_exists() raises:
     # assert_false(stmt.exists([0]))
 
 
-fn test_list_params() raises:
+def test_list_params() raises:
     var db = Connection.open_in_memory()
 
-    fn get_string(r: Row) raises -> String:
+    def get_string(r: Row) raises -> String:
         return r.get[String](0)
 
     var s = db.one_row[get_string]("SELECT printf('[%s]', ?1)", ["abc"])
     assert_equal(s, "[abc]")
 
 
-fn test_dict_params() raises:
+def test_dict_params() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo(x INTEGER);")
 
@@ -214,10 +214,10 @@ fn test_dict_params() raises:
     )
 
 
-fn test_tuple_params() raises:
+def test_tuple_params() raises:
     var db = Connection.open_in_memory()
 
-    fn get_string(r: Row) raises -> String:
+    def get_string(r: Row) raises -> String:
         return r.get[String](0)
 
     var s = db.one_row[get_string]("SELECT printf('[%s]', ?1)", ("abc",))
@@ -250,10 +250,10 @@ fn test_tuple_params() raises:
     assert_equal(s4, "0 a | 1 b | 2 c | 3 d || 4 e | 5 f | 6 g | 7 h")
 
 
-fn test_query_row() raises:
+def test_query_row() raises:
     var db = Connection.open_in_memory()
 
-    fn get_int64(r: Row) raises -> Int64:
+    def get_int64(r: Row) raises -> Int64:
         return r.get[Int64](0)
 
     db.execute_batch("""CREATE TABLE foo(x INTEGER, y INTEGER);
@@ -264,10 +264,10 @@ fn test_query_row() raises:
     assert_equal(y, 3)
 
 
-fn query_one() raises:
+def query_one() raises:
     var db = Connection.open_in_memory()
     
-    fn get_int64(r: Row) raises -> Int64:
+    def get_int64(r: Row) raises -> Int64:
         return r.get[Int64](0)
 
     db.execute_batch("CREATE TABLE foo(x INTEGER, y INTEGER);")
@@ -288,10 +288,10 @@ fn query_one() raises:
     #     _ = stmt.query_one[get_int64]([1])
 
 
-fn test_query_by_column_name() raises:
+def test_query_by_column_name() raises:
     var db = Connection.open_in_memory()
     
-    fn get_string(r: Row) raises -> Int:
+    def get_string(r: Row) raises -> Int:
         return r.get[Int]("y")
 
     db.execute_batch("""BEGIN;
@@ -303,10 +303,10 @@ fn test_query_by_column_name() raises:
     assert_equal(y, 3)
 
 
-fn test_query_by_column_name_ignore_case() raises:
+def test_query_by_column_name_ignore_case() raises:
     var db = Connection.open_in_memory()
 
-    fn get_int(r: Row) raises -> Int:
+    def get_int(r: Row) raises -> Int:
         return r.get[Int]("y")
 
     db.execute_batch("""BEGIN;
@@ -318,17 +318,17 @@ fn test_query_by_column_name_ignore_case() raises:
     assert_equal(y, 3)
 
 
-fn test_expanded_sql() raises:
+def test_expanded_sql() raises:
     var db = Connection.open_in_memory()
     var stmt = db.prepare("SELECT ?1")
     stmt.bind_parameter(1, 1)
     assert_equal(stmt.expanded_sql().value(), "SELECT 1")
 
 
-fn test_bind_parameters() raises:
+def test_bind_parameters() raises:
     var db = Connection.open_in_memory()
     
-    fn get_int(r: Row) raises -> Int:
+    def get_int(r: Row) raises -> Int:
         return r.get[Int](0)
 
     # Test with list of parameters - one_row doesn't directly support List types like this
@@ -337,7 +337,7 @@ fn test_bind_parameters() raises:
     assert_equal(s, 15)
 
 
-# fn test_parameter_name() raises:
+# def test_parameter_name() raises:
 #     var db = Connection.open_in_memory()
     
 #     db.execute_batch("CREATE TABLE test (name TEXT, value INTEGER)")
@@ -360,7 +360,7 @@ fn test_bind_parameters() raises:
 #     assert_true(stmt.column_count() == 0)
 
 
-fn test_empty_stmt() raises:
+def test_empty_stmt() raises:
     var db = Connection.open_in_memory()
 
     var stmt = db.prepare("")
@@ -374,26 +374,26 @@ fn test_empty_stmt() raises:
     stmt.reset()
 
 
-fn test_comment_stmt() raises:
+def test_comment_stmt() raises:
     var db = Connection.open_in_memory()
     _ = db.prepare("/*SELECT 1;*/")
 
 
-fn test_comment_and_sql_stmt() raises:
+def test_comment_and_sql_stmt() raises:
     var db = Connection.open_in_memory()
     _ = db.prepare("/* ... */ SELECT 1;")
 
 
-fn test_semi_colon_stmt() raises:
+def test_semi_colon_stmt() raises:
     var db = Connection.open_in_memory()
     var stmt = db.prepare(";")
     assert_equal(stmt.column_count(), 0)
 
 
-fn test_utf16_conversion() raises:
+def test_utf16_conversion() raises:
     var db = Connection.open_in_memory()
     
-    fn get_string(r: Row) raises -> String:
+    def get_string(r: Row) raises -> String:
         return r.get[String](0)
     
     # TODO: pragma_update and pragma_query_value are not yet implemented
@@ -408,29 +408,29 @@ fn test_utf16_conversion() raises:
     assert_equal(actual, expected)
 
 
-fn test_is_explain() raises:
+def test_is_explain() raises:
     var db = Connection.open_in_memory()
     var stmt = db.prepare("EXPLAIN SELECT 1;")
     assert_equal(stmt.is_explain(), 1)
 
 
-fn test_is_read_only() raises:
+def test_is_read_only() raises:
     var db = Connection.open_in_memory()
     var stmt = db.prepare("SELECT 1;")
     assert_true(stmt.is_read_only())
 
 
-fn test_column_name_in_error() raises:
+def test_column_name_in_error() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""BEGIN;
         CREATE TABLE foo(x INTEGER, y TEXT);
         INSERT INTO foo VALUES(4, NULL);
         END;""")
     
-    fn get_string_from_x(r: Row) raises -> String:
+    def get_string_from_x(r: Row) raises -> String:
         return r.get[String](0)
     
-    fn get_string_from_y(r: Row) raises -> String:
+    def get_string_from_y(r: Row) raises -> String:
         return r.get[String]("y")
     
     var stmt = db.prepare("SELECT x as renamed, y FROM foo")
@@ -448,7 +448,7 @@ fn test_column_name_in_error() raises:
         break  # Only test first row
 
 
-fn test_column_name_reference() raises:
+def test_column_name_reference() raises:
     """The `column_name` reference should stay valid until `stmt` is reprepared (or
     reset) even if DB schema is altered (SQLite documentation is
     ambiguous here because it says reference "is valid until (...) the next
@@ -467,7 +467,7 @@ fn test_column_name_reference() raises:
     assert_equal(same_column_name, column_name)
 
 
-fn main() raises:
+def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
     # var suite = TestSuite()
     # suite.test[test_variadic_params]()

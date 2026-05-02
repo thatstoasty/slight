@@ -9,14 +9,14 @@ from std.pathlib import Path
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 
-fn test_eq_ignore_ascii_case_test() raises:
+def test_eq_ignore_ascii_case_test() raises:
     assert_true(eq_ignore_ascii_case("hello".as_bytes(), "HELLO".as_bytes()))
     assert_true(eq_ignore_ascii_case("MoJo".as_bytes(), "mojo".as_bytes()))
     assert_false(eq_ignore_ascii_case("Test".as_bytes(), "Taste".as_bytes()))
     assert_false(eq_ignore_ascii_case("Mojo".as_bytes(), "Mojo!".as_bytes()))
 
 
-fn test_path() raises:
+def test_path() raises:
     with Connection.open_in_memory() as db:
         assert_equal(db.path().value(), "")
 
@@ -29,12 +29,12 @@ fn test_path() raises:
         assert_true(String(db.path().value()).endswith("file.db"))
 
 
-fn test_open_failure() raises:
+def test_open_failure() raises:
     with assert_raises(contains="Unable to open the database file"):
         _ = Connection.open("no_such_file.db", OpenFlag.READ_ONLY)
 
 
-# fn test_close_retry() raises:
+# def test_close_retry() raises:
 #     var db = Connection.open_in_memory()
 
 #     # force the DB to be busy by preparing a statement; this must be done at the
@@ -69,7 +69,7 @@ fn test_open_failure() raises:
 #         db^.close()
 
 
-# fn test_table_creation_and_insertion() raises:
+# def test_table_creation_and_insertion() raises:
 #     var db = Connection.open_in_memory()
 
 #     db.execute_batch("""
@@ -123,7 +123,7 @@ fn test_open_failure() raises:
 #     db^.close()
 
 
-fn test_bad_open_flags() raises:
+def test_bad_open_flags() raises:
     var bad_flags = [
         OpenFlag.READ_ONLY | OpenFlag.READ_WRITE,
         OpenFlag.READ_ONLY | OpenFlag.CREATE
@@ -135,7 +135,7 @@ fn test_bad_open_flags() raises:
             db^.close()
 
 
-fn test_execute_batch() raises:
+def test_execute_batch() raises:
     var db = Connection.open_in_memory()    
     db.execute_batch("""CREATE TABLE foo(x INTEGER);
     INSERT INTO foo VALUES(1);
@@ -150,13 +150,13 @@ fn test_execute_batch() raises:
     # db.execute_batch("PRAGMA locking_mode = EXCLUSIVE")
 
 
-fn test_execute_select_with_row() raises:
+def test_execute_select_with_row() raises:
     var db = Connection.open_in_memory()
     with assert_raises(contains="Query returned rows"):
         _ = db.execute("SELECT 1")
 
 
-fn test_execute_multiple() raises:
+def test_execute_multiple() raises:
     var db = Connection.open_in_memory()
     with assert_raises(contains="MultipleStatementsError"):
         _ = db.execute("CREATE TABLE foo(x INTEGER); CREATE TABLE foo(x INTEGER)")
@@ -165,7 +165,7 @@ fn test_execute_multiple() raises:
     _ = db.execute("CREATE TABLE t(c); -- bim")
 
 
-fn test_prepare_column_names() raises:
+def test_prepare_column_names() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo(x INTEGER);")
     
@@ -182,10 +182,10 @@ fn test_prepare_column_names() raises:
 comptime dummy: Int = 1
 """For some reason, using the extended type explicitly makes the extensions start working after it in the file."""
 
-fn test_execute() raises:
+def test_execute() raises:
     var db = Connection.open_in_memory()
     
-    fn get_int(r: Row) raises -> Int:
+    def get_int(r: Row) raises -> Int:
         return r.get[Int](0)
     
     db.execute_batch("CREATE TABLE foo(x INTEGER)")
@@ -194,11 +194,11 @@ fn test_execute() raises:
     assert_equal(db.one_row[get_int]("SELECT SUM(x) FROM foo"), 3)
 
 
-fn test_insert_bytes() raises:
+def test_insert_bytes() raises:
     var db = Connection.open_in_memory()
     var example = "hello".as_bytes()
     
-    fn get_int(r: Row) raises -> Int:
+    def get_int(r: Row) raises -> Int:
         return r.get[Int](0)
     
     db.execute_batch("CREATE TABLE foo(x BLOB)")
@@ -212,7 +212,7 @@ fn test_insert_bytes() raises:
             assert_equal(blob[i], example[i])
 
 
-fn test_prepare_execute() raises:
+def test_prepare_execute() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo(x INTEGER);")
     
@@ -232,7 +232,7 @@ fn test_prepare_execute() raises:
     assert_equal(update_stmt.execute([8, 8]), 3)
 
 
-fn test_prepare_query() raises:
+def test_prepare_query() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo(x INTEGER);")
     
@@ -265,10 +265,10 @@ fn test_prepare_query() raises:
     # assert_equal(v2[1], 1)
 
 
-fn test_query_map() raises:
+def test_query_map() raises:
     var db = Connection.open_in_memory()
 
-    fn get_string(r: Row) raises -> String:
+    def get_string(r: Row) raises -> String:
         return r.get[String](1)
     
     db.execute_batch("""CREATE TABLE foo(x INTEGER, y TEXT);
@@ -288,7 +288,7 @@ fn test_query_map() raises:
     assert_equal(concat, "hello, world!")
 
 
-fn test_query_row() raises:
+def test_query_row() raises:
     var db = Connection.open_in_memory()
     var sql = """CREATE TABLE foo(x INTEGER);
     INSERT INTO foo VALUES(1);
@@ -296,7 +296,7 @@ fn test_query_row() raises:
     INSERT INTO foo VALUES(3);
     INSERT INTO foo VALUES(4);"""
     
-    fn get_int64(r: Row) raises -> Int64:
+    def get_int64(r: Row) raises -> Int64:
         return r.get[Int64](0)
 
     db.execute_batch(sql)
@@ -313,9 +313,9 @@ fn test_query_row() raises:
         _ = db.one_row[get_int64]("SELECT 1; SELECT 2;")
 
 
-fn test_pragma_query_row() raises:
+def test_pragma_query_row() raises:
     var db = Connection.open_in_memory()
-    fn get_string(r: Row) raises -> String:
+    def get_string(r: Row) raises -> String:
         return r.get[String](0)
 
     var mode = db.one_row[get_string]("PRAGMA journal_mode")
@@ -326,7 +326,7 @@ fn test_pragma_query_row() raises:
     assert_true(mode2 == "memory" or mode2 == "off")
 
 
-fn test_prepare_failures() raises:
+def test_prepare_failures() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo(x INTEGER);")
     
@@ -334,7 +334,7 @@ fn test_prepare_failures() raises:
         _ = db.prepare("SELECT * FROM does_not_exist")
 
 
-fn test_last_insert_rowid() raises:
+def test_last_insert_rowid() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo(x INTEGER PRIMARY KEY)")
     db.execute_batch("INSERT INTO foo DEFAULT VALUES")
@@ -347,7 +347,7 @@ fn test_last_insert_rowid() raises:
     assert_equal(db.last_insert_row_id(), 10)
 
 
-fn test_total_changes() raises:
+def test_total_changes() raises:
     var db = Connection.open_in_memory()
     var sql = """CREATE TABLE foo(x INTEGER PRIMARY KEY, value TEXT default '' NOT NULL,
                                 desc TEXT default '');
@@ -368,12 +368,12 @@ fn test_total_changes() raises:
     assert_equal(total_changes_after - total_changes_before, 1)
 
 
-fn test_is_autocommit() raises:
+def test_is_autocommit() raises:
     var db = Connection.open_in_memory()
     assert_true(db.is_autocommit())
 
 
-fn test_column_exists() raises:
+def test_column_exists() raises:
     var db = Connection.open_in_memory()
     # Check column exists in sqlite_master table
     assert_true(db.column_exists("sqlite_master", "type"))
@@ -381,7 +381,7 @@ fn test_column_exists() raises:
     assert_false(db.column_exists("sqlite_temp_master", "type", "main"))
 
 
-fn test_table_exists() raises:
+def test_table_exists() raises:
     var db = Connection.open_in_memory()
     # Check that sqlite_master table exists
     assert_true(db.table_exists("sqlite_master"))
@@ -389,7 +389,7 @@ fn test_table_exists() raises:
     assert_false(db.table_exists("sqlite_temp_master", "main"))
 
 
-fn test_column_metadata() raises:
+def test_column_metadata() raises:
     var db = Connection.open_in_memory()
     
     # Get column metadata for the 'type' column in sqlite_master table
@@ -416,7 +416,7 @@ fn test_column_metadata() raises:
 
 
 # TODO: Need to work on this.
-# fn test_is_busy() raises:
+# def test_is_busy() raises:
 #     var db = Connection.open_in_memory()
 #     try:
 #         assert_false(db.is_busy())
@@ -431,7 +431,7 @@ fn test_column_metadata() raises:
 #         db^.close()
 
 
-fn test_statement_debugging() raises:
+def test_statement_debugging() raises:
     var db = Connection.open_in_memory()
     var query = "SELECT 12345"
     var stmt = db.prepare(query)
@@ -439,7 +439,7 @@ fn test_statement_debugging() raises:
     assert_true(query in repr)
 
 
-fn test_notnull_constraint_error() raises:
+def test_notnull_constraint_error() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo(x NOT NULL)")
     
@@ -450,7 +450,7 @@ fn test_notnull_constraint_error() raises:
 # Skipping test_version_string, test_interrupt, test_interrupt_close as they require special functions
 
 
-fn test_get_raw() raises:
+def test_get_raw() raises:
     var db = Connection.open_in_memory()
     var vals: List[String] = ["foobar", "1234", "qwerty"]
     
@@ -471,12 +471,12 @@ fn test_get_raw() raises:
 # Skipping test_from_handle, test_from_handle_owned, query_and_then_tests as they require unsafe operations
 
 
-fn test_dynamic() raises:
+def test_dynamic() raises:
     var db = Connection.open_in_memory()
     var sql = """CREATE TABLE foo(x INTEGER, y TEXT);
     INSERT INTO foo VALUES(4, 'hello');"""
     
-    fn check_columns(r: Row) raises -> NoneType:
+    def check_columns(r: Row) raises -> NoneType:
         # TODO: column_count() method not yet implemented
         assert_equal(r.stmt[].column_count(), 2)
         return None
@@ -485,10 +485,10 @@ fn test_dynamic() raises:
     _ = db.one_row[check_columns]("SELECT * FROM foo")
 
 
-fn test_params() raises:
+def test_params() raises:
     var db = Connection.open_in_memory()
     
-    fn get_int(r: Row) raises -> Int:
+    def get_int(r: Row) raises -> Int:
         return r.get[Int](0)
     
     var result = db.one_row[get_int]("""
@@ -504,7 +504,7 @@ fn test_params() raises:
     assert_equal(result, 1)
 
 
-fn test_alter_table() raises:
+def test_alter_table() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE x(t);")
     db.execute_batch("ALTER TABLE x RENAME TO y;")
@@ -513,7 +513,7 @@ fn test_alter_table() raises:
 # Skipping test_batch, test_invalid_batch, test_returning as they require Batch type
 
 
-# fn test_cache_flush() raises:
+# def test_cache_flush() raises:
 #     var db = Connection.open_in_memory()
 #     try:
 #         # TODO: cache_flush() method not yet implemented
@@ -523,7 +523,7 @@ fn test_alter_table() raises:
 #         db^.close()
 
 
-# fn test_db_is_read_only() raises:
+# def test_db_is_read_only() raises:
 #     var db = Connection.open(":memory:", OpenFlag.READ_ONLY)
 #     assert_false(db.is_read_only("main"))
 
@@ -532,7 +532,7 @@ fn test_alter_table() raises:
 # as they require features not yet implemented
 
 
-fn main() raises:
+def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
     # var suite = TestSuite()
     # suite.test[test_insert_bytes]()

@@ -5,7 +5,7 @@ from slight.statement import eq_ignore_ascii_case
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 
-fn test_bind_index_with_int() raises:
+def test_bind_index_with_int() raises:
     """Test BindIndex with Int type for positional parameter indexing."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (id INTEGER, name TEXT)")
@@ -22,14 +22,14 @@ fn test_bind_index_with_int() raises:
     # Test with actual execution to verify it works end-to-end
     _ = stmt.execute((42, "test_value"))
 
-    fn get_id(r: Row) raises -> Int:
+    def get_id(r: Row) raises -> Int:
         return r.get[Int](0)
 
     var result = db.one_row[get_id]("SELECT id FROM test WHERE name = 'test_value'")
     assert_equal(result, 42)
 
 
-fn test_bind_index_with_string() raises:
+def test_bind_index_with_string() raises:
     """Test BindIndex with String type for named parameter indexing."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (id INTEGER, name TEXT)")
@@ -51,14 +51,14 @@ fn test_bind_index_with_string() raises:
     # Test with actual execution using named parameters
     _ = stmt.execute({":id": "123", ":name": "hello"})
 
-    fn get_name(r: Row) raises -> String:
+    def get_name(r: Row) raises -> String:
         return r.get[String](1)
 
     var result = db.one_row[get_name]("SELECT * FROM test WHERE id = 123")
     assert_equal(result, "hello")
 
 
-fn test_bind_index_with_string_invalid_name() raises:
+def test_bind_index_with_string_invalid_name() raises:
     """Test BindIndex with String type raises error for invalid parameter name."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (id INTEGER)")
@@ -71,7 +71,7 @@ fn test_bind_index_with_string_invalid_name() raises:
         _ = invalid_param.bind_idx(stmt)
 
 
-fn test_bind_index_with_string_slice() raises:
+def test_bind_index_with_string_slice() raises:
     """Test BindIndex with StringSlice type for named parameter indexing."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (value INTEGER, label TEXT)")
@@ -91,7 +91,7 @@ fn test_bind_index_with_string_slice() raises:
     assert_not_equal(value_index, label_index)
 
 
-fn test_bind_index_with_string_slice_invalid_name() raises:
+def test_bind_index_with_string_slice_invalid_name() raises:
     """Test BindIndex with StringSlice type raises error for invalid parameter name."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (id INTEGER)")
@@ -104,7 +104,7 @@ fn test_bind_index_with_string_slice_invalid_name() raises:
         _ = StringSlice(invalid_param).bind_idx(stmt)
 
 
-fn test_bind_index_with_different_param_prefixes() raises:
+def test_bind_index_with_different_param_prefixes() raises:
     """Test BindIndex with different SQLite parameter prefixes (:, @, $)."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (a INTEGER, b INTEGER, c INTEGER)")
@@ -131,7 +131,7 @@ fn test_bind_index_with_different_param_prefixes() raises:
     assert_not_equal(a_index, c_index)
 
 
-fn test_bind_index_int_zero_and_negative() raises:
+def test_bind_index_int_zero_and_negative() raises:
     """Test BindIndex with Int for edge cases like zero and large values."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (id INTEGER)")
@@ -147,7 +147,7 @@ fn test_bind_index_int_zero_and_negative() raises:
     assert_equal(index_large.bind_idx(stmt), UInt(100))
 
 
-fn test_bind_index_string_vs_string_slice_consistency() raises:
+def test_bind_index_string_vs_string_slice_consistency() raises:
     """Test that String and StringSlice return consistent indices for the same parameter."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (x INTEGER, y TEXT)")
@@ -161,7 +161,7 @@ fn test_bind_index_string_vs_string_slice_consistency() raises:
     assert_equal(param_y.bind_idx(stmt), StringSlice(param_y).bind_idx(stmt))
 
 
-fn main() raises:
+def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
     # var suite = TestSuite()
     # suite.test[test_insert_bytes]()

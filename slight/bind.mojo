@@ -16,7 +16,15 @@ struct BindIndexError(Movable, Writable):
     var msg: String
     """A message describing the error."""
 
-    fn write_to(self, mut writer: Some[Writer]):
+    def __init__(out self, msg: Some[Writable]):
+        """Initializes the BindIndexError with a message.
+
+        Args:
+            msg: A writable type that can be converted to a String for the error message.
+        """
+        self.msg = String(msg)
+
+    def write_to(self, mut writer: Some[Writer]):
         """Writes the error message to the provided writer.
 
         Args:
@@ -31,7 +39,7 @@ trait BindIndex(Movable):
     This trait is implemented for Int, UInt, String, and StringSlice types.
     """
 
-    fn bind_idx(self, stmt: Statement) raises BindIndexError -> UInt:
+    def bind_idx(self, stmt: Statement) raises BindIndexError -> UInt:
         """Returns the index of the associated parameter.
 
         Args:
@@ -47,7 +55,7 @@ trait BindIndex(Movable):
 
 
 __extension Int(BindIndex):
-    fn bind_idx(self, stmt: Statement) -> UInt:
+    def bind_idx(self, stmt: Statement) -> UInt:
         """Returns the index directly without validation.
 
         Args:
@@ -62,7 +70,7 @@ __extension Int(BindIndex):
 
 
 __extension String(BindIndex):
-    fn bind_idx(self, stmt: Statement) raises BindIndexError -> UInt:
+    def bind_idx(self, stmt: Statement) raises BindIndexError -> UInt:
         """Returns the index of the parameter with the given name.
 
         Args:
@@ -82,7 +90,7 @@ __extension String(BindIndex):
 
 
 __extension StringSlice(BindIndex):
-    fn bind_idx(self, stmt: Statement) raises BindIndexError -> UInt:
+    def bind_idx(self, stmt: Statement) raises BindIndexError -> UInt:
         """Returns the index of the parameter with the given name.
 
         Args:

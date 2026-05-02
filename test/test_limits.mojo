@@ -11,7 +11,7 @@ from std.testing import TestSuite, assert_equal, assert_raises, assert_true
 # Verifies each Limit variant has the expected integer value matching the
 # SQLITE_LIMIT_* constants.
 # ===----------------------------------------------------------------------=== #
-fn test_limit_values() raises:
+def test_limit_values() raises:
     assert_equal(Int(Limit.LENGTH.value), 0)
     assert_equal(Int(Limit.SQL_LENGTH.value), 1)
     assert_equal(Int(Limit.COLUMN.value), 2)
@@ -32,7 +32,7 @@ fn test_limit_values() raises:
 # Tests set_limit and limit round-trip for each limit category, plus
 # error cases for negative values and invalid limit categories.
 # ===----------------------------------------------------------------------=== #
-fn test_limit() raises:
+def test_limit() raises:
     var db = Connection.open_in_memory()
 
     _ = db.set_limit(Limit.LENGTH, 1024)
@@ -80,5 +80,5 @@ fn test_limit() raises:
         _ = db.limit(Limit(-1))
 
 
-fn main() raises:
+def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()

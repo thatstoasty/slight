@@ -103,7 +103,7 @@ The library is resolved in this order:
 ```mojo
 from slight.connection import Connection
 
-fn main() raises:
+def main() raises:
     # Open an in-memory database
     var db = Connection.open_in_memory()
     
@@ -116,7 +116,7 @@ fn main() raises:
 ```mojo
 from slight.connection import Connection
 
-fn main() raises:
+def main() raises:
     var db = Connection.open_in_memory()
     
     # Execute a single statement
@@ -141,7 +141,7 @@ fn main() raises:
 from slight.connection import Connection
 from slight import Int, String
 
-fn main() raises:
+def main() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""
         CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, age INTEGER);
@@ -163,7 +163,7 @@ fn main() raises:
 from slight.connection import Connection
 from slight import Int, String
 
-fn main() raises:
+def main() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT)")
     
@@ -191,10 +191,10 @@ struct User(Writable):
     var id: Int
     var name: String
 
-    fn write_to[W: Writer, //](self, mut writer: W):
+    def write_to[W: Writer, //](self, mut writer: W):
         writer.write("User(id=", self.id, ", name=", self.name, ")")
 
-fn main() raises:
+def main() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""
         CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
@@ -202,7 +202,7 @@ fn main() raises:
         INSERT INTO users VALUES (2, 'Bob');
     """)
     
-    fn to_user(row: Row) raises -> User:
+    def to_user(row: Row) raises -> User:
         return User(id=row.get[Int](0), name=row.get[String](1))
     
     # Map rows to User structs
@@ -226,7 +226,7 @@ fn main() raises:
 from slight.connection import Connection
 from slight.transaction import TransactionBehavior
 
-fn main() raises:
+def main() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE accounts (name TEXT, balance REAL)")
     
@@ -248,7 +248,7 @@ fn main() raises:
 ```mojo
 from slight.connection import Connection
 
-fn main() raises:
+def main() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE log (message TEXT)")
     
@@ -276,10 +276,10 @@ from slight.connection import Connection
 from slight.functions import Context, FunctionFlags
 from slight.row import Row
 
-fn halve(ctx: Context) raises -> Float64:
+def halve(ctx: Context) raises -> Float64:
     return ctx.get_double(0) / 2.0
 
-fn main() raises:
+def main() raises:
     var db = Connection.open_in_memory()
 
     # Register a scalar function named "halve" that takes 1 argument
@@ -288,7 +288,7 @@ fn main() raises:
         n_arg=1,
     )
 
-    fn get_result(row: Row) raises -> Float64:
+    def get_result(row: Row) raises -> Float64:
         return row.get[Float64](0)
 
     print(db.one_row[get_result]("SELECT halve(10.0)"))  # 5.0
@@ -303,16 +303,16 @@ from slight.connection import Connection
 from slight.functions import Context, FunctionFlags
 from slight.row import Row
 
-fn sum_init(mut ctx: Context) raises -> Int64:
+def sum_init(mut ctx: Context) raises -> Int64:
     return 0
 
-fn sum_step(mut ctx: Context, mut acc: Int64) raises:
+def sum_step(mut ctx: Context, mut acc: Int64) raises:
     acc += ctx.get_int64(0)
 
-fn sum_finalize(mut ctx: Context, acc: Int64) raises -> Int64:
+def sum_finalize(mut ctx: Context, acc: Int64) raises -> Int64:
     return acc
 
-fn main() raises:
+def main() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""
         CREATE TABLE numbers (value INTEGER);
@@ -327,7 +327,7 @@ fn main() raises:
         flags=FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
     )
 
-    fn get_result(row: Row) raises -> Int64:
+    def get_result(row: Row) raises -> Int64:
         return row.get[Int64](0)
 
     print(db.one_row[get_result]("SELECT my_sum(value) FROM numbers"))  # 6
@@ -342,22 +342,22 @@ from slight.connection import Connection
 from slight.functions import Context, FunctionFlags
 from slight.row import Row
 
-fn sum_init(mut ctx: Context) raises -> Int64:
+def sum_init(mut ctx: Context) raises -> Int64:
     return 0
 
-fn sum_step(mut ctx: Context, mut acc: Int64) raises:
+def sum_step(mut ctx: Context, mut acc: Int64) raises:
     acc += ctx.get_int64(0)
 
-fn sum_finalize(mut ctx: Context, acc: Int64) raises -> Optional[Int64]:
+def sum_finalize(mut ctx: Context, acc: Int64) raises -> Optional[Int64]:
     return acc
 
-fn sum_inverse(mut ctx: Context, mut acc: Int64) raises:
+def sum_inverse(mut ctx: Context, mut acc: Int64) raises:
     acc -= ctx.get_int64(0)
 
-fn sum_value(acc: Optional[Int64]) raises -> Optional[Int64]:
+def sum_value(acc: Optional[Int64]) raises -> Optional[Int64]:
     return acc.copy()
 
-fn main() raises:
+def main() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""
         CREATE TABLE numbers (value INTEGER);
@@ -374,7 +374,7 @@ fn main() raises:
         flags=FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
     )
 
-    fn get_row(row: Row) raises -> String:
+    def get_row(row: Row) raises -> String:
         return t"{row.get[Int64](0)} | {row.get[Int64](1)}"
 
     # Sliding window: sum of current row and the one before it
@@ -399,7 +399,7 @@ The simplest approach: tell SQLite to sleep and retry for up to `N` milliseconds
 ```mojo
 from slight.connection import Connection
 
-fn main() raises:
+def main() raises:
     var db = Connection.open("my_database.db")
 
     # Wait up to 10 seconds for locks to clear
@@ -416,11 +416,11 @@ For more control, register a callback that receives the retry count and returns 
 ```mojo
 from slight.connection import Connection
 
-fn my_busy_handler(count: Int32) -> Bool:
+def my_busy_handler(count: Int32) -> Bool:
     # Retry up to 5 times
     return count < 5
 
-fn main() raises:
+def main() raises:
     var db = Connection.open("my_database.db")
 
     # Register a custom busy handler
@@ -440,7 +440,7 @@ SQLite enforces various runtime limits that you can query and modify per-connect
 from slight.connection import Connection
 from slight.limits import Limit
 
-fn main() raises:
+def main() raises:
     var db = Connection.open_in_memory()
 
     # Query the current maximum SQL length
@@ -477,7 +477,7 @@ Monitor SQL execution and connection events with the tracing API. Register a cal
 from slight.connection import Connection
 from slight.trace import TraceEventCodes, TraceEvent
 
-fn my_tracer(event: TraceEvent) -> NoneType:
+def my_tracer(event: TraceEvent) -> NoneType:
     if event.is_stmt():
         print("SQL:", event.sql())
     elif event.is_profile():
@@ -489,7 +489,7 @@ fn my_tracer(event: TraceEvent) -> NoneType:
         print("Connection closing")
     return NoneType()
 
-fn main() raises:
+def main() raises:
     var db = Connection.open_in_memory()
 
     # Enable tracing for statement and profile events
@@ -522,7 +522,7 @@ SQLite supports loading extensions from shared libraries. Extension loading is d
 ```mojo
 from slight.connection import Connection
 
-fn main() raises:
+def main() raises:
     var db = Connection.open_in_memory()
 
     # Enable extension loading — returns a guard
@@ -555,7 +555,7 @@ from slight.flags import OpenFlag
 from slight.result import SQLite3Result
 from slight.unlock_notify import is_locked
 
-fn main() raises:
+def main() raises:
     var url = "file:my_shared_db?mode=memory&cache=shared"
     var flags = OpenFlag.READ_WRITE | OpenFlag.URI | OpenFlag.CREATE
     var db = Connection.open(url, flags)
@@ -578,7 +578,7 @@ from slight.flags import OpenFlag
 from slight.result import SQLite3Result
 from slight.transaction import TransactionBehavior
 
-fn main() raises:
+def main() raises:
     var url = "file:unlock_demo?mode=memory&cache=shared"
     var flags = OpenFlag.READ_WRITE | OpenFlag.URI | OpenFlag.CREATE
 

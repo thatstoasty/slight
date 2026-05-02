@@ -16,7 +16,7 @@ from std.testing import TestSuite, assert_equal, assert_true, assert_false
 #
 # Verifies each TraceEventCodes variant has the expected bitmask value.
 # ===----------------------------------------------------------------------=== #
-fn test_trace_event_codes_values() raises:
+def test_trace_event_codes_values() raises:
     assert_equal(Int(TraceEventCodes.STMT.value), 0x01)
     assert_equal(Int(TraceEventCodes.PROFILE.value), 0x02)
     assert_equal(Int(TraceEventCodes.ROW.value), 0x04)
@@ -30,7 +30,7 @@ fn test_trace_event_codes_values() raises:
 #
 # Tests bitwise operations and containment for TraceEventCodes.
 # ===----------------------------------------------------------------------=== #
-fn test_trace_event_codes_ops() raises:
+def test_trace_event_codes_ops() raises:
     var combined = TraceEventCodes.STMT | TraceEventCodes.PROFILE
     assert_equal(Int(combined.value), 0x03)
 
@@ -61,7 +61,7 @@ fn test_trace_event_codes_ops() raises:
 #
 # Verifies each StatementStatus variant has the expected integer value.
 # ===----------------------------------------------------------------------=== #
-fn test_statement_status_values() raises:
+def test_statement_status_values() raises:
     assert_equal(Int(StatementStatus.FULLSCAN_STEP.value), 1)
     assert_equal(Int(StatementStatus.SORT.value), 2)
     assert_equal(Int(StatementStatus.AUTOINDEX.value), 3)
@@ -80,14 +80,14 @@ fn test_statement_status_values() raises:
 # Since Mojo doesn't support closures/captured state, we use a print-based
 # callback and verify the plumbing doesn't crash.
 # ===----------------------------------------------------------------------=== #
-fn _trace_stmt_callback(event: TraceEvent) -> NoneType:
+def _trace_stmt_callback(event: TraceEvent) -> NoneType:
     """Callback that validates STMT events have non-empty SQL."""
     if event.is_stmt():
         var sql = event.sql()
         # stmt_sql() should return the same SQL via the statement handle
         var stmt_sql = event.stmt_sql()
-        debug_assert(len(sql) > 0, "STMT event SQL should not be empty")
-        debug_assert(len(stmt_sql) > 0, "stmt_sql() should not be empty")
+        debug_assert(sql.byte_length() > 0, "STMT event SQL should not be empty")
+        debug_assert(stmt_sql.byte_length() > 0, "stmt_sql() should not be empty")
     elif event.is_profile():
         var ns = event.duration_ns()
         debug_assert(ns >= 0, "duration must be non-negative")
@@ -95,7 +95,7 @@ fn _trace_stmt_callback(event: TraceEvent) -> NoneType:
         debug_assert(sort_count >= 0, "sort count must be non-negative")
     elif event.is_row():
         var sql = event.stmt_sql()
-        debug_assert(len(sql) > 0, "ROW event stmt_sql should not be empty")
+        debug_assert(sql.byte_length() > 0, "ROW event stmt_sql should not be empty")
     elif event.is_close():
         var autocommit = event.is_autocommit()
         # In-memory databases should be in autocommit mode when closing
@@ -104,7 +104,7 @@ fn _trace_stmt_callback(event: TraceEvent) -> NoneType:
     return NoneType()
 
 
-fn test_trace_v2_stmt() raises:
+def test_trace_v2_stmt() raises:
     var db = Connection.open_in_memory()
     db.register_trace_function[_trace_stmt_callback](TraceEventCodes.STMT | TraceEventCodes.PROFILE)
 
@@ -124,7 +124,7 @@ fn test_trace_v2_stmt() raises:
 #
 # Verifies trace_v2 with all event types enabled, including ROW and CLOSE.
 # ===----------------------------------------------------------------------=== #
-fn _trace_all_callback(event: TraceEvent) -> NoneType:
+def _trace_all_callback(event: TraceEvent) -> NoneType:
     """Callback that exercises all event-type accessors."""
     if event.is_stmt():
         _ = event.sql()
@@ -139,7 +139,7 @@ fn _trace_all_callback(event: TraceEvent) -> NoneType:
     return NoneType()
 
 
-fn test_trace_v2_all_events() raises:
+def test_trace_v2_all_events() raises:
     # Open in a block so we see the CLOSE event.
     var db = Connection.open_in_memory()
     db.register_trace_function[_trace_all_callback](TraceEventCodes.all())
@@ -152,13 +152,13 @@ fn test_trace_v2_all_events() raises:
 #
 # Verifies that passing None as the trace callback disables tracing.
 # ===----------------------------------------------------------------------=== #
-fn _trace_should_not_fire(event: TraceEvent) -> NoneType:
+def _trace_should_not_fire(event: TraceEvent) -> NoneType:
     """This callback should never be invoked after being cleared."""
     debug_assert(False, "trace callback should not fire after being cleared")
     return NoneType()
 
 
-fn test_trace_v2_disable() raises:
+def test_trace_v2_disable() raises:
     var db = Connection.open_in_memory()
 
     # Set and immediately clear
@@ -174,11 +174,11 @@ fn test_trace_v2_disable() raises:
 #
 # Verifies that the log() free function doesn't crash.
 # ===----------------------------------------------------------------------=== #
-fn test_log() raises:
+def test_log() raises:
     # sqlite3_log writes to the error log; just verify it doesn't crash.
     var msg = "test log message from Mojo"
     log(Int32(0), msg)
 
 
-fn main() raises:
+def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()

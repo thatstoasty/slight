@@ -1,4 +1,4 @@
-fn as_byte[char: StringSlice]() -> Byte:
+def as_byte[char: StringSlice]() -> Byte:
     """Convert a single-character StringSlice to a Byte.
 
     Parameters:
@@ -7,8 +7,8 @@ fn as_byte[char: StringSlice]() -> Byte:
     Returns:
         The Byte representation of the single character.
     """
-    comptime assert len(char) == 1, "Expected a single-character StringSlice for Byte conversion"
+    comptime assert char.byte_length() == 1, "Expected a single-character StringSlice for Byte conversion"
     return char.as_bytes()[0]
 
-comptime CopyDestructible = Copyable & ImplicitlyDestructible
+comptime CopyDestructible = Movable & Copyable & ImplicitlyDestructible
 comptime MoveDestructible = Movable & ImplicitlyDestructible

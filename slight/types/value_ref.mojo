@@ -31,7 +31,7 @@ struct SQLite3Integer(SQLType):
     """The underlying integer value."""
 
     @implicit
-    fn __init__(out self, value: Int64):
+    def __init__(out self, value: Int64):
         """Initialize a `SQLite3Integer` with the given `Int64` value.
 
         Args:
@@ -40,7 +40,7 @@ struct SQLite3Integer(SQLType):
         self.value = value
 
     @implicit
-    fn __init__(out self, value: Int):
+    def __init__(out self, value: Int):
         """Initialize a `SQLite3Integer` with the given `Int` value.
 
         Args:
@@ -60,7 +60,7 @@ struct SQLite3Real(SQLType):
     """The underlying floating-point value."""
 
     @implicit
-    fn __init__(out self, value: Float64):
+    def __init__(out self, value: Float64):
         """Initialize a `SQLite3Real` with the given `Float64` value.
 
         Args:
@@ -84,7 +84,7 @@ struct SQLite3Text[stmt: ImmutOrigin](SQLType):
     """The underlying text value."""
 
     @implicit
-    fn __init__(out self, value: StringSlice[Self.stmt]):
+    def __init__(out self, value: StringSlice[Self.stmt]):
         """Initialize a `SQLite3Text` with the given `StringSlice` value.
 
         Args:
@@ -108,7 +108,7 @@ struct SQLite3Blob[stmt: ImmutOrigin](SQLType):
     """The underlying blob value."""
 
     @implicit
-    fn __init__(out self, value: Span[Byte, Self.stmt]):
+    def __init__(out self, value: Span[Byte, Self.stmt]):
         """Initialize a `SQLite3Blob` with the given `Span` value.
 
         Args:
@@ -129,7 +129,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
     """The actual value stored in the variant."""
 
     @implicit
-    fn __init__(out self, var value: SQLite3Null):
+    def __init__(out self, var value: SQLite3Null):
         """Initialize a ValueRef with a NULL value.
 
         Args:
@@ -138,7 +138,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         self.value = value^
 
     @implicit
-    fn __init__(out self, var value: SQLite3Integer):
+    def __init__(out self, var value: SQLite3Integer):
         """Initialize a ValueRef with an INTEGER value.
 
         Args:
@@ -147,7 +147,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         self.value = value^
 
     @implicit
-    fn __init__(out self, var value: SQLite3Real):
+    def __init__(out self, var value: SQLite3Real):
         """Initialize a ValueRef with a REAL (floating-point) value.
 
         Args:
@@ -156,7 +156,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         self.value = value^
 
     @implicit
-    fn __init__(out self, var value: SQLite3Text):
+    def __init__(out self, var value: SQLite3Text):
         """Initialize a ValueRef with a TEXT value.
 
         Args:
@@ -165,7 +165,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         self.value = value^
 
     @implicit
-    fn __init__(out self, var value: SQLite3Blob):
+    def __init__(out self, var value: SQLite3Blob):
         """Initialize a ValueRef with a BLOB value.
 
         Args:
@@ -173,7 +173,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         """
         self.value = value^
 
-    fn __init__(out self, value: Self._type):
+    def __init__(out self, value: Self._type):
         """Initialize a ValueRef by copying another ValueRef.
 
         Args:
@@ -192,7 +192,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         else:
             abort("UNREACHABLE: invalid variant type for ValueRef initialization")
 
-    fn write_to(self, mut writer: Some[Writer]):
+    def write_to(self, mut writer: Some[Writer]):
         """Write the string representation of the SQL value to the given writer.
 
         This method provides a way to serialize the SQL value into a human-readable
@@ -215,7 +215,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
             writer.write(len(self[SQLite3Blob[Self.stmt]].value))
             writer.write(" bytes)")
 
-    fn isa[T: SQLType](self) -> Bool:
+    def isa[T: SQLType](self) -> Bool:
         """Check if the value is of the specified type T.
 
         This method allows runtime type checking of the stored SQL value.
@@ -228,7 +228,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         """
         return self.value.isa[T]()
 
-    fn __getitem__[T: SQLType](self) -> ref[self.value] T:
+    def __getitem_param__[T: SQLType](self) -> ref[self.value] T:
         """Get the value as the specified type T.
 
         This method provides type-safe access to the stored SQL value. The type T
@@ -242,7 +242,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         """
         return self.value[T]
 
-    fn as_string_slice(self) raises -> StringSlice[Self.stmt]:
+    def as_string_slice(self) raises -> StringSlice[Self.stmt]:
         """Convert the SQL value to its string representation.
 
         This method provides a way to get a human-readable string representation
@@ -259,7 +259,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type TEXT")
 
-    fn as_string_slice_or_null(self) raises -> Optional[StringSlice[Self.stmt]]:
+    def as_string_slice_or_null(self) raises -> Optional[StringSlice[Self.stmt]]:
         """Convert the SQL value to its string representation.
 
         This method provides a way to get a human-readable string representation
@@ -278,7 +278,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type TEXT")
 
-    fn as_int64(self) raises -> Int64:
+    def as_int64(self) raises -> Int64:
         """Convert the SQL value to its Int64 representation.
 
         This method provides a way to get the integer representation
@@ -295,7 +295,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type INTEGER")
 
-    fn as_int64_or_null(self) raises -> Optional[Int64]:
+    def as_int64_or_null(self) raises -> Optional[Int64]:
         """Convert the SQL value to its Int64 representation.
 
         This method provides a way to get the integer representation
@@ -314,7 +314,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type INTEGER")
 
-    fn as_float64(self) raises -> Float64:
+    def as_float64(self) raises -> Float64:
         """Convert the SQL value to its Float64 representation.
 
         This method provides a way to get the floating-point representation
@@ -331,7 +331,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type REAL")
 
-    fn as_float64_or_null(self) raises -> Optional[Float64]:
+    def as_float64_or_null(self) raises -> Optional[Float64]:
         """Convert the SQL value to its Float64 representation.
 
         This method provides a way to get the floating-point representation
@@ -350,7 +350,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type REAL")
 
-    fn as_blob(self) raises -> Span[Byte, Self.stmt]:
+    def as_blob(self) raises -> Span[Byte, Self.stmt]:
         """Convert the SQL value to its BLOB representation.
 
         This method provides a way to get the binary data representation
@@ -367,7 +367,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type BLOB")
 
-    fn as_blob_or_null(self) raises -> Optional[Span[Byte, Self.stmt]]:
+    def as_blob_or_null(self) raises -> Optional[Span[Byte, Self.stmt]]:
         """Convert the SQL value to its BLOB representation.
 
         This method provides a way to get the binary data representation
@@ -386,7 +386,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type BLOB")
 
-    fn as_bytes(self) raises -> Span[Byte, Self.stmt]:
+    def as_bytes(self) raises -> Span[Byte, Self.stmt]:
         """Convert the SQL value to a byte representation.
 
         This method provides a way to get byte data for either BLOB or TEXT SQL values.
@@ -404,7 +404,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type BLOB or TEXT")
 
-    fn as_bytes_or_null(self) raises -> Optional[Span[Byte, Self.stmt]]:
+    def as_bytes_or_null(self) raises -> Optional[Span[Byte, Self.stmt]]:
         """Convert the SQL value to a byte representation.
 
         This method provides a way to get byte data for either BLOB or TEXT SQL values.

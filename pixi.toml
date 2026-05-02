@@ -1,13 +1,13 @@
 [workspace]
-description = "Mojo SQLite3 Bindings"
+description = "Mojo SQLite3 Bindings."
 authors = ["Mikhail Tavarez <miktavarez@gmail.com>"]
-channels = ["https://repo.prefix.dev/mojo-community", "conda-forge", "https://conda.modular.com/max", "https://prefix.dev/pixi-build-backends"]
+channels = ["conda-forge", "https://conda.modular.com/max-nightly", "https://prefix.dev/pixi-build-backends"]
 platforms = ["osx-arm64", "linux-64", "linux-aarch64"]
 license = "MIT"
 license-file = "LICENSE"
 readme = "README.md"
-homepage = "https://github.com/thatstoasty/mojo-sqlite3"
-repository = "https://github.com/thatstoasty/mojo-sqlite3"
+homepage = "https://github.com/thatstoasty/slight"
+repository = "https://github.com/thatstoasty/slight"
 preview = ["pixi-build"]
 
 [tasks]
@@ -26,7 +26,7 @@ build_and_publish = [{ task = "build" }, { task = "publish" }]
 
 [package]
 name = "slight"
-version = "0.1.2"
+version = "0.2.0"
 
 [package.build]
 backend = { name = "pixi-build-mojo", version = "*" }

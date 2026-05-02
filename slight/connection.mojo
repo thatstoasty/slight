@@ -1,3 +1,7 @@
+from std.ffi import c_int
+from std.memory import Pointer
+from std.pathlib import Path
+from std.reflection import get_type_name
 from slight.busy import BusyHandlerFn
 from slight.c.api import sqlite_ffi
 from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
@@ -27,10 +31,6 @@ from slight.functions import (
     WindowAggregateValueUDF,
     WindowAggregateInverseUDF,
 )
-from std.ffi import c_int
-from std.memory import Pointer
-from std.pathlib import Path
-from std.reflection import get_type_name
 
 
 struct Connection(Movable):
@@ -40,7 +40,7 @@ struct Connection(Movable):
     """The inner SQLite connection."""
 
     @staticmethod
-    fn open(
+    def open(
         out connection: Self,
         path: Path,
         flags: OpenFlag = OpenFlag(),
@@ -51,7 +51,7 @@ struct Connection(Movable):
         ```mojo
         from slight import Connection
 
-        fn main() raises:
+        def main() raises:
             var conn = Connection.open("my.db")
             # Use the connection...
             ...
@@ -82,7 +82,7 @@ struct Connection(Movable):
         connection = Self(InnerConnection(String(path), flags))
 
     @staticmethod
-    fn open_in_memory(
+    def open_in_memory(
         out connection: Self,
         flags: OpenFlag = OpenFlag(),
     ) raises:
@@ -104,17 +104,15 @@ struct Connection(Movable):
         """
         connection = Self(InnerConnection(":memory:", flags))
 
-    @doc_private
-    fn __init__(out self):
+    def __init__(out self):
         """Initialize a new connection with an empty inner connection."""
         self.db = InnerConnection()
 
-    @doc_private
-    fn __init__(out self, var conn: InnerConnection):
+    def __init__(out self, var conn: InnerConnection):
         """Initialize a new connection with the given inner connection."""
         self.db = conn^
 
-    fn __init__(out self, var path: String) raises:
+    def __init__(out self, var path: String) raises:
         """Initialize a new connection with the given path to a SQLite database.
 
         Args:
@@ -125,12 +123,12 @@ struct Connection(Movable):
         """
         self = Connection.open(path)
 
-    fn __del__(deinit self):
+    def __del__(deinit self):
         """Closes the connection when it is deleted."""
         if self.db:
             _ = self^.close()
 
-    fn __enter__(var self) -> Self:
+    def __enter__(var self) -> Self:
         """Enter the context manager.
 
         Returns:
@@ -138,7 +136,7 @@ struct Connection(Movable):
         """
         return self^
 
-    fn raise_if_error(self, code: SQLite3Result) raises:
+    def raise_if_error(self, code: SQLite3Result) raises:
         """Raises if the SQLite error code is not `SQLITE_OK`.
 
         Args:
@@ -149,7 +147,7 @@ struct Connection(Movable):
         """
         self.db.raise_if_error(code)
 
-    fn error_msg(self, code: SQLite3Result) -> Optional[String]:
+    def error_msg(self, code: SQLite3Result) -> Optional[String]:
         """Checks for the error message set in sqlite3, or what the description of the provided code is.
 
         Args:
@@ -160,7 +158,7 @@ struct Connection(Movable):
         """
         return self.db.error_msg(code)
 
-    fn decode_error(self, code: SQLite3Result) -> Error:
+    def decode_error(self, code: SQLite3Result) -> Error:
         """Return an error if the SQLite error code is not `SQLITE_OK`.
 
         Args:
@@ -171,11 +169,11 @@ struct Connection(Movable):
         """
         return self.db.decode_error(code)
 
-    fn close(deinit self):
+    def close(deinit self):
         """Closes the sqlite3 connection."""
         _ = self.db^.close()
 
-    fn is_autocommit(self) -> Bool:
+    def is_autocommit(self) -> Bool:
         """Returns whether the connection is in auto-commit mode.
 
         Returns:
@@ -183,7 +181,7 @@ struct Connection(Movable):
         """
         return self.db.is_autocommit()
 
-    fn is_busy(self) -> Bool:
+    def is_busy(self) -> Bool:
         """Returns whether the connection is currently executing a statement.
 
         Returns:
@@ -191,7 +189,7 @@ struct Connection(Movable):
         """
         return self.db.is_busy()
 
-    fn changes(self) -> Int64:
+    def changes(self) -> Int64:
         """Returns the number of rows that were changed, inserted, or deleted
         by the most recent SQL statement.
 
@@ -200,7 +198,7 @@ struct Connection(Movable):
         """
         return self.db.changes()
 
-    fn total_changes(self) -> Int64:
+    def total_changes(self) -> Int64:
         """Returns the total number of rows that were changed, inserted, or deleted
         since the database connection was opened.
 
@@ -209,7 +207,7 @@ struct Connection(Movable):
         """
         return self.db.total_changes()
 
-    fn prepare(self, sql: String, flags: PrepFlag = PrepFlag.PREPARE_PERSISTENT) raises -> Statement[origin_of(self)]:
+    def prepare(self, sql: String, flags: PrepFlag = PrepFlag.PREPARE_PERSISTENT) raises -> Statement[origin_of(self)]:
         """Prepares a SQL statement for execution.
 
         Args:
@@ -226,7 +224,8 @@ struct Connection(Movable):
 
         # If there is trailing SQL after the first statement that contains a valid SQL statement, raise an error.
         if tail > 0:
-            var tail_stmt, _ = self.db.prepare(String(sql[Int(tail) :]))
+            # TODO: Switch to grapheme slicing on next Mojo release.
+            var tail_stmt, _ = self.db.prepare(String(sql[byte=Int(tail) :]))
             if tail_stmt:
                 raise Error(
                     "MultipleStatementsError: Prepared statement contains multiple SQL statements. Should be one."
@@ -234,7 +233,7 @@ struct Connection(Movable):
 
         return Statement(Pointer(to=self), RawStatement(stmt))
 
-    fn execute[P: AnyType](self, var sql: String, params: P = ()) raises -> Int64:
+    def execute[P: AnyType](self, var sql: String, params: P = ()) raises -> Int64:
         """Executes a SQL statement with the given parameters.
 
         Parameters:
@@ -261,7 +260,7 @@ struct Connection(Movable):
         finally:
             _ = stmt^.finalize()
 
-    fn execute_batch(self, sql: String) raises:
+    def execute_batch(self, sql: Some[Writable]) raises:
         """Executes a batch of SQL statements.
 
         Args:
@@ -270,20 +269,20 @@ struct Connection(Movable):
         Raises:
             Error: If the underlying SQLite call fails or if any of the statements in the batch return results, which is not supported.
         """
-        var current_sql = sql.copy()
-        while len(current_sql) > 0:
+        var current_sql = String(sql)
+        while current_sql.byte_length() > 0:
             # Is it possible to copy the sql string less here? I don't want to keep allocating strings.
             var stmt, tail = self.db.prepare(current_sql.copy(), PrepFlag.PREPARE_PERSISTENT)
             if stmt and Statement(Pointer(to=self), RawStatement(stmt)).step():
                 pass  # some pragmas return results
                 # raise Error("ExecuteReturnedResults: The executed batch returned results, which is not supported.")
 
-            if tail == 0 or Int(tail) >= len(current_sql):
+            if tail == 0 or Int(tail) >= current_sql.byte_length():
                 break
 
-            current_sql = String(current_sql[Int(tail) :])
+            current_sql = String(current_sql[byte=Int(tail) :])
 
-    fn path(self) -> Optional[Path]:
+    def path(self) -> Optional[Path]:
         """Returns the file path of the database.
 
         Returns:
@@ -291,7 +290,7 @@ struct Connection(Movable):
         """
         return self.db.path()
 
-    fn last_insert_row_id(self) -> Int64:
+    def last_insert_row_id(self) -> Int64:
         """Returns the row ID of the last inserted row.
 
         Returns:
@@ -299,7 +298,7 @@ struct Connection(Movable):
         """
         return self.db.last_insert_row_id()
 
-    # fn one_column[P: AnyType, //, T: FromSQL](self, var sql: String, params: P = ()) raises -> T:
+    # def one_column[P: AnyType, //, T: FromSQL](self, var sql: String, params: P = ()) raises -> T:
     #     """Fetches a single column from the first row of the result set.
 
     #     Parameters:
@@ -317,12 +316,12 @@ struct Connection(Movable):
     #         Error: If the query fails or no rows are returned.
     #     """
     #     comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
-    #     fn get_item(row: Row) raises -> T:
+    #     def get_item(row: Row) raises -> T:
     #         return row.get[T](0)
 
     #     return self.prepare(sql^).query[get_item](params)
 
-    fn one_row[
+    def one_row[
         T: Movable, P: AnyType, //, transform: RowTransformFn[T],
     ](self, var sql: String, params: P = ()) raises -> T:
         """Executes a SQL query and returns a single row.
@@ -354,7 +353,7 @@ struct Connection(Movable):
         except StopIteration:
             raise Error("No rows returned by query.")
 
-    fn column_exists(
+    def column_exists(
         self,
         table: String,
         column: String,
@@ -375,7 +374,7 @@ struct Connection(Movable):
         """
         return self.exists(table=table, db=db, column=column)
 
-    fn table_exists(
+    def table_exists(
         self,
         table: String,
         db: Optional[String] = None,
@@ -394,7 +393,7 @@ struct Connection(Movable):
         """
         return self.exists(table=table, db=db)
 
-    fn column_metadata(
+    def column_metadata(
         self,
         var table: String,
         var column: String,
@@ -446,7 +445,7 @@ struct Connection(Movable):
             auto_increment=auto_inc != 0,
         )
 
-    fn exists(
+    def exists(
         self,
         var table: String,
         var db: Optional[String] = None,
@@ -484,7 +483,7 @@ struct Connection(Movable):
         else:
             raise self.decode_error(r)
 
-    fn transaction(self, behavior: Optional[TransactionBehavior] = None) raises -> Transaction[origin_of(self)]:
+    def transaction(self, behavior: Optional[TransactionBehavior] = None) raises -> Transaction[origin_of(self)]:
         """Begin a new transaction with the default behavior (DEFERRED).
 
         The transaction defaults to rolling back when it is dropped. If you
@@ -505,7 +504,7 @@ struct Connection(Movable):
         ```mojo
         from slight import Connection
 
-        fn perform_queries(mut conn: Connection) raises:
+        def perform_queries(mut conn: Connection) raises:
             var tx = conn.transaction()
 
             _ = tx.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
@@ -519,7 +518,7 @@ struct Connection(Movable):
         else:
             return Transaction(Pointer(to=self))
 
-    fn savepoint(self, name: Optional[String] = None) raises -> Savepoint[origin_of(self)]:
+    def savepoint(self, name: Optional[String] = None) raises -> Savepoint[origin_of(self)]:
         """Begin a new savepoint with the default behavior (DEFERRED).
 
         The savepoint defaults to rolling back when it is dropped. If you want
@@ -539,7 +538,7 @@ struct Connection(Movable):
 
         ```mojo
         from slight import Connection
-        fn perform_queries(mut conn: Connection) raises:
+        def perform_queries(mut conn: Connection) raises:
             var sp = conn.savepoint()
 
             _ = sp.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
@@ -553,10 +552,10 @@ struct Connection(Movable):
         else:
             return Savepoint(Pointer(to=self))
 
-    fn pragma_query_value[
+    def pragma_query_value[
         T: Movable,
         //,
-        transform: fn(Row) raises -> T,
+        transform: def(Row) raises thin -> T,
     ](self, pragma: String, schema: Optional[String] = None,) raises -> T:
         """Query the current value of a pragma.
 
@@ -586,10 +585,10 @@ struct Connection(Movable):
         from slight import Connection
         from slight.row import Row
 
-        fn get_int(r: Row) raises -> Int:
+        def get_int(r: Row) raises -> Int:
             return r.get[Int](0)
 
-        fn main() raises:
+        def main() raises:
             var db = Connection.open_in_memory()
             var user_version = db.pragma_query_value[get_int]("user_version")
             print(user_version)
@@ -599,8 +598,8 @@ struct Connection(Movable):
         query.push_pragma(pragma, schema)
         return self.one_row[transform](String(query))
 
-    fn pragma_query[
-        callback: fn(Row) raises -> None
+    def pragma_query[
+        callback: def(Row) raises thin -> None
     ](self, schema: Optional[String], pragma: String,) raises:
         """Query the current rows/values of a pragma.
 
@@ -623,11 +622,11 @@ struct Connection(Movable):
         from slight import Connection
         from slight.row import Row, String
 
-        fn print_collation(r: Row) raises:
+        def print_collation(r: Row) raises:
             var name = r.get[String](1)
             print(name)
 
-        fn main() raises:
+        def main() raises:
             var db = Connection.open_in_memory()
             db.pragma_query[print_collation](None, "collation_list")
         ```
@@ -637,8 +636,8 @@ struct Connection(Movable):
         for row in self.prepare(String(query)).query(()):
             callback(row)
 
-    fn pragma[
-        T: AnyType, //, callback: fn(Row) raises -> None
+    def pragma[
+        T: AnyType, //, callback: def(Row) raises thin -> None
     ](self, pragma: StringSlice, value: T, schema: Optional[String] = None,) raises:
         """Query the current value(s) of a pragma associated with a value.
 
@@ -667,11 +666,11 @@ struct Connection(Movable):
         from slight import Connection
         from slight.row import Row, String
 
-        fn print_column(r: Row) raises:
+        def print_column(r: Row) raises:
             var col = r.get[String](1)
             print(col)
 
-        fn main() raises:
+        def main() raises:
             var db = Connection.open_in_memory()
             db.pragma[print_column]("table_info", "sqlite_master")
         ```
@@ -688,7 +687,7 @@ struct Connection(Movable):
         for row in self.prepare(String(sql)).query(()):
             callback(row)
 
-    fn pragma_update[
+    def pragma_update[
         T: AnyType, //
     ](self, pragma: StringSlice, value: T, schema: Optional[String] = None,) raises:
         """Set a new value to a pragma.
@@ -712,7 +711,7 @@ struct Connection(Movable):
         ```mojo
         from slight import Connection
 
-        fn main() raises:
+        def main() raises:
             var db = Connection.open_in_memory()
             db.pragma_update("user_version", 1)
         ```
@@ -724,9 +723,9 @@ struct Connection(Movable):
         sql.push_value(value)
         self.execute_batch(String(sql))
 
-    fn pragma_update_and_check[
-        T: Movable, V: AnyType, //, transform: fn(Row) raises -> T
-    ](self, pragma: StringSlice, value: V, schema: Optional[String] = None,) raises -> T:
+    def pragma_update_and_check[
+        T: Movable, V: AnyType, //, transform: def(Row) raises thin -> T
+    ](self, pragma: StringSlice, value: V, schema: Optional[String] = None) raises -> T:
         """Set a new value to a pragma and return the updated value.
 
         Only a few pragmas automatically return the updated value.
@@ -753,10 +752,10 @@ struct Connection(Movable):
         from slight import Connection
         from slight.row import Row, String
 
-        fn get_string(r: Row) raises -> String:
+        def get_string(r: Row) raises -> String:
             return r.get[String](0)
 
-        fn main() raises:
+        def main() raises:
             var db = Connection.open_in_memory()
             var mode = db.pragma_update_and_check[get_string](
                 "journal_mode", "OFF"
@@ -775,7 +774,7 @@ struct Connection(Movable):
         return self.one_row[transform](String(sql))
 
     # TODO: V should be constrained to ToSQL.
-    fn create_scalar_function[
+    def create_scalar_function[
         P: CopyDestructible, V: MoveDestructible, //, x_func: ScalarUDF[V]
     ](
         self,
@@ -813,7 +812,7 @@ struct Connection(Movable):
         self.raise_if_error(result)
 
     # TODO: When extensions work, switch to ToSQL
-    fn create_scalar_function[
+    def create_scalar_function[
         V: MoveDestructible, //, x_func: ScalarUDF[V]
     ](
         self,
@@ -850,7 +849,7 @@ struct Connection(Movable):
         var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags)
         self.raise_if_error(result)
 
-    fn create_aggregate_function[
+    def create_aggregate_function[
         A: MoveDestructible,
         T: MoveDestructible,
         P: CopyDestructible,
@@ -899,7 +898,7 @@ struct Connection(Movable):
         var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags, user_data)
         self.raise_if_error(result)
 
-    fn create_aggregate_function[
+    def create_aggregate_function[
         A: MoveDestructible,
         T: MoveDestructible,
         //,
@@ -944,7 +943,7 @@ struct Connection(Movable):
         var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags)
         self.raise_if_error(result)
 
-    fn create_window_function[
+    def create_window_function[
         A: CopyDestructible,
         T: MoveDestructible,
         P: CopyDestructible,
@@ -993,11 +992,11 @@ struct Connection(Movable):
             "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
         )
         var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
-            fn_name, n_arg, flags, user_data
+            fn_name, n_arg, flags, user_data,
         )
         self.raise_if_error(result)
 
-    fn create_window_function[
+    def create_window_function[
         A: CopyDestructible,
         T: MoveDestructible,
         //,
@@ -1046,7 +1045,7 @@ struct Connection(Movable):
         )
         self.raise_if_error(result)
 
-    fn remove_function(self, fn_name: String, n_arg: Int) raises:
+    def remove_function(self, fn_name: String, n_arg: Int) raises:
         """Remove a user-defined function from a database connection.
 
         `fn_name` and `n_arg` should match the name and number of arguments
@@ -1065,7 +1064,7 @@ struct Connection(Movable):
         var result = self.db.remove_function(fn_name, n_arg)
         self.raise_if_error(result)
 
-    fn busy_timeout(self, ms: Int) raises:
+    def busy_timeout(self, ms: Int) raises:
         """Set a busy handler that sleeps for a specified amount of time when a
         table is locked.
 
@@ -1089,7 +1088,7 @@ struct Connection(Movable):
         """
         self.raise_if_error(self.db.busy_timeout(c_int(ms)))
 
-    fn register_busy_handler[callback: Optional[BusyHandlerFn]](self) raises:
+    def register_busy_handler[callback: Optional[BusyHandlerFn]](self) raises:
         """Register a callback to handle `SQLITE_BUSY` errors.
 
         If `callback` is `None`, then `SQLITE_BUSY` is returned immediately
@@ -1118,11 +1117,11 @@ struct Connection(Movable):
         """
         self.raise_if_error(self.db.busy_handler[callback]())
     
-    fn clear_busy_handler(self) raises:
+    def clear_busy_handler(self) raises:
         """Clear the busy handler, if any."""
         self.raise_if_error(self.db.busy_handler[None]())
 
-    fn limit(self, limit: Limit) raises -> Int32:
+    def limit(self, limit: Limit) raises -> Int32:
         """Returns the current value of a run-time `Limit`.
 
         Args:
@@ -1139,7 +1138,7 @@ struct Connection(Movable):
             raise Error(t"{limit} is invalid")
         return rc
 
-    fn set_limit(self, limit: Limit, new_val: Int32) raises -> Int32:
+    def set_limit(self, limit: Limit, new_val: Int32) raises -> Int32:
         """Changes a run-time `Limit`, returning the prior value.
 
         Args:
@@ -1159,7 +1158,7 @@ struct Connection(Movable):
             raise Error(t"{limit} is invalid")
         return rc
 
-    fn register_trace_function[trace_fn: TraceFn](self, mask: TraceEventCodes) raises:
+    def register_trace_function[trace_fn: TraceFn](self, mask: TraceEventCodes) raises:
         """Register or clear a trace callback.
 
         When `trace_fn` is provided, it will be called for each trace event
@@ -1179,11 +1178,11 @@ struct Connection(Movable):
         """
         self.raise_if_error(self.db.trace_v2[trace_fn](mask))
     
-    fn clear_trace_function(self) raises:
+    def clear_trace_function(self) raises:
         """Clear the trace callback, if any."""
         self.raise_if_error(self.db.trace_v2[None](TraceEventCodes.empty()))
 
-    fn log(self, err_code: Int32, mut msg: String):
+    def log(self, err_code: Int32, mut msg: String):
         """Write a message to the SQLite error log.
 
         Args:
@@ -1192,7 +1191,7 @@ struct Connection(Movable):
         """
         self.db.log(err_code, msg)
 
-    fn enable_extension_loading(mut self) raises -> ExtensionLoadGuard[origin_of(self)]:
+    def enable_extension_loading(mut self) raises -> ExtensionLoadGuard[origin_of(self)]:
         """Enable extension loading for this connection.
 
         Returns:
@@ -1204,7 +1203,7 @@ struct Connection(Movable):
         self.raise_if_error(self.db.set_extension_loading(enable=True))
         return ExtensionLoadGuard(Pointer(to=self))
 
-    fn disable_extension_loading(mut self) raises:
+    def disable_extension_loading(mut self) raises:
         """Disable extension loading for this connection.
 
         Raises:
@@ -1212,7 +1211,7 @@ struct Connection(Movable):
         """
         self.raise_if_error(self.db.set_extension_loading(enable=False))
 
-    fn load_extension(mut self, dylib_path: String, entry_point: Optional[String] = None) raises:
+    def load_extension(mut self, dylib_path: String, entry_point: Optional[String] = None) raises:
         """Load an SQLite extension library.
 
         Extension loading must first be enabled via `enable_extension_loading()`.
@@ -1227,7 +1226,7 @@ struct Connection(Movable):
         """
         self.db.load_extension(dylib_path, entry_point)
 
-    fn is_locked(self, rc: SQLite3Result) -> Bool:
+    def is_locked(self, rc: SQLite3Result) -> Bool:
         """Check whether a result code indicates shared-cache lock contention.
 
         Args:
@@ -1238,7 +1237,7 @@ struct Connection(Movable):
         """
         return self.db.is_locked(rc)
 
-    fn wait_for_unlock_notify(self) -> SQLite3Result:
+    def wait_for_unlock_notify(self) -> SQLite3Result:
         """Block until an unlock-notify callback fires, then return SQLITE_OK.
 
         Should only be called after a `SQLITE_LOCKED` result in shared-cache mode.

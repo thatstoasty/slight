@@ -16,7 +16,7 @@ from std.testing import TestSuite, assert_equal, assert_raises, assert_true
 # EXCLUSIVE transaction, then the second attempts a query and gets
 # SQLITE_BUSY because the default busy_timeout eventually expires.
 # ===----------------------------------------------------------------------=== #
-fn test_default_busy() raises:
+def test_default_busy() raises:
     with tempfile.TemporaryDirectory() as tmp:
         var path = Path(tmp) / "test.db3"
 
@@ -45,14 +45,14 @@ fn test_default_busy() raises:
 # 2 times, then returns False. Verifies the handler is actually invoked
 # and db2 eventually gets SQLITE_BUSY.
 # ===----------------------------------------------------------------------=== #
-fn busy_handler(n: Int32) -> Bool:
+def busy_handler(n: Int32) -> Bool:
     """Busy handler that retries up to 2 times, then gives up."""
     if n > 2:
         return False
     return True
 
 
-fn test_busy_handler() raises:
+def test_busy_handler() raises:
     with tempfile.TemporaryDirectory() as tmp:
         var path = Path(tmp) / "busy-handler.db3"
 
@@ -75,5 +75,5 @@ fn test_busy_handler() raises:
         db1.execute_batch("ROLLBACK")
 
 
-fn main() raises:
+def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()

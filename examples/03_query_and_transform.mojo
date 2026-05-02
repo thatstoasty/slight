@@ -11,7 +11,7 @@ struct Employee(Copyable, Writable, Defaultable):
     var salary: Float64
     var is_active: Bool
 
-    fn __init__(out self):
+    def __init__(out self):
         self.id = 0
         self.name = ""
         self.age = 0
@@ -19,11 +19,11 @@ struct Employee(Copyable, Writable, Defaultable):
         self.salary = 0.0
         self.is_active = False
 
-    fn write_to(self, mut writer: Some[Writer]):
+    def write_to(self, mut writer: Some[Writer]):
         writer.write("Employee(id=", self.id, ", name=", self.name, ", age=", self.age, ", address=", self.address, ", salary=", self.salary, ", is_active=", self.is_active, ")")
 
 
-fn main() raises:
+def main() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""
     CREATE TABLE COMPANY(
@@ -39,7 +39,7 @@ fn main() raises:
     (2, 'Alice', 30, '123 Main St', 50000.0, True);
     """)
 
-    fn transform_row(row: Row) raises -> Employee:
+    def transform_row(row: Row) raises -> Employee:
         return Employee(
             id=row.get[Int](0),
             name=row.get[String](1),

@@ -5,11 +5,11 @@ callback wrapper used to bridge user-defined Mojo functions to the SQLite
 `sqlite3_busy_handler()` API.
 """
 
-from slight.c.types import MutExternalPointer, BusyHandlerFn
 from std.ffi import c_int
+from slight.c.types import MutExternalPointer, BusyHandlerFn
 
 
-fn _busy_handler_callback(
+def _busy_handler_callback(
     p_arg: MutExternalPointer[NoneType], count: c_int
 ) -> c_int:
     """C-compatible busy handler callback that delegates to a Mojo function.

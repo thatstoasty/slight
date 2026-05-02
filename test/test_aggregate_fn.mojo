@@ -10,45 +10,45 @@ from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal,
 # ===----------------------------------------------------------------------=== #
 
 
-fn sum_init(mut ctx: Context) raises -> Int64:
+def sum_init(mut ctx: Context) raises -> Int64:
     return 0
 
 
-fn sum_step(mut ctx: Context, mut acc: Int64) raises:
+def sum_step(mut ctx: Context, mut acc: Int64) raises:
     acc += ctx.get_int64(0)
 
 
-fn sum_finalize(mut ctx: Context, acc: Int64) raises -> Int64:
+def sum_finalize(mut ctx: Context, acc: Int64) raises -> Int64:
     return acc
 
 
-fn count_init(mut ctx: Context) raises -> Int64:
+def count_init(mut ctx: Context) raises -> Int64:
     return 0
 
 
-fn count_step(mut ctx: Context, mut acc: Int64) raises:
+def count_step(mut ctx: Context, mut acc: Int64) raises:
     acc += 1
 
 
-fn count_finalize(mut ctx: Context, acc: Int64) raises -> Int64:
+def count_finalize(mut ctx: Context, acc: Int64) raises -> Int64:
     return acc
 
 
-fn concat_init(mut ctx: Context) raises -> String:
+def concat_init(mut ctx: Context) raises -> String:
     return String("")
 
 
-fn concat_step(mut ctx: Context, mut acc: String) raises:
-    if len(acc) > 0:
+def concat_step(mut ctx: Context, mut acc: String) raises:
+    if acc.byte_length() > 0:
         acc += ","
     acc += String(ctx.get_text(0))
 
 
-fn concat_finalize(mut ctx: Context, acc: String) raises -> String:
+def concat_finalize(mut ctx: Context, acc: String) raises -> String:
     return acc
 
 
-fn _setup_numbers_table(db: Connection) raises:
+def _setup_numbers_table(db: Connection) raises:
     """Helper: create a numbers table with values 1-5."""
     db.execute_batch(
         """
@@ -66,7 +66,7 @@ fn _setup_numbers_table(db: Connection) raises:
 # ===----------------------------------------------------------------------=== #
 
 
-fn test_aggregate_sum() raises:
+def test_aggregate_sum() raises:
     """Test a custom SUM aggregate function."""
     var db = Connection.open_in_memory()
     _setup_numbers_table(db)
@@ -75,13 +75,13 @@ fn test_aggregate_sum() raises:
         "my_sum", n_arg=1,
     )
 
-    fn get_int(row: Row) raises -> Int64:
+    def get_int(row: Row) raises -> Int64:
         return row.get[Int64](0)
 
     assert_equal(db.one_row[get_int]("SELECT my_sum(value) FROM numbers"), 15)
 
 
-fn test_aggregate_count() raises:
+def test_aggregate_count() raises:
     """Test a custom COUNT aggregate function."""
     var db = Connection.open_in_memory()
     _setup_numbers_table(db)
@@ -90,13 +90,13 @@ fn test_aggregate_count() raises:
         "my_count", n_arg=1,
     )
 
-    fn get_int(row: Row) raises -> Int64:
+    def get_int(row: Row) raises -> Int64:
         return row.get[Int64](0)
 
     assert_equal(db.one_row[get_int]("SELECT my_count(value) FROM numbers"), 5)
 
 
-fn test_aggregate_concat() raises:
+def test_aggregate_concat() raises:
     """Test a custom string concatenation aggregate."""
     var db = Connection.open_in_memory()
     db.execute_batch(
@@ -112,13 +112,13 @@ fn test_aggregate_concat() raises:
         "my_concat", n_arg=1,
     )
 
-    fn get_text(row: Row) raises -> String:
+    def get_text(row: Row) raises -> String:
         return row.get[String](0)
 
     assert_equal(db.one_row[get_text]("SELECT my_concat(word) FROM words"), "foo,bar,baz")
 
 
-fn test_aggregate_empty_table() raises:
+def test_aggregate_empty_table() raises:
     """Test aggregate function on an empty table."""
     var db = Connection.open_in_memory()
     _ = db.execute("CREATE TABLE empty_table (value INTEGER)")
@@ -127,7 +127,7 @@ fn test_aggregate_empty_table() raises:
         "my_sum", n_arg=1,
     )
 
-    fn get_optional_int(row: Row) raises -> Optional[Int64]:
+    def get_optional_int(row: Row) raises -> Optional[Int64]:
         return row.get[Optional[Int64]](0)
 
     # Aggregate over 0 rows — xFinal is still called but with the initial context.
@@ -138,7 +138,7 @@ fn test_aggregate_empty_table() raises:
     # Either NULL or 0 is acceptable here — just ensure no crash.
 
 
-fn test_aggregate_with_group_by() raises:
+def test_aggregate_with_group_by() raises:
     """Test aggregate function with GROUP BY producing multiple groups."""
     var db = Connection.open_in_memory()
     db.execute_batch(
@@ -156,7 +156,7 @@ fn test_aggregate_with_group_by() raises:
         "my_sum", n_arg=1,
     )
 
-    fn get_row(row: Row) raises -> Tuple[String, Int64]:
+    def get_row(row: Row) raises -> Tuple[String, Int64]:
         return (row.get[String](0), row.get[Int64](1))
 
     var stmt = db.prepare("SELECT team, my_sum(points) FROM scores GROUP BY team ORDER BY team")
@@ -171,7 +171,7 @@ fn test_aggregate_with_group_by() raises:
     assert_equal(results[1][1], 45)
 
 
-fn test_aggregate_with_filter() raises:
+def test_aggregate_with_filter() raises:
     """Test aggregate function with a WHERE filter."""
     var db = Connection.open_in_memory()
     _setup_numbers_table(db)
@@ -180,7 +180,7 @@ fn test_aggregate_with_filter() raises:
         "my_sum", n_arg=1,
     )
 
-    fn get_int(row: Row) raises -> Int64:
+    def get_int(row: Row) raises -> Int64:
         return row.get[Int64](0)
 
     # Sum of values > 3: 4 + 5 = 9
@@ -190,5 +190,5 @@ fn test_aggregate_with_filter() raises:
     )
 
 
-fn main() raises:
+def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()

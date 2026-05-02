@@ -14,10 +14,10 @@ See:
 - https://www.sqlite.org/c3ref/c_stmtstatus_counter.html
 """
 
+from std.ffi import c_char, c_int
 from slight.c.api import sqlite_ffi
 from slight.c.raw_bindings import sqlite3_connection, sqlite3_stmt
 from slight.c.types import MutExternalPointer
-from std.ffi import c_char, c_int
 
 
 # ── Trace event codes (bitmask) ────────────────────────────────────────
@@ -49,7 +49,7 @@ struct TraceEventCodes(
     """Fires when a database connection closes."""
 
     @staticmethod
-    fn all() -> Self:
+    def all() -> Self:
         """Return a mask that enables all trace event types.
 
         Returns:
@@ -58,7 +58,7 @@ struct TraceEventCodes(
         return Self(0x0F)
 
     @staticmethod
-    fn empty() -> Self:
+    def empty() -> Self:
         """Return an empty mask (no events enabled).
 
         Returns:
@@ -66,7 +66,7 @@ struct TraceEventCodes(
         """
         return Self(0)
 
-    fn __or__(self, other: Self) -> Self:
+    def __or__(self, other: Self) -> Self:
         """Combine two masks using bitwise OR.
 
         Args:
@@ -77,7 +77,7 @@ struct TraceEventCodes(
         """
         return Self(self.value | other.value)
 
-    fn __and__(self, other: Self) -> Self:
+    def __and__(self, other: Self) -> Self:
         """Intersect two masks using bitwise AND.
 
         Args:
@@ -88,7 +88,7 @@ struct TraceEventCodes(
         """
         return Self(self.value & other.value)
 
-    fn __contains__(self, code: Self) -> Bool:
+    def __contains__(self, code: Self) -> Bool:
         """Test whether `code` is fully contained in this mask.
 
         Args:
@@ -99,7 +99,7 @@ struct TraceEventCodes(
         """
         return (self.value & code.value) == code.value
 
-    fn __eq__(self, other: Self) -> Bool:
+    def __eq__(self, other: Self) -> Bool:
         """Test equality.
 
         Args:
@@ -110,7 +110,7 @@ struct TraceEventCodes(
         """
         return self.value == other.value
 
-    fn write_to(self, mut writer: Some[Writer]):
+    def write_to(self, mut writer: Some[Writer]):
         """Write a human-readable representation.
 
         Args:
@@ -182,7 +182,7 @@ struct StatementStatus(
     comptime MEMUSED = Self(99)
     """Approximate heap memory used by the prepared statement (bytes)."""
 
-    fn __eq__(self, other: Self) -> Bool:
+    def __eq__(self, other: Self) -> Bool:
         """Test equality.
 
         Args:
@@ -193,7 +193,7 @@ struct StatementStatus(
         """
         return self.value == other.value
 
-    fn write_to(self, mut writer: Some[Writer]):
+    def write_to(self, mut writer: Some[Writer]):
         """Write a human-readable representation.
 
         Args:
@@ -224,7 +224,7 @@ struct StatementStatus(
 # ── Trace event ────────────────────────────────────────────────────────
 
 
-comptime TraceFn = fn (TraceEvent) -> NoneType
+comptime TraceFn = def (TraceEvent) thin -> NoneType
 """User-provided trace callback type for `Connection.trace()`.
 
 The callback receives a `TraceEvent` whose `event_code` indicates
@@ -257,7 +257,7 @@ struct TraceEvent:
 
     # ── Event-type predicates ──
 
-    fn is_stmt(self) -> Bool:
+    def is_stmt(self) -> Bool:
         """True when this is a STMT event.
 
         Returns:
@@ -265,7 +265,7 @@ struct TraceEvent:
         """
         return self.event_code == TraceEventCodes.STMT.value
 
-    fn is_profile(self) -> Bool:
+    def is_profile(self) -> Bool:
         """True when this is a PROFILE event.
 
         Returns:
@@ -273,7 +273,7 @@ struct TraceEvent:
         """
         return self.event_code == TraceEventCodes.PROFILE.value
 
-    fn is_row(self) -> Bool:
+    def is_row(self) -> Bool:
         """True when this is a ROW event.
 
         Returns:
@@ -281,7 +281,7 @@ struct TraceEvent:
         """
         return self.event_code == TraceEventCodes.ROW.value
 
-    fn is_close(self) -> Bool:
+    def is_close(self) -> Bool:
         """True when this is a CLOSE event.
 
         Returns:
@@ -291,7 +291,7 @@ struct TraceEvent:
 
     # ── STMT / PROFILE / ROW accessors (statement-based events) ──
 
-    fn sql(self) -> String:
+    def sql(self) -> String:
         """Return the unexpanded SQL text passed by the STMT event.
 
         Only valid for STMT events. For other events the result is undefined.
@@ -304,7 +304,7 @@ struct TraceEvent:
             StringSlice(unsafe_from_utf8_ptr=ptr)
         )
 
-    fn stmt_sql(self) -> String:
+    def stmt_sql(self) -> String:
         """Return the SQL text from the statement handle.
 
         Valid for STMT, PROFILE, and ROW events.
@@ -320,7 +320,7 @@ struct TraceEvent:
             StringSlice(unsafe_from_utf8_ptr=sql_ptr)
         )
 
-    fn expanded_sql(self) -> Optional[String]:
+    def expanded_sql(self) -> Optional[String]:
         """Return expanded SQL (parameters substituted) from the statement.
 
         Valid for STMT, PROFILE, and ROW events.
@@ -334,7 +334,7 @@ struct TraceEvent:
             return None
         return String(s.as_string_slice())
 
-    fn duration_ns(self) -> Int64:
+    def duration_ns(self) -> Int64:
         """Return elapsed wall-clock time in nanoseconds.
 
         Only valid for PROFILE events. For other events the result is
@@ -346,7 +346,7 @@ struct TraceEvent:
         var ns_ptr = self._x.bitcast[Int64]()
         return ns_ptr[]
 
-    fn get_status(self, status: StatementStatus) -> Int32:
+    def get_status(self, status: StatementStatus) -> Int32:
         """Read a statement status counter.
 
         Valid for STMT, PROFILE, and ROW events.
@@ -362,7 +362,7 @@ struct TraceEvent:
             sqlite_ffi()[].stmt_status(stmt, c_int(status.value), c_int(0)).value
         )
 
-    fn is_autocommit(self) -> Bool:
+    def is_autocommit(self) -> Bool:
         """Test whether the connection is in auto-commit mode.
 
         Only valid for CLOSE events.
@@ -373,7 +373,7 @@ struct TraceEvent:
         var db = self._p.bitcast[sqlite3_connection]()
         return sqlite_ffi()[].get_autocommit(db)
 
-    fn db_filename(self) -> Optional[String]:
+    def db_filename(self) -> Optional[String]:
         """Return the filename of the main database.
 
         Only valid for CLOSE events.
@@ -389,7 +389,7 @@ struct TraceEvent:
         var s = String(
             StringSlice(unsafe_from_utf8_ptr=ptr)
         )
-        if len(s) == 0:
+        if s.byte_length() == 0:
             return None
         return s
 
@@ -397,7 +397,7 @@ struct TraceEvent:
 # ── C-compatible trace callback ────────────────────────────────────────
 
 
-fn _trace_v2_callback(
+def _trace_v2_callback(
     evt: UInt32,
     ctx: MutExternalPointer[NoneType],
     p: MutExternalPointer[NoneType],
@@ -417,7 +417,7 @@ fn _trace_v2_callback(
     Returns:
         Always returns 0 (SQLITE_OK).
     """
-    # Transmute: recover fn pointer from the void pointer address value
+    # Transmute: recover def pointer from the void pointer address value
     # (reverse of `f as *mut c_void` in Rust)
     var fn_as_int = Int(ctx)
     var callback = UnsafePointer(to=fn_as_int).bitcast[TraceFn]()[]
@@ -428,7 +428,7 @@ fn _trace_v2_callback(
 # ── Free function: log ─────────────────────────────────────────────────
 
 
-fn log(err_code: Int32, mut msg: String):
+def log(err_code: Int32, mut msg: String):
     """Write a message into the SQLite error log.
 
     The message is logged through the error logging callback established

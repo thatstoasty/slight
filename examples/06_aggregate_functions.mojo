@@ -4,22 +4,22 @@ from slight import Connection, Row
 
 
 # TODO: Show what happens if an error is raised in one of the funcs.
-fn sum_init(mut ctx: Context) raises -> Int64:
+def sum_init(mut ctx: Context) raises -> Int64:
     """Initialize the accumulator to 0."""
     return 0
 
 
-fn sum_step(mut ctx: Context, mut acc: Int64) raises:
+def sum_step(mut ctx: Context, mut acc: Int64) raises:
     """Add the current row's first argument to the running sum."""
     acc += ctx.get_int64(0)
 
 
-fn sum_finalize(mut ctx: Context, acc: Int64) raises -> Int64:
+def sum_finalize(mut ctx: Context, acc: Int64) raises -> Int64:
     """Return the final accumulated sum."""
     return acc
 
 
-fn main() raises:
+def main() raises:
     var conn = Connection.open_in_memory()
 
     # Set up a test table with some integer values.
@@ -41,7 +41,7 @@ fn main() raises:
         flags=FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
     )
 
-    fn get_result(row: Row) raises -> Int64:
+    def get_result(row: Row) raises -> Int64:
         return row.get[Int64](0)
 
     var result = conn.one_row[get_result]("SELECT my_sum(value) FROM numbers")

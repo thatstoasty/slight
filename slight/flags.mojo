@@ -37,7 +37,7 @@ struct PrepFlag(Copyable, ImplicitlyCopyable, Movable):
     comptime PREPARE_DONT_LOG = Self(0x10)
     """Prevents SQL compiler errors from being sent to the error log."""
 
-    fn __or__(self, other: Self) -> Self:
+    def __or__(self, other: Self) -> Self:
         """Combines two PrepFlags using a bitwise OR operation.
 
         This allows multiple flags to be set at once when preparing a SQLite statement.
@@ -111,7 +111,7 @@ struct OpenFlag(Copyable, ImplicitlyCopyable, Movable):
     """The extended result codes will be enabled for this database connection."""
 
     # Default flags
-    fn __init__(out self):
+    def __init__(out self):
         """Constructor with the default flags for opening a SQLite database connection.
 
         Returns:
@@ -119,7 +119,7 @@ struct OpenFlag(Copyable, ImplicitlyCopyable, Movable):
         """
         self.value = Self.READ_WRITE.value | Self.CREATE.value | Self.URI.value
 
-    fn __or__(self, other: Self) -> Self:
+    def __or__(self, other: Self) -> Self:
         """Combines two OpenFlags using a bitwise OR operation.
 
         This allows multiple flags to be set at once when opening a SQLite database connection.
