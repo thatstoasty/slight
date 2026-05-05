@@ -415,26 +415,20 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_malloc64(size)
 
-    def free[origin: MutOrigin, //](self, ptr: MutOpaquePointer[origin]):
+    def free(self, ptr: MutExternalPointer[NoneType]):
         """Free Memory.
 
         This routine frees memory that was obtained from malloc64.
-
-        Parameters:
-            origin: The origin of the pointer to free.
 
         Args:
             ptr: Pointer to memory to free.
         """
         self.lib.sqlite3_free(ptr)
 
-    def msize[origin: MutOrigin, //](self, ptr: MutOpaquePointer[origin]) -> UInt64:
+    def msize(self, ptr: MutExternalPointer[NoneType]) -> UInt64:
         """Memory Size.
 
         This routine returns the size of a memory allocation obtained from malloc64.
-
-        Parameters:
-            origin: The origin of the pointer to check.
 
         Args:
             ptr: Pointer to allocated memory.
