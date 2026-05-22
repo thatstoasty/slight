@@ -156,7 +156,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         self.value = value^
 
     @implicit
-    def __init__(out self, var value: SQLite3Text):
+    def __init__(out self, var value: SQLite3Text[Self.stmt]):
         """Initialize a ValueRef with a TEXT value.
 
         Args:
@@ -165,7 +165,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         self.value = value^
 
     @implicit
-    def __init__(out self, var value: SQLite3Blob):
+    def __init__(out self, var value: SQLite3Blob[Self.stmt]):
         """Initialize a ValueRef with a BLOB value.
 
         Args:

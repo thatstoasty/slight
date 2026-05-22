@@ -32,7 +32,7 @@ struct SQLiteMallocString(Movable):
         """
         return self.ptr.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().address_space_cast[address_space]()
 
-    def as_string_slice(mut self) -> StringSlice[origin_of(self)]:
+    def as_string_slice(self) -> StringSlice[origin_of(self)]:
         """Returns the C string to a `StringSlice`.
 
         Returns:

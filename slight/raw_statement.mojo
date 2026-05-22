@@ -2,8 +2,9 @@ from std.os import abort
 from std.memory import ImmutSpan
 from slight.c.api import sqlite_ffi
 from slight.c.sqlite_string import SQLiteMallocString
-from slight.c.types import ImmutExternalPointer, MutExternalPointer, ResultDestructorFn, TextEncoding, sqlite3_stmt
+from slight.c.types import ImmutExternalPointer, MutExternalPointer, ResultDestructorFn, sqlite3_stmt
 from slight.result import SQLite3Result
+from slight.enums import TextEncoding
 
 
 @fieldwise_init
@@ -44,7 +45,7 @@ struct RawStatement(Movable):
         """
         return sqlite_ffi()[].column_double(self.stmt, Int32(idx))
 
-    def column_text(self, idx: UInt) raises -> ImmutExternalPointer[UInt8]:
+    def column_text(self, idx: UInt) raises -> StringSlice[ImmutExternalOrigin]:
         """Returns the value of the specified column as a text string.
 
         The program will abort if the column contains NULL data, so this method
@@ -59,12 +60,12 @@ struct RawStatement(Movable):
         Raises:
             Error: If the column contains NULL data.
         """
-        var ptr = sqlite_ffi()[].column_text(self.stmt, Int32(idx))
-        if ptr:
-            # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
-            return ptr.take()
+        var text = sqlite_ffi()[].column_text(self.stmt, Int32(idx))
+        if not text:
+            raise Error("Unexpected SQLITE_TEXT column type with NULL data.")
 
-        raise Error("unexpected SQLITE_TEXT column type with NULL data")
+        # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
+        return text.take()
 
     def column_blob(self, idx: UInt) raises -> Span[Byte, origin_of(self)]:
         """Returns the value of the specified column as binary data.

@@ -4,7 +4,7 @@ from std.utils import Variant
 from std.memory import ImmutSpan
 from slight.c.raw_bindings import sqlite3_stmt
 from slight.c.sqlite_string import SQLiteMallocString
-from slight.c.types import DataType, DestructorHint, MutExternalPointer, ResultDestructorFn
+from slight.c.types import MutExternalPointer, ResultDestructorFn
 from slight.connection import Connection
 from slight.params import List, Params
 from slight.raw_statement import RawStatement
@@ -14,6 +14,7 @@ from slight.types.from_sql import FromSQL
 from slight.types.to_sql import ToSQL
 from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
 from slight.util import as_byte, ColumnType
+from slight.enums import DataType, DestructorHint
 
 
 @fieldwise_init
@@ -185,10 +186,11 @@ struct Statement[conn: ImmutOrigin](Movable):
             return ValueRef[origin_of(self)](SQLite3Real(self.stmt.column_double(col)))
         elif DataType.TEXT == column_type:
             try:
+                var text = self.stmt.column_text(col)
                 return ValueRef[origin_of(self)](
                     SQLite3Text(
                         StringSlice(
-                            unsafe_from_utf8_ptr=self.stmt.column_text(col).unsafe_origin_cast[origin_of(self)]()
+                            unsafe_from_utf8_ptr=text.unsafe_ptr().unsafe_origin_cast[origin_of(self)]()
                         )
                     )
                 )

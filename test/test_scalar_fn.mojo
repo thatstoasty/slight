@@ -33,7 +33,8 @@ def constant_42(ctx: Context) raises -> Int64:
 
 def user_data_adder(ctx: Context) raises -> Int64:
     """Add the user_data value (Int64) to the first argument."""
-    var offset = ctx.user_data().bitcast[Int64]()[]
+    var user_data = ctx.user_data()
+    var offset = user_data.value().bitcast[Int64]()[] if user_data else 0
     return ctx.get_int64(0) + offset
 
 

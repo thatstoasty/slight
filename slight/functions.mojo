@@ -52,7 +52,7 @@ struct FunctionFlags(ImplicitlyCopyable):
         return Self(self.value | other.value)
 
 
-def _default_destructor(pApp: Optional[MutExternalPointer[NoneType]]):
+def _default_destructor(pApp: Optional[MutExternalPointer[NoneType]]) abi("C"):
     """Default destructor for user-defined function application data.
 
     This function is used as the destructor callback when creating user-defined functions
@@ -82,7 +82,7 @@ def _call_scalar_callback[
     ctx: MutExternalPointer[sqlite3_context],
     argc: c_int,
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
-) -> NoneType:
+) abi("C"):
     """The xFunc callback for the scalar function.
 
     This is a wrapper around the user provided `func` that converts the raw C callback parameters
@@ -118,7 +118,7 @@ def _call_scalar_callback[
     
     # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
     context.set_result(result)
-    return
+
 
 comptime AggregateInitUDF[A: MoveDestructible] = def(mut ctx: Context) raises thin -> A
 """User provided aggregate function initialization callback.
@@ -149,7 +149,7 @@ def _call_step_callback[
     ctx: MutExternalPointer[sqlite3_context],
     argc: c_int,
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
-) -> NoneType:
+) abi("C"):
     """The xStep callback for the aggregate function.
 
     This is called once for each row in the group being aggregated. This is a wrapper
@@ -184,7 +184,6 @@ def _call_step_callback[
     except e:
         context.result_error(t"Error in aggregate step function: {e}")
         return
-    return
 
 
 def _call_final_callback[
@@ -192,7 +191,7 @@ def _call_final_callback[
     T: MoveDestructible,
     //,
     final_fn: AggregateFinalUDF[A, T],
-](ctx: MutExternalPointer[sqlite3_context]) -> NoneType:
+](ctx: MutExternalPointer[sqlite3_context]) abi("C"):
     """The xFinal callback for the aggregate function.
 
     This is called once at the end of the aggregation to compute the final result. This is a wrapper
@@ -232,7 +231,6 @@ def _call_final_callback[
     # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
     # ToSQL is implemented on most of the important stdlib types.
     context.set_result(result)
-    return
 
 
 comptime WindowAggregateValueUDF[A: CopyDestructible, T: MoveDestructible] = def(acc: Optional[A]) raises thin -> T
@@ -254,7 +252,7 @@ def _call_value_callback[
     T: MoveDestructible,
     //,
     value_fn: WindowAggregateValueUDF[A, T]
-](ctx: MutExternalPointer[sqlite3_context]) -> NoneType:
+](ctx: MutExternalPointer[sqlite3_context]) abi("C"):
     """The xValue callback for the window function.
 
     This is called to compute the current value of the window function without finalizing, for use in window frames.
@@ -292,7 +290,7 @@ def _call_value_callback[
     # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
     # ToSQL is implemented on most of the important stdlib types.
     context.set_result(result)
-    return
+
 
 def _call_inverse_callback[
     A: CopyDestructible, //, inverse_fn: WindowAggregateInverseUDF[A]
@@ -300,7 +298,7 @@ def _call_inverse_callback[
     ctx: MutExternalPointer[sqlite3_context],
     argc: c_int,
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
-) -> NoneType:
+) abi("C"):
     """The `xInverse` callback for user defined window function.
 
     This is called when a row leaves the window frame, to update the aggregate context accordingly.
@@ -326,4 +324,3 @@ def _call_inverse_callback[
     except e:
         context.result_error(t"Error in window function inverse callback: {e}")
         return
-    return

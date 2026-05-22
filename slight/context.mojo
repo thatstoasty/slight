@@ -1,7 +1,7 @@
 from std.ffi import c_int
 from std.os import abort
 from std.memory import ImmutSpan
-from slight.c.types import MutExternalPointer, sqlite3_connection, sqlite3_context, sqlite3_value, DataType, DestructorHint, TextEncoding, ResultDestructorFn
+from slight.c.types import MutExternalPointer, sqlite3_connection, sqlite3_context, sqlite3_value, ResultDestructorFn
 from slight.c.api import sqlite_ffi
 from slight.types.value_ref import (
     ValueRef,
@@ -11,6 +11,8 @@ from slight.types.value_ref import (
     SQLite3Text,
     SQLite3Blob,
 )
+from slight.enums import DataType, DestructorHint, TextEncoding
+
 
 @fieldwise_init
 struct Context(Movable, Sized):
@@ -114,18 +116,21 @@ struct Context(Movable, Sized):
         elif DataType.FLOAT.value == value_type.value:
             return ValueRef[origin_of(self)](SQLite3Real(sqlite_ffi()[].value_double(value)))
         elif DataType.TEXT.value == value_type.value:
-            var text_ptr = sqlite_ffi()[].value_text(value)
-            return ValueRef[origin_of(self)](
-                SQLite3Text(StringSlice(unsafe_from_utf8_ptr=text_ptr.unsafe_origin_cast[origin_of(self)]()))
-            )
+            var text = sqlite_ffi()[].value_text(value)
+            if not text:
+                return ValueRef[origin_of(self)](SQLite3Null())
+            return ValueRef[origin_of(self)](SQLite3Text(
+                StringSlice(ptr=text.value().unsafe_ptr().unsafe_origin_cast[origin_of(self)](), length=text.value().byte_length())
+            ))
         elif DataType.BLOB.value == value_type.value:
-            var blob_ptr = sqlite_ffi()[].value_blob(value)
-            var n_bytes = Int(sqlite_ffi()[].value_bytes(value).value)
+            var blob = sqlite_ffi()[].value_blob(value)
+            if not blob:
+                return ValueRef[origin_of(self)](SQLite3Null())
             return ValueRef[origin_of(self)](
                 SQLite3Blob(
                     Span[Byte, origin_of(self)](
-                        ptr=blob_ptr.bitcast[Byte]().unsafe_origin_cast[origin_of(self)](),
-                        length=n_bytes,
+                        ptr=blob.value().unsafe_ptr().unsafe_origin_cast[origin_of(self)](),
+                        length=len(blob.value()),
                     )
                 )
             )
@@ -162,7 +167,7 @@ struct Context(Movable, Sized):
         debug_assert(idx < len(self), "Argument index out of bounds")
         return sqlite_ffi()[].value_double(self.args[idx])
 
-    def get_text(self, idx: Int) -> StringSlice[origin_of(self)]:
+    def get_text(self, idx: Int) -> Optional[StringSlice[origin_of(self)]]:
         """Returns the `idx`th argument as a StringSlice.
 
         This calls `sqlite3_value_text` directly. The returned slice
@@ -176,10 +181,18 @@ struct Context(Movable, Sized):
             The argument value as a string slice.
         """
         debug_assert(idx < len(self), "Argument index out of bounds")
-        var text_ptr = sqlite_ffi()[].value_text(self.args[idx])
-        return StringSlice(unsafe_from_utf8_ptr=text_ptr.unsafe_origin_cast[origin_of(self)]())
+        var text = sqlite_ffi()[].value_text(self.args[idx])
+        if not text:
+            return None
+        
+        # We're laundering the origin here. It should be safe because the value should
+        # live as long as the context is alive. That conveys more information than using an external origin.
+        return StringSlice(
+            ptr=text.value().unsafe_ptr().unsafe_origin_cast[origin_of(self)](),
+            length=text.value().byte_length()
+        )
 
-    def get_blob(self, idx: Int) -> Span[Byte, origin_of(self)]:
+    def get_blob(self, idx: Int) -> Optional[Span[Byte, origin_of(self)]]:
         """Returns the `idx`th argument as a Span of bytes (BLOB).
 
         This calls `sqlite3_value_blob` and `sqlite3_value_bytes` directly.
@@ -194,11 +207,15 @@ struct Context(Movable, Sized):
         """
         debug_assert(idx < len(self), "Argument index out of bounds")
         var value = self.args[idx]
-        var blob_ptr = sqlite_ffi()[].value_blob(value)
-        var n_bytes = Int(sqlite_ffi()[].value_bytes(value).value)
+        var blob = sqlite_ffi()[].value_blob(value)
+        if not blob:
+            return None
+
+        # We're laundering the origin here. It should be safe because the value should
+        # live as long as the context is alive. That conveys more information than using an external origin.
         return Span(
-            ptr=blob_ptr.bitcast[Byte]().unsafe_origin_cast[origin_of(self)](),
-            length=n_bytes,
+            ptr=blob.value().unsafe_ptr().unsafe_origin_cast[origin_of(self)](),
+            length=len(blob.value()),
         )
 
     def get_subtype(self, idx: Int) -> UInt32:
@@ -384,26 +401,28 @@ struct Context(Movable, Sized):
             return None
         return ptr.take().bitcast[A]()
 
-    def user_data(self) -> MutExternalPointer[NoneType]:
+    def user_data(self) -> Optional[MutExternalPointer[NoneType]]:
         """Get the user data pointer that was passed to `create_scalar_function`,
         `create_aggregate_function`, or `create_window_function`.
 
         This is the `pApp` pointer that was passed when registering the function.
 
         Returns:
-            The user data pointer, or null if none was set.
+            The user data pointer, or None if none was set.
         """
         return sqlite_ffi()[].user_data(self.ctx)
 
-    def context_db_handle(self) -> MutExternalPointer[sqlite3_connection]:
+    def context_db_handle(self) -> Optional[MutExternalPointer[sqlite3_connection]]:
         """Get the database connection handle from the function context.
 
         Returns:
-            The database connection handle.
+            The database connection handle, or None if an error occurred in SQLite.
+            * Context is modified: If you use a sqlite3_context * pointer that has been altered, corrupted, or passed incorrectly to the function.
+            * Invalid context passed: If the context being evaluated is not associated with an active, valid database connection (such as during unassociated test setups or specific internal sqlite3 sub-routines).
         """
         return sqlite_ffi()[].context_db_handle(self.ctx)
 
-    def get_auxdata(self, arg: Int) -> MutExternalPointer[NoneType]:
+    def get_auxdata(self, arg: Int) -> Optional[MutExternalPointer[NoneType]]:
         """Get the auxiliary data associated with a particular parameter.
 
         Returns the auxiliary data that was previously set using `set_auxdata`.

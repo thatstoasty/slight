@@ -380,17 +380,16 @@ struct TraceEvent:
             The filename, or `None` if unavailable (e.g. in-memory).
         """
         var db = self._p.bitcast[sqlite3_connection]()
-        var db_name = String("main")
-        var ptr = sqlite_ffi()[].db_filename(db, db_name)
-        if not ptr:
+        var db_name = "main"
+        var file = sqlite_ffi()[].db_filename(db, db_name)
+        if not file:
             return None
-        var s = String(
-            StringSlice(unsafe_from_utf8_ptr=ptr.value())
-        )
+        
+        var s = String(file.value())
         if s.byte_length() == 0:
             return None
-        return s
 
+        return s^
 
 # ── C-compatible trace callback ────────────────────────────────────────
 
@@ -400,7 +399,7 @@ def _trace_v2_callback(
     ctx: MutExternalPointer[NoneType],
     p: MutExternalPointer[NoneType],
     x: MutExternalPointer[NoneType],
-) -> c_int:
+) abi("C") -> c_int:
     """C-compatible callback for `sqlite3_trace_v2`.
 
     Reconstructs the user's `TraceFn` from the `ctx` void pointer and

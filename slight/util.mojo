@@ -1,3 +1,4 @@
+from std.pathlib import Path
 from slight.c.types import MutExternalPointer
 
 comptime CopyDestructible = Copyable & ImplicitlyDestructible
@@ -31,3 +32,27 @@ def ptr_copy[T: CopyDestructible](data: T) -> MutExternalPointer[T]:
     var ptr = alloc[T](count=1)
     ptr[0] = data.copy()
     return ptr
+
+
+def str_slice_to_path(s: StringSlice[ImmutExternalOrigin]) -> Optional[Path]:
+    """Convert a String to a Path.
+
+    Args:
+        s: The String to convert.
+
+    Returns:
+        A Path representing the input String.
+    """
+    return Path(s)
+
+
+def str_slice_to_string(s: StringSlice[ImmutExternalOrigin]) -> Optional[String]:
+    """Convert a StringSlice to a String.
+
+    Args:
+        s: The String to convert.
+
+    Returns:
+        A newly allocated String copy of the StringSlice.
+    """
+    return String(s)

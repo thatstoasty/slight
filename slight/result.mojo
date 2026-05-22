@@ -1,4 +1,4 @@
-from slight.c.raw_bindings import (
+from slight.c.types import (
     SQLITE_ABORT,
     SQLITE_AUTH,
     SQLITE_BUSY,

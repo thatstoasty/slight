@@ -45,7 +45,7 @@ def test_default_busy() raises:
 # 2 times, then returns False. Verifies the handler is actually invoked
 # and db2 eventually gets SQLITE_BUSY.
 # ===----------------------------------------------------------------------=== #
-def busy_handler(n: Int32) -> Bool:
+def busy_handler(n: Int32) abi("C") -> Bool:
     """Busy handler that retries up to 2 times, then gives up."""
     if n > 2:
         return False

@@ -13,20 +13,20 @@ from std.ffi import c_int
 from std.utils.lock import SpinWaiter
 
 from slight.c.api import sqlite_ffi
-from slight.c.raw_bindings import (
+from slight.c.types import (
+    MutExternalPointer,
     SQLITE_LOCKED,
     SQLITE_LOCKED_SHAREDCACHE,
     SQLITE_OK,
     sqlite3_connection,
 )
-from slight.c.types import MutExternalPointer, MutOpaquePointer
 from slight.result import SQLite3Result
 
 
 def _unlock_notify_cb(
     ap_arg: MutUnsafePointer[MutExternalPointer[NoneType], MutExternalOrigin],
     n_arg: c_int,
-) -> NoneType:
+) abi("C"):
     """C-compatible unlock-notify callback.
 
     Called by SQLite when the blocking connection's transaction is finished.
@@ -39,7 +39,6 @@ def _unlock_notify_cb(
     for i in range(Int(n_arg)):
         var flag_ptr = ap_arg[i].bitcast[Bool]()
         flag_ptr[] = True
-    return None
 
 
 def is_locked(

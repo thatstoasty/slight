@@ -42,7 +42,7 @@ from slight.flags import OpenFlag, PrepFlag
 from slight.functions import FunctionFlags
 from slight.context import Context
 from slight.result import SQLite3Result
-from slight.util import CopyDestructible, MoveDestructible, ptr_copy
+from slight.util import CopyDestructible, MoveDestructible, ptr_copy, str_slice_to_path
 
 
 @explicit_destroy("InnerConnection must be explicitly destroyed. Use self.close() to destroy.")
@@ -194,11 +194,8 @@ struct InnerConnection(Movable):
             The file path of the database, or None if the database is in-memory.
         """
         var db_name = "main"
-        var path = sqlite_ffi()[].db_filename(self.db, db_name)
-        if not path:
-            return None
+        return sqlite_ffi()[].db_filename(self.db, db_name).and_then[To=Path](str_slice_to_path)
 
-        return Path(StringSlice(unsafe_from_utf8_ptr=path.value()))
 
     def is_database_read_only(self, var database: String) raises -> Bool:
         """Checks if the specified database is opened in read-only mode.

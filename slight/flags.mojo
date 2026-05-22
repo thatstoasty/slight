@@ -1,4 +1,4 @@
-from slight.c.raw_bindings import (
+from slight.c.types import (
     SQLITE_OPEN_AUTOPROXY,
     SQLITE_OPEN_CREATE,
     SQLITE_OPEN_DELETEONCLOSE,
