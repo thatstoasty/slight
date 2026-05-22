@@ -15,7 +15,7 @@ from slight.enums import DataType, DestructorHint, TextEncoding
 
 
 @fieldwise_init
-struct Context(Movable, Sized):
+struct Context(Movable, Sized, Boolable):
     """A wrapper for the SQLite function evaluation context.
 
     Provides convenient access to function arguments and methods to set
@@ -86,13 +86,13 @@ struct Context(Movable, Sized):
         return len(self.args)
 
     @always_inline
-    def is_empty(self) -> Bool:
-        """Returns True when there are no arguments.
+    def __bool__(self) -> Bool:
+        """Returns True when there are arguments.
 
         Returns:
-            True if there are no arguments, False otherwise.
+            True if there are arguments, False otherwise.
         """
-        return len(self.args) == 0
+        return len(self.args) > 0
 
     def get_raw(self, idx: Int) -> ValueRef[origin_of(self)]:
         """Returns the `idx`th argument as a `ValueRef`.
@@ -106,36 +106,7 @@ struct Context(Movable, Sized):
             A ValueRef containing the argument's value with its appropriate type.
         """
         debug_assert(idx < len(self), "Argument index out of bounds")
-        var value = self.args[idx]
-        var value_type = sqlite_ffi()[].value_type(value)
-
-        if DataType.NULL.value == value_type.value:
-            return ValueRef[origin_of(self)](SQLite3Null())
-        elif DataType.INTEGER.value == value_type.value:
-            return ValueRef[origin_of(self)](SQLite3Integer(sqlite_ffi()[].value_int64(value)))
-        elif DataType.FLOAT.value == value_type.value:
-            return ValueRef[origin_of(self)](SQLite3Real(sqlite_ffi()[].value_double(value)))
-        elif DataType.TEXT.value == value_type.value:
-            var text = sqlite_ffi()[].value_text(value)
-            if not text:
-                return ValueRef[origin_of(self)](SQLite3Null())
-            return ValueRef[origin_of(self)](SQLite3Text(
-                StringSlice(ptr=text.value().unsafe_ptr().unsafe_origin_cast[origin_of(self)](), length=text.value().byte_length())
-            ))
-        elif DataType.BLOB.value == value_type.value:
-            var blob = sqlite_ffi()[].value_blob(value)
-            if not blob:
-                return ValueRef[origin_of(self)](SQLite3Null())
-            return ValueRef[origin_of(self)](
-                SQLite3Blob(
-                    Span[Byte, origin_of(self)](
-                        ptr=blob.value().unsafe_ptr().unsafe_origin_cast[origin_of(self)](),
-                        length=len(blob.value()),
-                    )
-                )
-            )
-        else:
-            abort("[UNREACHABLE] sqlite3_value_type returned an invalid value")
+        return ValueRef[origin_of(self)].from_value(self.args[idx])
 
     def get_int64(self, idx: Int) -> Int64:
         """Returns the `idx`th argument as an Int64.
@@ -240,7 +211,7 @@ struct Context(Movable, Sized):
             The DataType of the argument (INTEGER, FLOAT, TEXT, BLOB, or NULL).
         """
         debug_assert(idx < len(self), "Argument index out of bounds")
-        return DataType(sqlite_ffi()[].value_type(self.args[idx]).value)
+        return DataType(sqlite_ffi()[].value_type(self.args[idx]))
 
     # ===------------------------------------------------------------------=== #
     # Result Setting

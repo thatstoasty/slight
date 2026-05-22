@@ -163,6 +163,56 @@ struct Statement[conn: ImmutOrigin](Movable):
             The number of columns that will be returned by this statement.
         """
         return UInt(self.stmt.column_count())
+    
+    def column_type(self, col: UInt) -> DataType:
+        """Returns the data type of the specified column.
+
+        Args:
+            col: The column index (0-based).
+
+        Returns:
+            The data type of the column as a DataType enum.
+        """
+        return DataType(self.stmt.column_type(col))
+    
+    def column_text(self, idx: UInt) raises -> StringSlice[origin_of(self)]:
+        """Returns the value of the specified column as a text string.
+
+        The program will abort if the column contains NULL data, so this method
+        takes ownership of `self` to be able to finalize the statement in that case.
+
+        Args:
+            idx: The index of the column to retrieve.
+
+        Returns:
+            The value of the specified column as a StringSlice.
+
+        Raises:
+            Error: If the column contains NULL data.
+        """
+        var text = self.stmt.column_text(idx)
+
+        # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
+        return StringSlice(
+            unsafe_from_utf8_ptr=text.unsafe_ptr().unsafe_origin_cast[origin_of(self)]()
+        )
+
+    def column_blob(self, idx: UInt) raises -> Span[Byte, origin_of(self)]:
+        """Returns the value of the specified column as binary data.
+
+        Args:
+            idx: The index of the column to retrieve.
+
+        Returns:
+            The value of the specified column as a Span of bytes.
+
+        Raises:
+            Error: If the column contains NULL data or has negative length.
+        """
+        var blob = self.stmt.column_blob(idx)
+
+        # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
+        return Span(ptr=blob.unsafe_ptr().unsafe_origin_cast[origin_of(self)](), length=len(blob))
 
     def value_ref(self, col: UInt) -> ValueRef[origin_of(self)]:
         """Returns a reference to the value in the specified column of the current row.
@@ -177,7 +227,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         """
         # TODO: Generally need to handle nulls here, for now we're kind of asserting that
         # data requested via this function is not null.
-        var column_type = self.stmt.column_type(col)
+        var column_type = self.column_type(col)
         if DataType.NULL == column_type:
             return ValueRef[origin_of(self)](SQLite3Null())
         elif DataType.INTEGER == column_type:
@@ -185,24 +235,19 @@ struct Statement[conn: ImmutOrigin](Movable):
         elif DataType.FLOAT == column_type:
             return ValueRef[origin_of(self)](SQLite3Real(self.stmt.column_double(col)))
         elif DataType.TEXT == column_type:
+            # We should generally be fine and not hit the case where column_text or blob return None.
+            # If the column is nullable, the data type will be NULL.
             try:
-                var text = self.stmt.column_text(col)
-                return ValueRef[origin_of(self)](
-                    SQLite3Text(
-                        StringSlice(
-                            unsafe_from_utf8_ptr=text.unsafe_ptr().unsafe_origin_cast[origin_of(self)]()
-                        )
-                    )
-                )
+                return ValueRef(SQLite3Text(self.column_text(col)))
             except e:
                 abort(String(e))
         elif DataType.BLOB == column_type:
             try:
-                return ValueRef[origin_of(self)](SQLite3Blob(self.stmt.column_blob(col)))
+                return ValueRef(SQLite3Blob(self.column_blob(col)))
             except e:
                 abort(String(e))
         else:
-            abort(t"[UNREACHABLE] sqlite3_column_type returned an invalid value: {column_type}")
+            abort(t"[UNREACHABLE] sqlite3_column_type returned an invalid value: {column_type.value}")
 
     def finalize(deinit self) raises -> None:
         """Finalizes the statement and releases its resources.

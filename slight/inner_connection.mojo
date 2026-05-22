@@ -10,10 +10,9 @@ from slight.unlock_notify import (
     wait_for_unlock_notify,
 )
 from slight.c.types import (
+    MutExternalPointer,
     AggFinalCallback,
     AggStepCallback,
-    MutExternalPointer,
-    MutUnsafePointer,
     WindowInverseCallback,
     WindowValueCallback,
     sqlite3_context,

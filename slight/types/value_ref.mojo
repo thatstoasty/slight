@@ -1,5 +1,8 @@
 from std.os import abort
 from std.utils import Variant
+from slight.c.types import sqlite3_value, MutExternalPointer
+from slight.c.api import sqlite_ffi
+from slight.enums import DataType
 
 
 trait SQLType(Copyable):
@@ -172,6 +175,45 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
             value: The SQLite3Blob value to store.
         """
         self.value = value^
+    
+    @staticmethod
+    def from_value(value: MutExternalPointer[sqlite3_value]) -> Self:
+        """Returns the `idx`th argument as a `ValueRef`.
+
+        This reads the type and value from the raw sqlite3_value pointer.
+
+        Args:
+            value: A pointer to the sqlite3_value representing the SQL value.
+
+        Returns:
+            A ValueRef containing the argument's value with its appropriate type.
+        """
+        var value_type = sqlite_ffi()[].value_type(value)
+
+        if DataType.NULL == value_type:
+            return Self(SQLite3Null())
+        elif DataType.INTEGER == value_type:
+            return Self(SQLite3Integer(sqlite_ffi()[].value_int64(value)))
+        elif DataType.FLOAT == value_type:
+            return Self(SQLite3Real(sqlite_ffi()[].value_double(value)))
+        elif DataType.TEXT == value_type:
+            var text = sqlite_ffi()[].value_text(value)
+            if not text:
+                return Self(SQLite3Null())
+            return Self(SQLite3Text(
+                text.value()
+            ))
+        elif DataType.BLOB == value_type:
+            var blob = sqlite_ffi()[].value_blob(value)
+            if not blob:
+                return Self(SQLite3Null())
+            return Self(
+                SQLite3Blob(
+                    blob.value()
+                )
+            )
+        else:
+            abort("[UNREACHABLE] sqlite3_value_type returned an invalid value")
 
     def __init__(out self, value: Self._type):
         """Initialize a ValueRef by copying another ValueRef.

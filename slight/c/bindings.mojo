@@ -1835,7 +1835,7 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_value_bytes(value)
 
-    def value_type(self, value: MutExternalPointer[sqlite3_value]) -> SQLite3Result:
+    def value_type(self, value: MutExternalPointer[sqlite3_value]) -> c_int:
         """Datatype Code For An sqlite3_value.
 
         This routine returns the datatype code for the value.
