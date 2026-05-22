@@ -131,8 +131,10 @@ def _trace_all_callback(event: TraceEvent) -> NoneType:
     elif event.is_profile():
         _ = event.duration_ns()
     elif event.is_row():
-        # _ = event.expanded_sql()
-        _ = event.sql()
+        try:
+            _ = event.expanded_sql()
+        except:
+            pass
     elif event.is_close():
         _ = event.is_autocommit()
         _ = event.db_filename()

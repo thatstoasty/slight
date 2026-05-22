@@ -1160,10 +1160,10 @@ struct Connection(Movable):
         return rc
 
     def register_trace_function[trace_fn: TraceFn](self, mask: TraceEventCodes) raises:
-        """Register or clear a trace callback.
+        """Register a trace callback.
 
-        When `trace_fn` is provided, it will be called for each trace event
-        whose type is selected by `mask`. Pass `None` to disable tracing.
+        The callback will be invoked for each trace event whose type is
+        selected by `mask`. Use `clear_trace_function` to disable tracing.
 
         There can only be a single tracer per connection. Setting a new tracer
         replaces the previous one.
@@ -1181,7 +1181,7 @@ struct Connection(Movable):
     
     def clear_trace_function(self) raises:
         """Clear the trace callback, if any."""
-        self.raise_if_error(self.db.trace_v2[None](TraceEventCodes.empty()))
+        self.raise_if_error(self.db.clear_trace_v2())
 
     def log(self, err_code: Int32, mut msg: String):
         """Write a message to the SQLite error log.

@@ -513,21 +513,18 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_profile(db, xProfile, pArg)
 
-    def trace_v2[T: CopyDestructible, //](
+    def trace_v2(
         self,
         db: MutExternalPointer[sqlite3_connection],
         uMask: UInt32,
         xCallback: TraceV2CallbackFn,
-        pCtx: Optional[T] = None,
+        pCtx: Optional[MutExternalPointer[NoneType]],
     ) -> SQLite3Result:
         """Register A Trace Callback (Version 2).
 
         This routine registers a callback function to be invoked for various
         tracing events based on the mask parameter.
-
-        Parameters:
-            T: The type of the user data passed to the callback, which must be copyable and destructible.
-
+        
         Args:
             db: Database connection.
             uMask: Bitmask of trace events to monitor.
@@ -537,15 +534,7 @@ struct sqlite3(Movable):
         Returns:
             Result code (SQLITE_OK on success).
         """
-        var result: SQLite3Result
-        if pCtx:
-            # Copy user data to the heap, and free it after sqlite3_trace_v2 returns.
-            var user_data = ptr_copy(pCtx)
-            result = self.lib.sqlite3_trace_v2(db, uMask, xCallback, user_data.bitcast[NoneType]())
-            user_data.free()
-        else:
-            result = self.lib.sqlite3_trace_v2(db, uMask, xCallback, None)
-        return result
+        return self.lib.sqlite3_trace_v2(db, uMask, xCallback, pCtx)
 
     def progress_handler[
         arg_origin: MutOrigin, //

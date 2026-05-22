@@ -1,8 +1,8 @@
 from slight.c.types import MutExternalPointer
 
-comptime CopyDestructible = Movable & Copyable & ImplicitlyDestructible
+comptime CopyDestructible = Copyable & ImplicitlyDestructible
 comptime MoveDestructible = Movable & ImplicitlyDestructible
-comptime ColumnType = ImplicitlyDestructible & Movable & Defaultable
+comptime ColumnType = MoveDestructible & Defaultable
 
 
 def as_byte[char: StringSlice]() -> Byte:

@@ -644,17 +644,16 @@ struct InnerConnection(Movable):
         """
         return sqlite_ffi()[].limit(self.db, c_int(limit.value), c_int(new_val))
 
-    def trace_v2[callback: Optional[TraceFn]](
+    def trace_v2[callback: TraceFn](
         self,
         mask: TraceEventCodes,
     ) -> SQLite3Result:
-        """Register or clear a trace callback (version 2).
+        """Register a trace callback (version 2).
 
-        If `callback` is `None`, tracing is disabled. Otherwise the callback
-        is invoked for each event type selected by `mask`.
+        The callback is invoked for each event type selected by `mask`.
 
         Parameters:
-            callback: An optional trace callback function. If None, tracing is disabled.
+            callback: A trace callback function.
 
         Args:
             mask: Bitmask of `TraceEventCodes` to monitor.
@@ -662,26 +661,31 @@ struct InnerConnection(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        comptime if callback:
-            var fn_val = callback.value()
-            # Transmute: store def pointer VALUE as the void pointer address
-            # (same as Rust's `f as *mut c_void`)
-            var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
-            var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
-            return sqlite_ffi()[].trace_v2(
-                    self.db,
-                    mask.value,
-                    _trace_v2_callback,
-                    ctx,
-                )
-        else:
-            # Passing a null callback disables tracing.
-            return sqlite_ffi()[].trace_v2(
-                    self.db,
-                    UInt32(0),
-                    _trace_v2_callback,
-                    None,
-                )
+        var fn_val = callback
+        # Transmute: store def pointer VALUE as the void pointer address
+        # (same as Rust's `f as *mut c_void`)
+        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
+        return sqlite_ffi()[].trace_v2(
+            self.db,
+            mask.value,
+            _trace_v2_callback,
+            ctx,
+        )
+
+    def clear_trace_v2(self) -> SQLite3Result:
+        """Disable tracing by unregistering the trace callback.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        # Passing mask=0 disables tracing regardless of the callback pointer.
+        return sqlite_ffi()[].trace_v2(
+            self.db,
+            UInt32(0),
+            _trace_v2_callback,
+            None,
+        )
 
     def log(self, err_code: Int32, mut msg: String):
         """Write a message to the SQLite error log.
