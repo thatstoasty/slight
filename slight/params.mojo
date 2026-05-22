@@ -1,5 +1,4 @@
 from std.builtin.constrained import _constrained_conforms_to
-from std.reflection import get_type_name
 from slight.bind import BindIndex
 from slight.statement import Statement
 
@@ -102,7 +101,7 @@ __extension Tuple(Params):
                 "All elements of the tuple must conform to `ToSQL`. Element at index ",
                 i,
                 "of type ",
-                get_type_name[Self.element_types[i]](),
+                reflect[Self.element_types[i]]().name(),
                 " does not conform to `ToSQL`",
             )
             index += 1  # The leftmost SQL parameter has an index of 1.

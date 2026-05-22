@@ -663,7 +663,6 @@ And took notes from:
 
 ## TODO
 
-- Window functions must be re-enabled. There were changes to Mojo in between 26.2 and 26.3 which now causes MLIR compilation errors when trying to use the `sqlite3_create_window_function` binding. I will work on this after the 26.3 release.
 - Support features for different compilation options.
 - Creating custom collations.
 - Add subtype support for UDF results.

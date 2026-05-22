@@ -14,8 +14,9 @@ struct SQLiteMallocString(Movable):
 
     def __del__(deinit self):
         """Frees the C string using `sqlite3_free` when the `SQLiteMallocString` is deleted."""
-        if self.ptr:
-            sqlite_ffi()[].free(self.ptr.bitcast[NoneType]())
+        # if self.ptr:
+        #     sqlite_ffi()[].free(self.ptr.bitcast[NoneType]())
+        sqlite_ffi()[].free(self.ptr.bitcast[NoneType]())
 
     def unsafe_ptr[
         origin: Origin, address_space: AddressSpace, //

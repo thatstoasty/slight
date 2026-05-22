@@ -382,7 +382,7 @@ struct Context(Movable, Sized):
         var ptr = sqlite_ffi()[].aggregate_context(self.ctx, c_int(n_bytes))
         if not ptr:
             return None
-        return ptr.bitcast[A]()
+        return ptr.take().bitcast[A]()
 
     def user_data(self) -> MutExternalPointer[NoneType]:
         """Get the user data pointer that was passed to `create_scalar_function`,

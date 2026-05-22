@@ -1,5 +1,4 @@
 from std.os import abort
-from std.reflection import get_type_name
 from std.sys import stderr
 from std.utils import Variant
 from std.memory import ImmutSpan
@@ -14,7 +13,7 @@ from slight.row import MappedRows, Row, Rows, TypedRows, RowTransformFn
 from slight.types.from_sql import FromSQL
 from slight.types.to_sql import ToSQL
 from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
-from slight.util import as_byte
+from slight.util import as_byte, ColumnType
 
 
 @fieldwise_init
@@ -152,7 +151,8 @@ struct Statement[conn: ImmutOrigin](Movable):
         Returns:
             A string representation of the statement.
         """
-        var sql = String(self.sql().value()) if self.stmt else ""
+        # var sql = String(self.sql().value()) if self.stmt else ""
+        var sql = String(self.sql().value())
         return String(t"Statement({sql})")
 
     def column_count(self) -> UInt:
@@ -294,7 +294,7 @@ struct Statement[conn: ImmutOrigin](Movable):
                    or if any other error occurs during execution.
         """
         comptime assert conforms_to(P, Params), String(
-            "`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`."
+            "`params` must conform to the `Params` trait. ", reflect[P]().name(), " does not implement `Params`."
         )
         trait_downcast[Params](params).bind(self)
         return self._execute()
@@ -385,7 +385,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If the parameter type is unsupported or binding fails.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "`parameter` must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+            "`parameter` must conform to `ToSQL` trait. ", reflect[T]().name(), " does not implement `ToSQL`."
         )
         var value = trait_downcast[ToSQL](parameter).to_sql()
         if value.isa[SQLite3Null]():
@@ -421,7 +421,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If parameter binding fails or the query execution fails.
         """
         comptime assert conforms_to(P, Params), String(
-            "`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`."
+            "`params` must conform to the `Params` trait. ", reflect[P]().name(), " does not implement `Params`."
         )
         trait_downcast[Params](params).bind(self)
         return Rows(Pointer(to=self))
@@ -449,14 +449,14 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If parameter binding fails or the query execution fails.
         """
         comptime assert conforms_to(P, Params), String(
-            "`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`."
+            "`params` must conform to the `Params` trait. ", reflect[P]().name(), " does not implement `Params`."
         )
         return MappedRows[transform[Self.conn, origin_of(self)]](self.query(params))
 
     def query[
         P: AnyType,
         //,
-        T: Defaultable & Movable,
+        T: ColumnType,
     ](self, params: P = ()) raises -> TypedRows[Self.conn, origin_of(self), T]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
@@ -477,7 +477,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If parameter binding fails or the query execution fails.
         """
         comptime assert conforms_to(P, Params), String(
-            "`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`."
+            "`params` must conform to the `Params` trait. ", reflect[P]().name(), " does not implement `Params`."
         )
         return TypedRows[Self.conn, origin_of(self), T](self.query(params))
 
@@ -501,7 +501,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If parameter binding fails or the query execution fails.
         """
         comptime assert conforms_to(P, Params), String(
-            "`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`."
+            "`params` must conform to the `Params` trait. ", reflect[P]().name(), " does not implement `Params`."
         )
         var rows = self.query(params)
         try:
@@ -528,7 +528,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If the query fails or does not return exactly one row.
         """
         comptime assert conforms_to(P, Params), String(
-            "`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`."
+            "`params` must conform to the `Params` trait. ", reflect[P]().name(), " does not implement `Params`."
         )
         var rows = self.query[transform](params)
         try:
@@ -629,7 +629,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             or if any error occurs during execution.
         """
         comptime assert conforms_to(P, Params), String(
-            "`params` must conform to the `Params` trait. ", get_type_name[P](), " does not implement `Params`."
+            "`params` must conform to the `Params` trait. ", reflect[P]().name(), " does not implement `Params`."
         )
         var changes = self.execute(params)
         if changes == 1:

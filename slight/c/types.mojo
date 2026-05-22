@@ -175,7 +175,7 @@ comptime WindowInverseCallback = def(
 Called when a row leaves the window frame.
 """
 
-comptime ResultDestructorFn = def(MutExternalPointer[NoneType]) thin -> NoneType
+comptime ResultDestructorFn = def(Optional[MutExternalPointer[NoneType]]) thin -> NoneType
 """Constants Defining Special Destructor Behavior.
 
 These are special values for the destructor that is passed in as the

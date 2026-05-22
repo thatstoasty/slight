@@ -39,7 +39,7 @@ __extension Optional(FromSQL):
         # We rely on the that initializer to properly construct itself from the sqlite value.
         comptime assert conforms_to(Self.T, FromSQL), String(
             "Optional can only be used with types that implement `FromSQL`. ",
-            get_type_name[Self.T](),
+            reflect[Self.T]().name(),
             " does not implement `FromSQL`.",
         )
         if value.isa[SQLite3Null]():
@@ -135,6 +135,6 @@ __extension List(FromSQL):
             Error: If the value cannot be converted to the type.
         """
         comptime assert _type_is_eq[Self.T, Byte](), String(
-            "List can only be used with Byte type for `FromSQL`. ", get_type_name[Self.T](), " is not Byte."
+            "List can only be used with Byte type for `FromSQL`. ", reflect[Self.T]().name(), " is not Byte."
         )
         self = rebind_var[List[Self.T]](List[Byte](value.as_blob()))

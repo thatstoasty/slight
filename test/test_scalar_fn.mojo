@@ -242,3 +242,6 @@ def test_blob() raises:
 
 def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
+    # var suite = TestSuite()
+    # suite.test[test_remove_function]()
+    # suite^.run()

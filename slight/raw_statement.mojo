@@ -11,16 +11,8 @@ from slight.result import SQLite3Result
 struct RawStatement(Movable):
     """A raw SQL statement wrapper around a pointer to a `sqlite3_stmt`."""
 
-    var stmt: MutExternalPointer[sqlite3_stmt]
+    var stmt: Optional[MutExternalPointer[sqlite3_stmt]]
     """A pointer to the `sqlite3_stmt` that represents this statement."""
-
-    def __init__(out self):
-        """Creates an empty RawStatement.
-
-        Returns:
-            A new `RawStatement` instance with a null pointer.
-        """
-        self.stmt = MutExternalPointer[sqlite3_stmt]()
 
     def __bool__(self) -> Bool:
         """Returns True if the statement is valid (i.e., the stmt pointer is not null).
@@ -38,7 +30,7 @@ struct RawStatement(Movable):
 
         Returns:
             The value of the specified column as a 64-bit integer.
-        """
+        """            
         return sqlite_ffi()[].column_int64(self.stmt, Int32(idx))
 
     def column_double(self, idx: UInt) -> Float64:
@@ -70,7 +62,7 @@ struct RawStatement(Movable):
         var ptr = sqlite_ffi()[].column_text(self.stmt, Int32(idx))
         if ptr:
             # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
-            return ptr
+            return ptr.take()
 
         raise Error("unexpected SQLITE_TEXT column type with NULL data")
 
@@ -86,7 +78,7 @@ struct RawStatement(Movable):
         Raises:
             Error: If the column contains NULL data or has negative length.
         """
-        var ptr = sqlite_ffi()[].column_blob(self.stmt, Int32(idx)).bitcast[Byte]()
+        var ptr = sqlite_ffi()[].column_blob(self.stmt, Int32(idx))
         if not ptr:
             raise Error("unexpected SQLITE_BLOB column type with NULL data")
 
@@ -95,7 +87,7 @@ struct RawStatement(Movable):
             raise Error("unexpected SQLITE_BLOB column type with negative length: ", length)
 
         # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
-        return Span(ptr=ptr.unsafe_origin_cast[origin_of(self)](), length=Int(length))
+        return Span(ptr=ptr.value().bitcast[Byte]().unsafe_origin_cast[origin_of(self)](), length=Int(length))
 
     def column_type(self, idx: UInt) -> Int32:
         """Returns the data type of the specified column.
@@ -125,7 +117,10 @@ struct RawStatement(Movable):
         Returns:
             The 1-based index of the parameter, or 0 if not found.
         """
-        var result = sqlite_ffi()[].bind_parameter_index(self.stmt, name)
+        if not self.stmt:
+            return None
+
+        var result = sqlite_ffi()[].bind_parameter_index(self.stmt.value(), name)
         if result == 0:
             return None
 
@@ -137,7 +132,9 @@ struct RawStatement(Movable):
         Returns:
             The number of SQL parameters (?, ?NNN, :VVV, @VVV, $VVV) in the statement.
         """
-        return sqlite_ffi()[].bind_parameter_count(self.stmt)
+        if not self.stmt:
+            return 0
+        return sqlite_ffi()[].bind_parameter_count(self.stmt.value())
 
     def bind_null(self, index: UInt) -> SQLite3Result:
         """Binds a NULL value to the specified parameter.
@@ -215,9 +212,12 @@ struct RawStatement(Movable):
 
         # We don't really know the origin of this string, it's a pointer returned by SQLite.
         # But it should be valid as long as the statement is valid, so we use the same origin as the statement.
-        return StringSlice(unsafe_from_utf8_ptr=sqlite_ffi()[].sql(self.stmt).unsafe_origin_cast[origin_of(self)]())
+        var sql_ptr = sqlite_ffi()[].sql(self.stmt.value())
+        if not sql_ptr:
+            return None
+        return StringSlice(unsafe_from_utf8_ptr=sql_ptr.value().unsafe_origin_cast[origin_of(self)]())
 
-    def expanded_sql(self) -> Optional[SQLiteMallocString]:
+    def expanded_sql(self) raises -> Optional[SQLiteMallocString]:
         """Returns the SQL text of the prepared statement with bound parameters expanded.
 
         Returns:
@@ -228,7 +228,7 @@ struct RawStatement(Movable):
 
         # We don't really know the origin of this string, it's a pointer returned by SQLite.
         # But it should be valid as long as the statement is valid, so we use the same origin as the statement.
-        return sqlite_ffi()[].expanded_sql(self.stmt)
+        return sqlite_ffi()[].expanded_sql(self.stmt.value())
 
     def finalize(deinit self) -> SQLite3Result:
         """Destroys the prepared statement and releases its resources.
@@ -279,12 +279,15 @@ struct RawStatement(Movable):
         Returns:
             The name of the column as a CStr, or None if the index is out of bounds.
         """
+        if not self.stmt:
+            return None
+
         var i = Int32(idx)
         if i < 0 or i >= self.column_count():
             return None
 
         # Null ptr indicates an OOM, which we treat as None here.
-        var ptr = sqlite_ffi()[].column_name(self.stmt, i)
+        var ptr = sqlite_ffi()[].column_name(self.stmt.value(), i)
         if not ptr:
             return None
 

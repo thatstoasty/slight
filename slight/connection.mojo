@@ -104,9 +104,9 @@ struct Connection(Movable):
         """
         connection = Self(InnerConnection(":memory:", flags))
 
-    def __init__(out self):
-        """Initialize a new connection with an empty inner connection."""
-        self.db = InnerConnection()
+    # def __init__(out self):
+    #     """Initialize a new connection with an empty inner connection."""
+    #     self.db = InnerConnection()
 
     def __init__(out self, var conn: InnerConnection):
         """Initialize a new connection with the given inner connection."""
@@ -125,8 +125,9 @@ struct Connection(Movable):
 
     def __del__(deinit self):
         """Closes the connection when it is deleted."""
-        if self.db:
-            _ = self^.close()
+        # if self.db:
+        #     _ = self^.close()
+        _ = self^.close()
 
     def __enter__(var self) -> Self:
         """Enter the context manager.
@@ -251,7 +252,7 @@ struct Connection(Movable):
         """
         comptime assert conforms_to(P, Params), String(
             "`params` must conform to the `Params` trait. ",
-            get_type_name[P](),
+            reflect[P]().name(),
             " does not implement `Params`. Try a tuple or a list of parameters.",
         )
         var stmt = self.prepare(sql^)
@@ -273,7 +274,7 @@ struct Connection(Movable):
         while current_sql.byte_length() > 0:
             # Is it possible to copy the sql string less here? I don't want to keep allocating strings.
             var stmt, tail = self.db.prepare(current_sql.copy(), PrepFlag.PREPARE_PERSISTENT)
-            if stmt and Statement(Pointer(to=self), RawStatement(stmt)).step():
+            if stmt and Statement(Pointer(to=self), RawStatement(stmt.take())).step():
                 pass  # some pragmas return results
                 # raise Error("ExecuteReturnedResults: The executed batch returned results, which is not supported.")
 
@@ -343,7 +344,7 @@ struct Connection(Movable):
         """
         comptime assert conforms_to(P, Params), String(
             "`params` must conform to the `Params` trait. ",
-            get_type_name[P](),
+            reflect[P]().name(),
             " does not implement `Params`. Try a tuple or a list of parameters.",
         )
         var stmt = self.prepare(sql^)
@@ -426,8 +427,8 @@ struct Connection(Movable):
         self.raise_if_error(
             sqlite_ffi()[].table_column_metadata(
                 self.db.db,
-                db,
                 table,
+                db,
                 column,
                 data_type,
                 coll_seq,
@@ -466,8 +467,8 @@ struct Connection(Movable):
         """
         var r = sqlite_ffi()[].table_column_metadata(
             self.db.db,
-            db,
             table,
+            db,
             column,
             None,
             None,
@@ -676,7 +677,7 @@ struct Connection(Movable):
         ```
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "`value` must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+            "`value` must conform to `ToSQL` trait. ", reflect[T]().name(), " does not implement `ToSQL`."
         )
         var sql = Sql()
         sql.push_pragma(pragma, schema)
@@ -764,7 +765,7 @@ struct Connection(Movable):
         ```
         """
         comptime assert conforms_to(V, ToSQL), String(
-            "`value` must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`."
+            t"`value` must conform to `ToSQL` trait. {reflect[V]().name()} does not implement `ToSQL`."
         )
         var sql = Sql()
         sql.push_pragma(pragma, schema)
@@ -844,7 +845,7 @@ struct Connection(Movable):
         # xStep/xFinal to be NULL. We call the raw C API directly to pass
         # NULL for the unused callbacks.
         comptime assert conforms_to(V, ToSQL), String(
-            "Return type V must conform to `ToSQL` trait. ", get_type_name[V](), " does not implement `ToSQL`."
+            t"Return type V must conform to `ToSQL` trait. {reflect[V]().name()} does not implement `ToSQL`."
         )
         var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags)
         self.raise_if_error(result)
@@ -893,7 +894,7 @@ struct Connection(Movable):
         # For aggregate functions, SQLite requires xFunc to be NULL and
         # xStep/xFinal to be non-NULL.
         comptime assert conforms_to(T, ToSQL), String(
-            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
         )
         var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags, user_data)
         self.raise_if_error(result)
@@ -938,112 +939,112 @@ struct Connection(Movable):
         # For aggregate functions, SQLite requires xFunc to be NULL and
         # xStep/xFinal to be non-NULL.
         comptime assert conforms_to(T, ToSQL), String(
-            "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
+            "Return type T must conform to `ToSQL` trait. ", reflect[T]().name(), " does not implement `ToSQL`."
         )
         var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags)
         self.raise_if_error(result)
 
-    # def create_window_function[
-    #     A: CopyDestructible,
-    #     T: MoveDestructible,
-    #     P: CopyDestructible,
-    #     //,
-    #     init_fn: AggregateInitUDF[A],
-    #     step_fn: AggregateStepUDF[A],
-    #     final_fn: AggregateFinalUDF[A, T],
-    #     value_fn: WindowAggregateValueUDF[A, T],
-    #     inverse_fn: WindowAggregateInverseUDF[A],
-    # ](
-    #     self,
-    #     fn_name: String,
-    #     n_arg: Int,
-    #     user_data: P,
-    #     flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
-    # ) raises:
-    #     """Attach a user-defined aggregate window function to a database connection.
+    def create_window_function[
+        A: CopyDestructible,
+        T: MoveDestructible,
+        P: CopyDestructible,
+        //,
+        init_fn: AggregateInitUDF[A],
+        step_fn: AggregateStepUDF[A],
+        final_fn: AggregateFinalUDF[A, T],
+        value_fn: WindowAggregateValueUDF[A, T],
+        inverse_fn: WindowAggregateInverseUDF[A],
+    ](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        user_data: P,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    ) raises:
+        """Attach a user-defined aggregate window function to a database connection.
 
-    #     Window functions operate over a sliding window of rows. In addition to
-    #     the `x_step` and `x_final` callbacks (like aggregate functions), they require
-    #     `x_value` (to return the current aggregate value without finalizing) and
-    #     `x_inverse` (to remove a row leaving the window frame).
+        Window functions operate over a sliding window of rows. In addition to
+        the `x_step` and `x_final` callbacks (like aggregate functions), they require
+        `x_value` (to return the current aggregate value without finalizing) and
+        `x_inverse` (to remove a row leaving the window frame).
 
-    #     See https://sqlite.org/windowfunctions.html#udfwinfunc for more information.
+        See https://sqlite.org/windowfunctions.html#udfwinfunc for more information.
 
-    #     Parameters:
-    #         A: The type of the aggregate state. Must be Movable.
-    #         T: The return type of the aggregate function. Must conform to `ToSQL`.
-    #         P: The type of the application data to pass to the callbacks.
-    #         init_fn: The callback to initialize the aggregate state for a new group.
-    #         step_fn: The callback to update the aggregate state for each row in the group.
-    #         final_fn: The callback to compute the final result from the aggregate state.
-    #         value_fn: The callback to compute the current aggregate value without finalizing.
-    #         inverse_fn: The callback to update the aggregate state when a row leaves the window frame.
+        Parameters:
+            A: The type of the aggregate state. Must be Movable.
+            T: The return type of the aggregate function. Must conform to `ToSQL`.
+            P: The type of the application data to pass to the callbacks.
+            init_fn: The callback to initialize the aggregate state for a new group.
+            step_fn: The callback to update the aggregate state for each row in the group.
+            final_fn: The callback to compute the final result from the aggregate state.
+            value_fn: The callback to compute the current aggregate value without finalizing.
+            inverse_fn: The callback to update the aggregate state when a row leaves the window frame.
 
-    #     Args:
-    #         fn_name: Name of the SQL aggregate function to create.
-    #         n_arg: Number of arguments (-1 for variable number).
-    #         user_data: Data that is passed to the callbacks when the function is called. Can be used to store context or state for the function.
-    #         flags: Function flags.
+        Args:
+            fn_name: Name of the SQL aggregate function to create.
+            n_arg: Number of arguments (-1 for variable number).
+            user_data: Data that is passed to the callbacks when the function is called. Can be used to store context or state for the function.
+            flags: Function flags.
 
-    #     Raises:
-    #         Error: If the function could not be attached to the connection.
-    #     """
-    #     comptime assert conforms_to(T, ToSQL), String(
-    #         "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
-    #     )
-    #     var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
-    #         fn_name, n_arg, flags, user_data,
-    #     )
-    #     self.raise_if_error(result)
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        comptime assert conforms_to(T, ToSQL), String(
+            "Return type T must conform to `ToSQL` trait. ", reflect[T]().name(), " does not implement `ToSQL`."
+        )
+        var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
+            fn_name, n_arg, flags, user_data,
+        )
+        self.raise_if_error(result)
 
-    # def create_window_function[
-    #     A: CopyDestructible,
-    #     T: MoveDestructible,
-    #     //,
-    #     init_fn: AggregateInitUDF[A],
-    #     step_fn: AggregateStepUDF[A],
-    #     final_fn: AggregateFinalUDF[A, T],
-    #     value_fn: WindowAggregateValueUDF[A, T],
-    #     inverse_fn: WindowAggregateInverseUDF[A],
-    # ](
-    #     self,
-    #     fn_name: String,
-    #     n_arg: Int,
-    #     flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
-    # ) raises:
-    #     """Attach a user-defined aggregate window function to a database connection.
+    def create_window_function[
+        A: CopyDestructible,
+        T: MoveDestructible,
+        //,
+        init_fn: AggregateInitUDF[A],
+        step_fn: AggregateStepUDF[A],
+        final_fn: AggregateFinalUDF[A, T],
+        value_fn: WindowAggregateValueUDF[A, T],
+        inverse_fn: WindowAggregateInverseUDF[A],
+    ](
+        self,
+        fn_name: String,
+        n_arg: Int,
+        flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
+    ) raises:
+        """Attach a user-defined aggregate window function to a database connection.
 
-    #     Window functions operate over a sliding window of rows. In addition to
-    #     the `x_step` and `x_final` callbacks (like aggregate functions), they require
-    #     `x_value` (to return the current aggregate value without finalizing) and
-    #     `x_inverse` (to remove a row leaving the window frame).
+        Window functions operate over a sliding window of rows. In addition to
+        the `x_step` and `x_final` callbacks (like aggregate functions), they require
+        `x_value` (to return the current aggregate value without finalizing) and
+        `x_inverse` (to remove a row leaving the window frame).
 
-    #     See https://sqlite.org/windowfunctions.html#udfwinfunc for more information.
+        See https://sqlite.org/windowfunctions.html#udfwinfunc for more information.
 
-    #     Parameters:
-    #         A: The type of the aggregate state. Must be Movable.
-    #         T: The return type of the aggregate function. Must conform to `ToSQL`.
-    #         init_fn: The callback to initialize the aggregate state for a new group.
-    #         step_fn: The callback to update the aggregate state for each row in the group.
-    #         final_fn: The callback to compute the final result from the aggregate state.
-    #         value_fn: The callback to compute the current aggregate value without finalizing.
-    #         inverse_fn: The callback to update the aggregate state when a row leaves the window frame.
+        Parameters:
+            A: The type of the aggregate state. Must be Movable.
+            T: The return type of the aggregate function. Must conform to `ToSQL`.
+            init_fn: The callback to initialize the aggregate state for a new group.
+            step_fn: The callback to update the aggregate state for each row in the group.
+            final_fn: The callback to compute the final result from the aggregate state.
+            value_fn: The callback to compute the current aggregate value without finalizing.
+            inverse_fn: The callback to update the aggregate state when a row leaves the window frame.
 
-    #     Args:
-    #         fn_name: Name of the SQL aggregate function to create.
-    #         n_arg: Number of arguments (-1 for variable number).
-    #         flags: Function flags.
+        Args:
+            fn_name: Name of the SQL aggregate function to create.
+            n_arg: Number of arguments (-1 for variable number).
+            flags: Function flags.
 
-    #     Raises:
-    #         Error: If the function could not be attached to the connection.
-    #     """
-    #     comptime assert conforms_to(T, ToSQL), String(
-    #         "Return type T must conform to `ToSQL` trait. ", get_type_name[T](), " does not implement `ToSQL`."
-    #     )
-    #     var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
-    #         fn_name, n_arg, flags
-    #     )
-    #     self.raise_if_error(result)
+        Raises:
+            Error: If the function could not be attached to the connection.
+        """
+        comptime assert conforms_to(T, ToSQL), String(
+            "Return type T must conform to `ToSQL` trait. ", reflect[T]().name(), " does not implement `ToSQL`."
+        )
+        var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
+            fn_name, n_arg, flags
+        )
+        self.raise_if_error(result)
 
     def remove_function(self, fn_name: String, n_arg: Int) raises:
         """Remove a user-defined function from a database connection.

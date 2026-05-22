@@ -3,6 +3,8 @@ from std.memory import Pointer
 from std.reflection import get_type_name, is_struct_type, struct_field_count, struct_field_names, struct_field_types
 from slight.statement import Statement
 from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
+from slight.util import ColumnType
+
 
 trait RowIndex:
     """A trait for types that can be used to index columns in a Row."""
@@ -280,10 +282,10 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
             Error: If the column value cannot be converted to type T.
         """
         comptime assert conforms_to(S, FromSQL), String(
-            "S must implement `FromSQL`. ", get_type_name[S](), " does not implement `FromSQL`."
+            t"S must implement `FromSQL`. {reflect[S]().name()} does not implement `FromSQL`."
         )
         comptime assert conforms_to(I, RowIndex), String(
-            "I must implement `RowIndex`. ", get_type_name[I](), " does not implement `RowIndex`."
+            t"I must implement `RowIndex`. {reflect[I]().name()} does not implement `RowIndex`."
         )
 
         var i = trait_downcast[RowIndex](idx).idx(self.stmt[])
@@ -361,7 +363,7 @@ struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator):
         return MappedRows[transform[Self.conn, Self.statement]](self)
 
     def as_type[
-        T: Movable & Defaultable
+        T: ColumnType
     ](self,) -> TypedRows[Self.conn, Self.statement, T]:
         """Returns an iterator that transforms each row using the provided function.
 
@@ -432,7 +434,7 @@ struct MappedRows[T: Movable, conn: ImmutOrigin, statement: ImmutOrigin, //, tra
         self.rows.reset()
 
 
-struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: Movable & Defaultable](Copyable, Iterator):
+struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: ColumnType](Copyable, Iterator):
     """An iterator that transforms rows using a mapping function.
 
     Parameters:
@@ -467,16 +469,17 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: Movable & Default
         Raises:
             Error: If the transformation fails.
         """
-        comptime assert is_struct_type[Self.T](), "TypedRows can only transform to struct types."
+        comptime ReflectedT = reflect[Self.T]()
+        comptime assert ReflectedT.is_struct(), "TypedRows can only transform to struct types."
 
-        comptime field_count = struct_field_count[Self.T]()
-        comptime field_names = struct_field_names[Self.T]()
-        comptime field_types = struct_field_types[Self.T]()
+        comptime field_count = ReflectedT.field_count()
+        comptime field_names = ReflectedT.field_names()
+        comptime field_types = ReflectedT.field_types()
 
         var column_count = self.rows.stmt[].column_count()
         if field_count != Int(column_count):
             raise Error(
-                t"Field count mismatch: struct '{get_type_name[Self.T]()} has {Int(field_count)} fields, but query returned {Int(column_count)} columns.",
+                t"Field count mismatch: struct '{ReflectedT.name()}' has {Int(field_count)} fields, but query returned {Int(column_count)} columns.",
             )
 
         result = Self.T()
@@ -486,7 +489,7 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: Movable & Default
                 comptime field_type = field_types[i]
                 if not conforms_to(field_type, FromSQL):
                     raise Error(
-                        t"Field '{field_name}' of struct '{get_type_name[Self.T]()}' does not implement FromSQL."
+                        t"Field '{field_name}' of struct '{ReflectedT.name()}' does not implement FromSQL."
                     )
                 ref field = trait_downcast[ImplicitlyDestructible & Movable & Defaultable](
                     __struct_field_ref(i, result)

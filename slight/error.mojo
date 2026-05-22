@@ -14,16 +14,16 @@ def error_msg(db: MutExternalPointer[sqlite3_connection], code: SQLite3Result) -
     Returns:
         An optional string slice containing the error message, or None if not found.
     """
-    if not db or sqlite_ffi()[].errcode(db) != code:
+    if sqlite_ffi()[].errcode(db) != code:
         var ptr = sqlite_ffi()[].errstr(code.value)
         if not ptr:
             return None
-        return String(unsafe_from_utf8_ptr=ptr)
+        return String(unsafe_from_utf8_ptr=ptr.value())
 
     var ptr = sqlite_ffi()[].errmsg(db)
     if not ptr:
         return None
-    return String(unsafe_from_utf8_ptr=ptr)
+    return String(unsafe_from_utf8_ptr=ptr.value())
 
 
 def raise_if_error(db: MutExternalPointer[sqlite3_connection], code: SQLite3Result) raises:

@@ -470,5 +470,5 @@ def test_column_name_reference() raises:
 def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
     # var suite = TestSuite()
-    # suite.test[test_variadic_params]()
+    # suite.test[test_empty_stmt]()
     # suite^.run()

@@ -52,7 +52,7 @@ struct FunctionFlags(ImplicitlyCopyable):
         return Self(self.value | other.value)
 
 
-def _default_destructor(pApp: MutExternalPointer[NoneType]):
+def _default_destructor(pApp: Optional[MutExternalPointer[NoneType]]):
     """Default destructor for user-defined function application data.
 
     This function is used as the destructor callback when creating user-defined functions
@@ -62,7 +62,7 @@ def _default_destructor(pApp: MutExternalPointer[NoneType]):
         pApp: A mutable external pointer to the application data.
     """
     if pApp:
-        pApp.free()
+        pApp.value().free()
 
 
 # For scalar functions, SQLite requires xFunc to be non-NULL and

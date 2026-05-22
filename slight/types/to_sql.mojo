@@ -83,7 +83,7 @@ __extension Optional(ToSQL):
         """
         comptime assert conforms_to(Self.T, ToSQL), String(
             "Optional can only be used with types that implement `ToSQL`. ",
-            get_type_name[Self.T](),
+            reflect[Self.T]().name(),
             " does not implement `ToSQL`.",
         )
         if not self:
@@ -195,6 +195,6 @@ __extension Span(ToSQL):
             A ValueRef containing the SQLite-compatible value.
         """
         comptime assert _type_is_eq[Self.T, Byte](), String(
-            "Span can only be used with Byte type for `ToSQL`. ", get_type_name[Self.T](), " is not Byte."
+            "Span can only be used with Byte type for `ToSQL`. ", reflect[Self.T]().name(), " is not Byte."
         )
         return ValueRef[origin_of(self)](SQLite3Blob(rebind[Span[Byte, self.origin]](self)))

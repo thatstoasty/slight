@@ -42,22 +42,7 @@ from slight.flags import OpenFlag, PrepFlag
 from slight.functions import FunctionFlags
 from slight.context import Context
 from slight.result import SQLite3Result
-from slight.util import CopyDestructible, MoveDestructible
-
-
-def ptr_copy[T: CopyDestructible](data: T) -> MutExternalPointer[T]:
-    """Creates a copy of the value as a mutable external pointer.
-
-    This is used to create a copy of the application data to pass to SQLite when creating user-defined functions.
-    This data can be freed on demand by the destructor callback, and we don't have to worry
-    about Mojo's ASAP destruction.
-
-    Returns:
-        A mutable external pointer containing a copy of the value.
-    """
-    var ptr = alloc[T](count=1)
-    ptr[0] = data.copy()
-    return ptr
+from slight.util import CopyDestructible, MoveDestructible, ptr_copy
 
 
 @explicit_destroy("InnerConnection must be explicitly destroyed. Use self.close() to destroy.")
@@ -81,19 +66,19 @@ struct InnerConnection(Movable):
         Raises:
             Will return an `Error` if the underlying SQLite open call fails.
         """
-        var ptr = MutExternalPointer[sqlite3_connection]()
+        var ptr = MutExternalPointer[sqlite3_connection].unsafe_dangling()
         var result = sqlite_ffi()[].open_v2(path, UnsafePointer(to=ptr), flags.value, None)
         if result != SQLite3Result.OK:
             raise Error("Could not open database: ", String(result))
         self.db = ptr
 
-    def __init__(out self):
-        """Creates an empty InnerConnection.
+    # def __init__(out self):
+    #     """Creates an empty InnerConnection.
 
-        Returns:
-            A new `InnerConnection` instance.
-        """
-        self.db = MutExternalPointer[sqlite3_connection]()
+    #     Returns:
+    #         A new `InnerConnection` instance.
+    #     """
+    #     self.db = MutExternalPointer[sqlite3_connection]()
 
     def __init__(out self, db: MutExternalPointer[sqlite3_connection]):
         """Creates a new `InnerConnection` from an existing `sqlite3_connection` pointer.
@@ -105,14 +90,6 @@ struct InnerConnection(Movable):
             A new `InnerConnection` instance.
         """
         self.db = db
-
-    def __bool__(self) -> Bool:
-        """Returns whether the connection is open.
-
-        Returns:
-            Whether the pointer to the sqlite3 connection is valid or not.
-        """
-        return Bool(self.db)
 
     def is_autocommit(self) -> Bool:
         """Returns whether the connection is in auto-commit mode.
@@ -128,9 +105,9 @@ struct InnerConnection(Movable):
         Returns:
             True if the connection is busy, False otherwise.
         """
-        var stmt = sqlite_ffi()[].next_stmt(self.db, MutExternalPointer[sqlite3_stmt]())
+        var stmt = sqlite_ffi()[].next_stmt(self.db, None)
         while stmt:
-            if sqlite_ffi()[].stmt_busy(stmt):
+            if sqlite_ffi()[].stmt_busy(stmt.value()):
                 return True
             stmt = sqlite_ffi()[].next_stmt(self.db, stmt)
         return False
@@ -141,8 +118,8 @@ struct InnerConnection(Movable):
         Returns:
             The SQLite3Result code from the close operation.
         """
-        if not self.db:
-            return SQLite3Result.OK
+        # if not self.db:
+        #     return SQLite3Result.OK
 
         return sqlite_ffi()[].close(self.db)
 
@@ -172,7 +149,7 @@ struct InnerConnection(Movable):
 
     def prepare(
         self, var sql: String, flags: PrepFlag = PrepFlag.PREPARE_PERSISTENT
-    ) raises -> Tuple[MutExternalPointer[sqlite3_stmt], UInt]:
+        ) raises -> Tuple[Optional[MutExternalPointer[sqlite3_stmt]], UInt]:
         """Prepares an SQL statement for execution.
 
         Args:
@@ -185,7 +162,7 @@ struct InnerConnection(Movable):
         Raises:
             Will return an `Error` if the underlying SQLite prepare call fails.
         """
-        var stmt = MutExternalPointer[sqlite3_stmt]()
+        var stmt: Optional[MutExternalPointer[sqlite3_stmt]] = None
         var str = sql.as_c_string_slice().unsafe_ptr()
         var c_tail = UnsafePointer(to=str)
 
@@ -195,7 +172,7 @@ struct InnerConnection(Movable):
             )
         except e:
             if stmt:
-                _ = sqlite_ffi()[].finalize(stmt)
+                _ = sqlite_ffi()[].finalize(stmt.value())
             raise e^
 
         var tail: UInt = 0
@@ -221,7 +198,7 @@ struct InnerConnection(Movable):
         if not path:
             return None
 
-        return Path(StringSlice(unsafe_from_utf8_ptr=path))
+        return Path(StringSlice(unsafe_from_utf8_ptr=path.value()))
 
     def is_database_read_only(self, var database: String) raises -> Bool:
         """Checks if the specified database is opened in read-only mode.
@@ -311,7 +288,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(V, ToSQL), String(
-            t"Return type V must conform to `ToSQL` trait. {get_type_name[V]()} does not implement `ToSQL`."
+            t"Return type V must conform to `ToSQL` trait. {reflect[V]().name()} does not implement `ToSQL`."
         )
 
         # Copy data to the heap and pass a pointer to it as pApp.
@@ -351,7 +328,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(V, ToSQL), String(
-            t"Return type V must conform to `ToSQL` trait. {get_type_name[V]()} does not implement `ToSQL`."
+            t"Return type V must conform to `ToSQL` trait. {reflect[V]().name()} does not implement `ToSQL`."
         )
         return sqlite_ffi()[].create_scalar_function(
             self.db,
@@ -397,7 +374,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
         )
 
         # Copy data to the heap and pass a pointer to it as pApp.
@@ -447,7 +424,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
         )
         return sqlite_ffi()[].create_aggregate_function(
             self.db,
@@ -458,114 +435,114 @@ struct InnerConnection(Movable):
             _call_final_callback[final_fn],
         )
 
-    # def create_window_function[
-    #     A: CopyDestructible,
-    #     T: MoveDestructible,
-    #     P: CopyDestructible,
-    #     //,
-    #     init_fn: AggregateInitUDF[A],
-    #     step_fn: AggregateStepUDF[A],
-    #     final_fn: AggregateFinalUDF[A, T],
-    #     value_fn: WindowAggregateValueUDF[A, T],
-    #     inverse_fn: WindowAggregateInverseUDF[A],
-    # ](self, fn_name: String, n_arg: Int, flags: FunctionFlags, pApp: P) -> SQLite3Result:
-    #     """Attach a user-defined aggregate function to a database connection.
+    def create_window_function[
+        A: CopyDestructible,
+        T: MoveDestructible,
+        P: CopyDestructible,
+        //,
+        init_fn: AggregateInitUDF[A],
+        step_fn: AggregateStepUDF[A],
+        final_fn: AggregateFinalUDF[A, T],
+        value_fn: WindowAggregateValueUDF[A, T],
+        inverse_fn: WindowAggregateInverseUDF[A],
+    ](self, fn_name: String, n_arg: Int, flags: FunctionFlags, pApp: P) -> SQLite3Result:
+        """Attach a user-defined aggregate function to a database connection.
 
-    #     Aggregate functions process multiple rows and produce a single result.
-    #     The `x_step` callback is called once per row, and `x_final` is called
-    #     once at the end to produce the result.
+        Aggregate functions process multiple rows and produce a single result.
+        The `x_step` callback is called once per row, and `x_final` is called
+        once at the end to produce the result.
 
-    #     Use `FunctionContext.aggregate_context()` inside the callbacks to manage
-    #     per-group state.
+        Use `FunctionContext.aggregate_context()` inside the callbacks to manage
+        per-group state.
 
-    #     Parameters:
-    #         A: The type of the aggregate state.
-    #         T: The return type of the aggregate function. Must conform to `ToSQL`.
-    #         P: The type of the application data to be passed to the callbacks.
-    #         init_fn: The callback to initialize the aggregate state for a new group.
-    #         step_fn: The callback to update the aggregate state for each row in the group.
-    #         final_fn: The callback to compute the final result from the aggregate state.
-    #         value_fn: The callback to compute the current value of the window function without finalizing (for use in window frames).
-    #         inverse_fn: The callback to update the aggregate state when a row is removed from a window.
+        Parameters:
+            A: The type of the aggregate state.
+            T: The return type of the aggregate function. Must conform to `ToSQL`.
+            P: The type of the application data to be passed to the callbacks.
+            init_fn: The callback to initialize the aggregate state for a new group.
+            step_fn: The callback to update the aggregate state for each row in the group.
+            final_fn: The callback to compute the final result from the aggregate state.
+            value_fn: The callback to compute the current value of the window function without finalizing (for use in window frames).
+            inverse_fn: The callback to update the aggregate state when a row is removed from a window.
 
-    #     Args:
-    #         fn_name: Name of the SQL aggregate function to create.
-    #         n_arg: Number of arguments (-1 for variable number).
-    #         flags: Function flags.
-    #         pApp: An optional pointer to application data that will be passed to the callbacks.
+        Args:
+            fn_name: Name of the SQL aggregate function to create.
+            n_arg: Number of arguments (-1 for variable number).
+            flags: Function flags.
+            pApp: An optional pointer to application data that will be passed to the callbacks.
 
-    #     Returns:
-    #         The SQLite3Result code from the create function operation.
-    #     """
-    #     comptime assert conforms_to(T, ToSQL), String(
-    #         t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
-    #     )
+        Returns:
+            The SQLite3Result code from the create function operation.
+        """
+        comptime assert conforms_to(T, ToSQL), String(
+            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
+        )
 
-    #     # Copy data to the heap and pass a pointer to it as pApp.
-    #     # The data will be freed using the default destructor when the function is removed or when the connection is closed.
-    #     var pAppPtr = ptr_copy(pApp)
-    #     return sqlite_ffi()[].create_window_function(
-    #         self.db,
-    #         fn_name,
-    #         c_int(n_arg),
-    #         flags.value,
-    #         pAppPtr.bitcast[NoneType](),
-    #         _call_step_callback[init_fn, step_fn],
-    #         _call_final_callback[final_fn],
-    #         _call_value_callback[value_fn],
-    #         _call_inverse_callback[inverse_fn],
-    #         _default_destructor,
-    #     )
+        # Copy data to the heap and pass a pointer to it as pApp.
+        # The data will be freed using the default destructor when the function is removed or when the connection is closed.
+        var pAppPtr = ptr_copy(pApp)
+        return sqlite_ffi()[].create_window_function(
+            self.db,
+            fn_name,
+            c_int(n_arg),
+            flags.value,
+            pAppPtr.bitcast[NoneType](),
+            _call_step_callback[init_fn, step_fn],
+            _call_final_callback[final_fn],
+            _call_value_callback[value_fn],
+            _call_inverse_callback[inverse_fn],
+            _default_destructor,
+        )
 
-    # def create_window_function[
-    #     A: CopyDestructible,
-    #     T: MoveDestructible,
-    #     //,
-    #     init_fn: AggregateInitUDF[A],
-    #     step_fn: AggregateStepUDF[A],
-    #     final_fn: AggregateFinalUDF[A, T],
-    #     value_fn: WindowAggregateValueUDF[A, T],
-    #     inverse_fn: WindowAggregateInverseUDF[A],
-    # ](self, fn_name: String, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
-    #     """Attach a user-defined aggregate function to a database connection.
+    def create_window_function[
+        A: CopyDestructible,
+        T: MoveDestructible,
+        //,
+        init_fn: AggregateInitUDF[A],
+        step_fn: AggregateStepUDF[A],
+        final_fn: AggregateFinalUDF[A, T],
+        value_fn: WindowAggregateValueUDF[A, T],
+        inverse_fn: WindowAggregateInverseUDF[A],
+    ](self, fn_name: String, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
+        """Attach a user-defined aggregate function to a database connection.
 
-    #     Aggregate functions process multiple rows and produce a single result.
-    #     The `x_step` callback is called once per row, and `x_final` is called
-    #     once at the end to produce the result.
+        Aggregate functions process multiple rows and produce a single result.
+        The `x_step` callback is called once per row, and `x_final` is called
+        once at the end to produce the result.
 
-    #     Use `FunctionContext.aggregate_context()` inside the callbacks to manage
-    #     per-group state.
+        Use `FunctionContext.aggregate_context()` inside the callbacks to manage
+        per-group state.
 
-    #     Parameters:
-    #         A: The type of the aggregate state.
-    #         T: The return type of the aggregate function. Must conform to `ToSQL`.
-    #         init_fn: The callback to initialize the aggregate state for a new group.
-    #         step_fn: The callback to update the aggregate state for each row in the group.
-    #         final_fn: The callback to compute the final result from the aggregate state.
-    #         value_fn: The callback to compute the current value of the window function without finalizing (for use in window frames).
-    #         inverse_fn: The callback to update the aggregate state when a row is removed from a window.
+        Parameters:
+            A: The type of the aggregate state.
+            T: The return type of the aggregate function. Must conform to `ToSQL`.
+            init_fn: The callback to initialize the aggregate state for a new group.
+            step_fn: The callback to update the aggregate state for each row in the group.
+            final_fn: The callback to compute the final result from the aggregate state.
+            value_fn: The callback to compute the current value of the window function without finalizing (for use in window frames).
+            inverse_fn: The callback to update the aggregate state when a row is removed from a window.
 
-    #     Args:
-    #         fn_name: Name of the SQL aggregate function to create.
-    #         n_arg: Number of arguments (-1 for variable number).
-    #         flags: Function flags.
+        Args:
+            fn_name: Name of the SQL aggregate function to create.
+            n_arg: Number of arguments (-1 for variable number).
+            flags: Function flags.
 
-    #     Returns:
-    #         The SQLite3Result code from the create function operation.
-    #     """
-    #     comptime assert conforms_to(T, ToSQL), String(
-    #         t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
-    #     )
-    #     return sqlite_ffi()[].create_window_function(
-    #         self.db,
-    #         fn_name,
-    #         c_int(n_arg),
-    #         flags.value,
-    #         _call_step_callback[init_fn, step_fn],
-    #         _call_final_callback[final_fn],
-    #         _call_value_callback[value_fn],
-    #         _call_inverse_callback[inverse_fn],
-    #     )
+        Returns:
+            The SQLite3Result code from the create function operation.
+        """
+        comptime assert conforms_to(T, ToSQL), String(
+            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
+        )
+        return sqlite_ffi()[].create_window_function(
+            self.db,
+            fn_name,
+            c_int(n_arg),
+            flags.value,
+            _call_step_callback[init_fn, step_fn],
+            _call_final_callback[final_fn],
+            _call_value_callback[value_fn],
+            _call_inverse_callback[inverse_fn],
+        )
 
     def remove_function(
         self,
@@ -703,7 +680,7 @@ struct InnerConnection(Movable):
                     self.db,
                     UInt32(0),
                     _trace_v2_callback,
-                    MutExternalPointer[NoneType](),
+                    None,
                 )
 
     def log(self, err_code: Int32, mut msg: String):
@@ -742,7 +719,7 @@ struct InnerConnection(Movable):
             Error: If the extension cannot be loaded.
         """
         var path = String(dylib_path)
-        var errmsg = MutExternalPointer[c_char]()
+        var errmsg: Optional[MutExternalPointer[c_char]] = None
         var ep = entry_point.copy()
         var result = sqlite_ffi()[].load_extension(
             self.db, path, ep, errmsg,
@@ -753,8 +730,9 @@ struct InnerConnection(Movable):
         # Extract the error message returned by SQLite, then free it.
         var message: Optional[String] = None
         if errmsg:
-            message = String(unsafe_from_utf8_ptr=errmsg)
-            sqlite_ffi()[].free(errmsg.bitcast[NoneType]())
+            var errmsg_ptr = errmsg.take()
+            message = String(unsafe_from_utf8_ptr=errmsg_ptr)
+            sqlite_ffi()[].free(errmsg_ptr.bitcast[NoneType]())
 
         raise Error(error_from_sqlite_code(result, message))
 

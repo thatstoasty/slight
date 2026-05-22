@@ -315,12 +315,12 @@ struct TraceEvent:
         var stmt = self._p.bitcast[sqlite3_stmt]()
         var sql_ptr = sqlite_ffi()[].sql(stmt)
         if not sql_ptr:
-            return String("")
+            return ""
         return String(
-            StringSlice(unsafe_from_utf8_ptr=sql_ptr)
+            StringSlice(unsafe_from_utf8_ptr=sql_ptr.value())
         )
 
-    def expanded_sql(self) -> Optional[String]:
+    def expanded_sql(self) raises -> Optional[String]:
         """Return expanded SQL (parameters substituted) from the statement.
 
         Valid for STMT, PROFILE, and ROW events.
@@ -330,8 +330,6 @@ struct TraceEvent:
         """
         var stmt = self._p.bitcast[sqlite3_stmt]()
         var s = sqlite_ffi()[].expanded_sql(stmt)
-        if not s.ptr:
-            return None
         return String(s.as_string_slice())
 
     def duration_ns(self) -> Int64:
@@ -387,7 +385,7 @@ struct TraceEvent:
         if not ptr:
             return None
         var s = String(
-            StringSlice(unsafe_from_utf8_ptr=ptr)
+            StringSlice(unsafe_from_utf8_ptr=ptr.value())
         )
         if s.byte_length() == 0:
             return None
