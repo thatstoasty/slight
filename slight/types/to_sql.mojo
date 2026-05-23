@@ -4,7 +4,6 @@ This module provides the ToSQL trait which allows converting Mojo types
 into SQLite-compatible values for binding to prepared statements.
 """
 from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, SQLType, ValueRef
-from std.reflection import get_type_name
 from std.sys.intrinsics import _type_is_eq, _type_is_eq_parse_time
 from std.utils.variant import Variant
 
@@ -52,7 +51,7 @@ from std.utils.variant import Variant
 #         return self.value[T]
 
 
-trait ToSQL(Copyable):
+trait ToSQL(Movable):
     """A trait for types that can be converted into SQLite values.
 
     Types implementing this trait can be used as parameters in SQL queries.

@@ -1,6 +1,4 @@
 from std.builtin.rebind import downcast, trait_downcast
-from std.memory import Pointer
-from std.reflection import get_type_name, is_struct_type, struct_field_count, struct_field_names, struct_field_types
 from slight.statement import Statement
 from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
 from slight.util import ColumnType
@@ -275,11 +273,11 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
             idx: The column index (0-based).
 
         Returns:
-            An Optional containing the value of type T, or None if the column is NULL.
+            An object of type `S`.
 
         Raises:
             InvalidColumnIndexError: If the column index is out of bounds.
-            Error: If the column value cannot be converted to type T.
+            Error: If the column value cannot be converted to type `S`.
         """
         comptime assert conforms_to(S, FromSQL), String(
             t"S must implement `FromSQL`. {reflect[S]().name()} does not implement `FromSQL`."

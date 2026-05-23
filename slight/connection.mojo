@@ -1,7 +1,6 @@
 from std.ffi import c_int
 from std.memory import Pointer
 from std.pathlib import Path
-from std.reflection import get_type_name
 from slight.busy import BusyHandlerFn
 from slight.c.api import sqlite_ffi
 from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value

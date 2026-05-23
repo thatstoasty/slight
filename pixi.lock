@@ -12,6 +12,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/click-8.4.0-pyhc90fa1f_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cpython-3.14.5-py314hd8ed1ab_100.conda
+      - conda: git+https://github.com/bgreni/emberjson?tag=0.3.2#f8aa1d74630afefa3b552d9443d7ac1e3455c4be
+        build: hb0f4dca_0
       - conda: https://conda.anaconda.org/conda-forge/noarch/importlib-metadata-8.8.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_client-8.6.3-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_core-5.9.1-pyhc90fa1f_0.conda
@@ -63,6 +65,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/click-8.4.0-pyhc90fa1f_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cpython-3.14.5-py314hd8ed1ab_100.conda
+      - conda: git+https://github.com/bgreni/emberjson?tag=0.3.2#f8aa1d74630afefa3b552d9443d7ac1e3455c4be
+        build: he8cfe8b_0
       - conda: https://conda.anaconda.org/conda-forge/noarch/importlib-metadata-8.8.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_client-8.6.3-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_core-5.9.1-pyhc90fa1f_0.conda
@@ -113,6 +117,8 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/click-8.4.0-pyhc90fa1f_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cpython-3.14.5-py314hd8ed1ab_100.conda
+      - conda: git+https://github.com/bgreni/emberjson?tag=0.3.2#f8aa1d74630afefa3b552d9443d7ac1e3455c4be
+        build: h60d57d3_0
       - conda: https://conda.anaconda.org/conda-forge/noarch/importlib-metadata-8.8.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_client-8.6.3-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_core-5.9.1-pyhc90fa1f_0.conda
@@ -245,6 +251,30 @@ packages:
   license: Python-2.0
   size: 50212
   timestamp: 1779236682725
+- conda: git+https://github.com/bgreni/emberjson?tag=0.3.2#f8aa1d74630afefa3b552d9443d7ac1e3455c4be
+  name: emberjson
+  version: 0.3.2
+  build: h60d57d3_0
+  subdir: osx-arm64
+  depends:
+  - mojo-compiler >=1.0.0b1,<2
+  channel: null
+- conda: git+https://github.com/bgreni/emberjson?tag=0.3.2#f8aa1d74630afefa3b552d9443d7ac1e3455c4be
+  name: emberjson
+  version: 0.3.2
+  build: hb0f4dca_0
+  subdir: linux-64
+  depends:
+  - mojo-compiler >=1.0.0b1,<2
+  channel: null
+- conda: git+https://github.com/bgreni/emberjson?tag=0.3.2#f8aa1d74630afefa3b552d9443d7ac1e3455c4be
+  name: emberjson
+  version: 0.3.2
+  build: he8cfe8b_0
+  subdir: linux-aarch64
+  depends:
+  - mojo-compiler >=1.0.0b1,<2
+  channel: null
 - conda: https://conda.anaconda.org/conda-forge/noarch/importlib-metadata-8.8.0-pyhcf101f3_0.conda
   sha256: 82ab2a0d91ca1e7e63ab6a4939356667ef683905dea631bc2121aa534d347b16
   md5: 080594bf4493e6bae2607e65390c520a

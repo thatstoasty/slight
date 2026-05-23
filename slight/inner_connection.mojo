@@ -1,6 +1,5 @@
 from std.ffi import c_char, c_int
 from std.pathlib import Path
-from std.reflection import get_type_name
 from slight.busy import BusyHandlerFn, _busy_handler_callback
 from slight.c.api import sqlite_ffi
 from slight.c.raw_bindings import sqlite3_connection, sqlite3_stmt

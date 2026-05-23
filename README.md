@@ -455,7 +455,7 @@ def main() raises:
 Available limits:
 
 | Limit | Description |
-|-------|-------------|
+| ------- | ------------- |
 | `Limit.LENGTH` | Maximum size of any string or BLOB or table row (bytes) |
 | `Limit.SQL_LENGTH` | Maximum length of an SQL statement (bytes) |
 | `Limit.COLUMN` | Maximum number of columns in a table, result set, index, or ORDER BY / GROUP BY |
@@ -507,7 +507,7 @@ def main() raises:
 Trace event types:
 
 | Event | Description | Available Data |
-|-------|-------------|----------------|
+| ------- | ------------- | ---------------- |
 | `STMT` | Fired when a statement starts executing | `sql()`, `stmt_sql()`, `expanded_sql()` |
 | `PROFILE` | Fired when a statement finishes | `duration_ns()`, `stmt_sql()`, `get_status()` |
 | `ROW` | Fired each time a result row is produced | `stmt_sql()` |
@@ -608,7 +608,7 @@ def main() raises:
 ### Reading from SQL (FromSQL)
 
 | SQLite Type | Mojo Type |
-|-------------|-----------|
+| ------------- | ----------- |
 | INTEGER | `Int`, `Int8`, `Int16`, `Int32`, `Int64`, `UInt`, `UInt8`, `UInt16`, `UInt32`, `UInt64` |
 | REAL | `Float16`, `Float32`, `Float64` |
 | TEXT | `String` |
@@ -620,7 +620,7 @@ def main() raises:
 ### Writing to SQL (ToSQL)
 
 | Mojo Type | SQLite Type |
-|-----------|-------------|
+| ----------- | ------------- |
 | `Int`, `Int8`, `Int16`, `Int32`, `Int64` | INTEGER |
 | `UInt`, `UInt8`, `UInt16`, `UInt32`, `UInt64` | INTEGER |
 | `Float16`, `Float32`, `Float64` | REAL |
@@ -634,7 +634,7 @@ def main() raises:
 For parameter binding, **only Tuples support heterogeneous types**. Lists and Dicts require all parameters to be of the same type, because we do not have Trait objects yet.
 
 | Mojo Type | Binding Style | Heterogeneous Supported? |
-|-----------|---------------|-------------------------|
+| ----------- | --------------- | ------------------------- |
 | `Tuple` | Positional parameters (`?1`, `?2`, etc.) | Yes |
 | `List` | Positional parameters (`?1`, `?2`, etc.) | No |
 | `Dict` | Named parameters (`:name`, `@name`, `$name` ) | No |

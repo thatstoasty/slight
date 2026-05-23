@@ -1,10 +1,9 @@
 from slight.types.value_ref import ValueRef
 from std.builtin.rebind import downcast
-from std.reflection import get_type_name
 from std.sys.intrinsics import _type_is_eq
 
 
-trait FromSQL(Copyable):
+trait FromSQL(Movable):
     """A trait for types that can be constructed from a SQL value."""
 
     def __init__(out self, value: ValueRef) raises:
