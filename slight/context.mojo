@@ -2,7 +2,7 @@ from std.ffi import c_int
 from std.os import abort
 from std.memory import ImmutSpan
 from slight.c.types import MutExternalPointer, sqlite3_connection, sqlite3_context, sqlite3_value, ResultDestructorFn
-from slight.c.api import sqlite_ffi
+from slight.api import sqlite_ffi
 from slight.types.value_ref import (
     ValueRef,
     SQLite3Null,

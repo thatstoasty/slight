@@ -1,13 +1,5 @@
 from std.ffi import c_char, c_int
 from std.pathlib import Path
-from slight.busy import BusyHandlerFn, _busy_handler_callback
-from slight.c.api import sqlite_ffi
-from slight.c.raw_bindings import sqlite3_connection, sqlite3_stmt
-from slight.trace import TraceFn, TraceEventCodes, _trace_v2_callback
-from slight.unlock_notify import (
-    is_locked,
-    wait_for_unlock_notify,
-)
 from slight.c.types import (
     MutExternalPointer,
     AggFinalCallback,
@@ -16,6 +8,15 @@ from slight.c.types import (
     WindowValueCallback,
     sqlite3_context,
     sqlite3_value,
+    sqlite3_connection,
+    sqlite3_stmt
+)
+from slight.busy import BusyHandlerFn, _busy_handler_callback
+from slight.api import sqlite_ffi
+from slight.trace import TraceFn, TraceEventCodes, _trace_v2_callback
+from slight.unlock_notify import (
+    is_locked,
+    wait_for_unlock_notify,
 )
 from slight.limits import Limit
 from slight.functions import (
@@ -43,6 +44,7 @@ from slight.result import SQLite3Result
 from slight.util import CopyDestructible, MoveDestructible, ptr_copy, str_slice_to_path
 
 
+@fieldwise_init
 @explicit_destroy("InnerConnection must be explicitly destroyed. Use self.close() to destroy.")
 struct InnerConnection(Movable):
     """A connection to a SQLite3 database."""
@@ -69,25 +71,20 @@ struct InnerConnection(Movable):
         if result != SQLite3Result.OK:
             raise Error("Could not open database: ", String(result))
         self.db = ptr
+    
+    def unsafe_ptr[
+        origin: Origin, address_space: AddressSpace, //
+    ](ref[origin, address_space] self) -> UnsafePointer[sqlite3_connection, origin, address_space=address_space]:
+        """Retrieves a pointer to the underlying memory.
 
-    # def __init__(out self):
-    #     """Creates an empty InnerConnection.
-
-    #     Returns:
-    #         A new `InnerConnection` instance.
-    #     """
-    #     self.db = MutExternalPointer[sqlite3_connection]()
-
-    def __init__(out self, db: MutExternalPointer[sqlite3_connection]):
-        """Creates a new `InnerConnection` from an existing `sqlite3_connection` pointer.
-
-        Args:
-            db: An existing `sqlite3_connection` pointer.
+        Parameters:
+            origin: The origin of the `SQLiteMallocString`.
+            address_space: The `AddressSpace` of the `SQLiteMallocString`.
 
         Returns:
-            A new `InnerConnection` instance.
+            The pointer to the underlying memory.
         """
-        self.db = db
+        return self.db.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().address_space_cast[address_space]()
 
     def is_autocommit(self) -> Bool:
         """Returns whether the connection is in auto-commit mode.
@@ -226,7 +223,7 @@ struct InnerConnection(Movable):
         Raises:
             Error: If the SQLite error code is not `SQLITE_OK`.
         """
-        raise_if_error(self.db, code)
+        raise_if_error(self, code)
 
     def error_msg(self, code: SQLite3Result) -> Optional[String]:
         """Checks for the error message set in sqlite3, or what the description of the provided code is.
@@ -237,7 +234,7 @@ struct InnerConnection(Movable):
         Returns:
             An optional string slice containing the error message, or None if not found.
         """
-        return error_msg(self.db, code)
+        return error_msg(self, code)
 
     def decode_error(self, code: SQLite3Result) -> Error:
         """Raises if the SQLite error code is not `SQLITE_OK`.
@@ -248,7 +245,7 @@ struct InnerConnection(Movable):
         Returns:
             Error: If the SQLite error code is not `SQLITE_OK`.
         """
-        return decode_error(self.db, code)
+        return decode_error(self, code)
 
     # TODO: V should be constrained to ToSQL, but I want to keep extensions private from users for now.
     def create_scalar_function[

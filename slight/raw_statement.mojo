@@ -1,8 +1,8 @@
 from std.os import abort
 from std.memory import ImmutSpan
-from slight.c.api import sqlite_ffi
-from slight.c.sqlite_string import SQLiteMallocString
 from slight.c.types import ImmutExternalPointer, MutExternalPointer, ResultDestructorFn, sqlite3_stmt
+from slight.api import sqlite_ffi
+from slight.sqlite_string import SQLiteMallocString
 from slight.result import SQLite3Result
 from slight.enums import TextEncoding
 

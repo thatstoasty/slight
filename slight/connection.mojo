@@ -1,9 +1,8 @@
 from std.ffi import c_int
-from std.memory import Pointer
+from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
 from std.pathlib import Path
 from slight.busy import BusyHandlerFn
-from slight.c.api import sqlite_ffi
-from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
+from slight.api import sqlite_ffi
 from slight.trace import TraceFn, TraceEventCodes
 from slight.column import ColumnMetadata
 from slight.context import Context

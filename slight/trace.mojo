@@ -15,9 +15,9 @@ See:
 """
 
 from std.ffi import c_char, c_int
-from slight.c.api import sqlite_ffi
 from slight.c.raw_bindings import sqlite3_connection, sqlite3_stmt
 from slight.c.types import MutExternalPointer
+from slight.api import sqlite_ffi
 
 
 # ── Trace event codes (bitmask) ────────────────────────────────────────

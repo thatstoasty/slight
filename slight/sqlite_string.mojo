@@ -1,5 +1,5 @@
-from slight.c.api import sqlite_ffi
 from slight.c.types import MutExternalPointer
+from slight.api import sqlite_ffi
 from std.ffi import c_char
 
 
@@ -14,8 +14,6 @@ struct SQLiteMallocString(Movable):
 
     def __del__(deinit self):
         """Frees the C string using `sqlite3_free` when the `SQLiteMallocString` is deleted."""
-        # if self.ptr:
-        #     sqlite_ffi()[].free(self.ptr.bitcast[NoneType]())
         sqlite_ffi()[].free(self.ptr.bitcast[NoneType]())
 
     def unsafe_ptr[

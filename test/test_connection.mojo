@@ -1,5 +1,5 @@
 from std import tempfile
-from slight.c.api import sqlite_ffi
+from slight.api import sqlite_ffi
 from slight.c.types import SQLITE_OK, sqlite3_stmt
 from slight.connection import Connection
 from slight.flags import OpenFlag

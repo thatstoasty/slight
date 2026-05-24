@@ -3,8 +3,8 @@ from std.sys import stderr
 from std.utils import Variant
 from std.memory import ImmutSpan
 from slight.c.raw_bindings import sqlite3_stmt
-from slight.c.sqlite_string import SQLiteMallocString
 from slight.c.types import MutExternalPointer, ResultDestructorFn
+from slight.sqlite_string import SQLiteMallocString
 from slight.connection import Connection
 from slight.params import List, Params
 from slight.raw_statement import RawStatement

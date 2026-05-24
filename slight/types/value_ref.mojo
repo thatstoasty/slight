@@ -1,7 +1,7 @@
 from std.os import abort
 from std.utils import Variant
 from slight.c.types import sqlite3_value, MutExternalPointer
-from slight.c.api import sqlite_ffi
+from slight.api import sqlite_ffi
 from slight.enums import DataType
 
 

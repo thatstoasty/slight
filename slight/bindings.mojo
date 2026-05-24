@@ -2,7 +2,7 @@ from std.ffi import c_char, c_int, c_uchar, c_uint
 from std.memory import MutOpaquePointer, MutUnsafePointer
 from std.pathlib import Path
 from slight.c.raw_bindings import _sqlite3
-from slight.c.sqlite_string import SQLiteMallocString
+from slight.sqlite_string import SQLiteMallocString
 from slight.c.types import (
     AggFinalCallback,
     AggStepCallback,

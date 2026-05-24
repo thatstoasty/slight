@@ -12,7 +12,6 @@ a simple spin-wait with `sleep` instead of condition-variable signaling.
 from std.ffi import c_int
 from std.utils.lock import SpinWaiter
 
-from slight.c.api import sqlite_ffi
 from slight.c.types import (
     MutExternalPointer,
     SQLITE_LOCKED,
@@ -20,6 +19,7 @@ from slight.c.types import (
     SQLITE_OK,
     sqlite3_connection,
 )
+from slight.api import sqlite_ffi
 from slight.result import SQLite3Result
 
 
