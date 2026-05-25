@@ -42,6 +42,17 @@ from slight.functions import FunctionFlags
 from slight.context import Context
 from slight.result import SQLite3Result
 from slight.util import CopyDestructible, MoveDestructible, ptr_copy, str_slice_to_path
+from slight.vtab import (
+    VTabConnectFn,
+    VTabBestIndexFn,
+    VTabOpenFn,
+    VTabFilterFn,
+    VTabNextFn,
+    VTabEofFn,
+    VTabColumnFn,
+    VTabRowidFn,
+    make_read_only_module,
+)
 
 
 @fieldwise_init
@@ -535,6 +546,55 @@ struct InnerConnection(Movable):
             _call_value_callback[value_fn],
             _call_inverse_callback[inverse_fn],
         )
+
+    def create_module[
+        T: MoveDestructible,
+        C: MoveDestructible,
+        connect_fn: VTabConnectFn[T],
+        best_index_fn: VTabBestIndexFn[T],
+        open_fn: VTabOpenFn[T, C],
+        filter_fn: VTabFilterFn[C],
+        next_fn: VTabNextFn[C],
+        eof_fn: VTabEofFn[C],
+        column_fn: VTabColumnFn[C],
+        rowid_fn: VTabRowidFn[C],
+    ](self, module_name: String) -> SQLite3Result:
+        """Register a read-only virtual table module with this connection.
+
+        Allocates a `sqlite3_module` on the heap, fills in all required and
+        stub callbacks, then calls `sqlite3_create_module_v2` to register it.
+        The module pointer is automatically freed when the connection is closed
+        or the module is unregistered.
+
+        Parameters:
+            T: The user-provided virtual table state type.
+            C: The user-provided cursor state type.
+            connect_fn: Called for both xCreate and xConnect.
+            best_index_fn: Called for xBestIndex.
+            open_fn: Called for xOpen to create a new cursor.
+            filter_fn: Called for xFilter to begin a scan.
+            next_fn: Called for xNext to advance the cursor.
+            eof_fn: Called for xEof to check end-of-rows.
+            column_fn: Called for xColumn to retrieve a column value.
+            rowid_fn: Called for xRowid to retrieve the rowid.
+
+        Args:
+            module_name: Name to register the virtual table module under.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        var module_ptr = make_read_only_module[
+            connect_fn,
+            best_index_fn,
+            open_fn,
+            filter_fn,
+            next_fn,
+            eof_fn,
+            column_fn,
+            rowid_fn,
+        ]()
+        return sqlite_ffi()[].create_module(self.db, module_name, module_ptr)
 
     def remove_function(
         self,

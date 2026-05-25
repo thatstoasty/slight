@@ -29,6 +29,16 @@ from slight.functions import (
     WindowAggregateValueUDF,
     WindowAggregateInverseUDF,
 )
+from slight.vtab import (
+    VTabConnectFn,
+    VTabBestIndexFn,
+    VTabOpenFn,
+    VTabFilterFn,
+    VTabNextFn,
+    VTabEofFn,
+    VTabColumnFn,
+    VTabRowidFn,
+)
 
 
 struct Connection(Movable):
@@ -1042,6 +1052,60 @@ struct Connection(Movable):
         var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
             fn_name, n_arg, flags
         )
+        self.raise_if_error(result)
+
+    def create_module[
+        T: MoveDestructible,
+        C: MoveDestructible,
+        connect_fn: VTabConnectFn[T],
+        best_index_fn: VTabBestIndexFn[T],
+        open_fn: VTabOpenFn[T, C],
+        filter_fn: VTabFilterFn[C],
+        next_fn: VTabNextFn[C],
+        eof_fn: VTabEofFn[C],
+        column_fn: VTabColumnFn[C],
+        rowid_fn: VTabRowidFn[C],
+    ](self, module_name: String) raises:
+        """Register a read-only virtual table module with this connection.
+
+        After registering, the module can be used with
+        `CREATE VIRTUAL TABLE … USING module_name(…)` or as a table-valued
+        function (e.g. `SELECT * FROM module_name(…)`).
+
+        The module lifetime is tied to the database connection. SQLite
+        automatically frees the internal `sqlite3_module` allocation when the
+        connection is closed or the module is explicitly unregistered.
+
+        Parameters:
+            T: The user-provided virtual table state type.
+            C: The user-provided cursor state type.
+            connect_fn: Called for xCreate / xConnect.
+            best_index_fn: Called for xBestIndex.
+            open_fn: Called for xOpen to create a new cursor.
+            filter_fn: Called for xFilter to begin a scan.
+            next_fn: Called for xNext to advance the cursor.
+            eof_fn: Called for xEof to check for end-of-rows.
+            column_fn: Called for xColumn to retrieve a column value.
+            rowid_fn: Called for xRowid to retrieve the current rowid.
+
+        Args:
+            module_name: Name to register the virtual table module under.
+
+        Raises:
+            Error: If the module could not be registered.
+        """
+        var result = self.db.create_module[
+            T,
+            C,
+            connect_fn,
+            best_index_fn,
+            open_fn,
+            filter_fn,
+            next_fn,
+            eof_fn,
+            column_fn,
+            rowid_fn,
+        ](module_name)
         self.raise_if_error(result)
 
     def remove_function(self, fn_name: String, n_arg: Int) raises:

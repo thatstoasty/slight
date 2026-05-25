@@ -220,6 +220,7 @@ comptime sqlite3_vtab_on_conflict_fn = def(MutExternalPointer[sqlite3_connection
 comptime sqlite3_vtab_nochange_fn = def(MutExternalPointer[sqlite3_context]) abi("C") thin -> c_int
 comptime sqlite3_vtab_collation_fn = def(MutExternalPointer[sqlite3_index_info], c_int) abi("C") thin -> Optional[ImmutExternalPointer[c_char]]
 comptime sqlite3_vtab_distinct_fn = def(MutExternalPointer[sqlite3_index_info]) abi("C") thin -> c_int
+comptime sqlite3_declare_vtab_fn = def(MutExternalPointer[sqlite3_connection], ImmutExternalPointer[c_char]) abi("C") thin -> c_int
 comptime sqlite3_db_cacheflush_fn = def(MutExternalPointer[sqlite3_connection]) abi("C") thin -> c_int
 comptime sqlite3_serialize_fn = def(MutExternalPointer[sqlite3_connection], ImmutExternalPointer[c_char], MutExternalPointer[Int64], c_uint) abi("C") thin -> Optional[MutExternalPointer[c_uchar]]
 comptime sqlite3_deserialize_fn = def(MutExternalPointer[sqlite3_connection], ImmutExternalPointer[c_char], MutExternalPointer[c_uchar], Int64, Int64, c_uint) abi("C") thin -> c_int
@@ -390,6 +391,7 @@ struct _sqlite3(Movable):
     var _fn_sqlite3_vtab_nochange: sqlite3_vtab_nochange_fn
     var _fn_sqlite3_vtab_collation: sqlite3_vtab_collation_fn
     var _fn_sqlite3_vtab_distinct: sqlite3_vtab_distinct_fn
+    var _fn_sqlite3_declare_vtab: sqlite3_declare_vtab_fn
     var _fn_sqlite3_db_cacheflush: sqlite3_db_cacheflush_fn
     var _fn_sqlite3_serialize: sqlite3_serialize_fn
     var _fn_sqlite3_deserialize: sqlite3_deserialize_fn
@@ -563,6 +565,7 @@ struct _sqlite3(Movable):
             self._fn_sqlite3_vtab_nochange = self.lib.get_function[sqlite3_vtab_nochange_fn]("sqlite3_vtab_nochange")
             self._fn_sqlite3_vtab_collation = self.lib.get_function[sqlite3_vtab_collation_fn]("sqlite3_vtab_collation")
             self._fn_sqlite3_vtab_distinct = self.lib.get_function[sqlite3_vtab_distinct_fn]("sqlite3_vtab_distinct")
+            self._fn_sqlite3_declare_vtab = self.lib.get_function[sqlite3_declare_vtab_fn]("sqlite3_declare_vtab")
             self._fn_sqlite3_db_cacheflush = self.lib.get_function[sqlite3_db_cacheflush_fn]("sqlite3_db_cacheflush")
             self._fn_sqlite3_serialize = self.lib.get_function[sqlite3_serialize_fn]("sqlite3_serialize")
             self._fn_sqlite3_deserialize = self.lib.get_function[sqlite3_deserialize_fn]("sqlite3_deserialize")
@@ -3807,6 +3810,32 @@ struct _sqlite3(Movable):
             1 for DISTINCT, 2 for UNIQUE, 0 for neither.
         """
         return self._fn_sqlite3_vtab_distinct(pIdxInfo)
+
+    def sqlite3_declare_vtab[sql_origin: ImmutOrigin, //](
+        self,
+        db: MutExternalPointer[sqlite3_connection],
+        zSQL: ImmutUnsafePointer[c_char, sql_origin],
+    ) -> c_int:
+        """Declare The Schema Of A Virtual Table.
+
+        This interface is used within the xCreate or xConnect methods of
+        a virtual table module to declare the schema of the virtual table.
+        The zSQL argument must be a CREATE TABLE SQL statement that describes
+        the virtual table's columns and their declared types.
+
+        This function must be called exactly once per invocation of
+        xCreate or xConnect.
+
+        Args:
+            db: Database connection passed to xCreate or xConnect.
+            zSQL: CREATE TABLE statement describing the virtual table schema.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        return self.lib.get_function[
+            def(type_of(db), type_of(zSQL)) abi("C") thin -> c_int
+        ]("sqlite3_declare_vtab")(db, zSQL)
 
     def sqlite3_db_cacheflush(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
         """Flush Cached Database Pages.

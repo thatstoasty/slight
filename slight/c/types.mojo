@@ -482,7 +482,13 @@ comptime VtabOpenCallbackFn = def (MutExternalPointer[sqlite3_vtab], MutExternal
 """Called to open a new cursor on a virtual table. It should create a new instance of the cursor and return SQLITE_OK on success or an appropriate error code on failure."""
 comptime VtabCloseCallbackFn = def (MutExternalPointer[sqlite3_vtab_cursor]) abi("C") thin -> c_int
 """Called to close a cursor on a virtual table. It should clean up any resources associated with the cursor and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabFilterCallbackFn = def (MutExternalPointer[sqlite3_vtab], MutExternalPointer[MutExternalPointer[sqlite3_vtab_cursor]]) abi("C") thin -> c_int
+comptime VtabFilterCallbackFn = def (
+    MutExternalPointer[sqlite3_vtab_cursor],
+    c_int,
+    Optional[ImmutExternalPointer[c_char]],
+    c_int,
+    MutExternalPointer[MutExternalPointer[sqlite3_value]],
+) abi("C") thin -> c_int
 """Called to begin a search of a virtual table. It should initialize the cursor to point to the first row of the result set and return SQLITE_OK on success or an appropriate error code on failure."""
 comptime VtabNextCallbackFn = def (MutExternalPointer[sqlite3_vtab_cursor]) abi("C") thin -> c_int
 """Called to advance a cursor to the next row of the result set. It should move the cursor to the next row and return SQLITE_OK on success or an appropriate error code on failure."""
@@ -536,6 +542,7 @@ comptime VtabIntegrityCallbackFn = def (
 ) abi("C") thin -> c_int
 """Called to check the integrity of a virtual table. It should perform the integrity check and return SQLITE_OK on success or an appropriate error code on failure."""
 
+@fieldwise_init
 struct sqlite3_module(Movable):
     """Virtual Table Module."""
     var iVersion: c_int
@@ -638,21 +645,23 @@ struct sqlite3_index_info(Movable):
     """A bitmask that indicates which columns of the virtual table are used by the query. The xBestIndex method can set this value to indicate which columns of the virtual table are used by the query. Each bit in the bitmask corresponds to a column of the virtual table, with the least significant bit corresponding to the first column. If a bit is set to 1, it indicates that the corresponding column is used by the query. This information can be used by SQLite to optimize the execution of the query."""
 
 
+@fieldwise_init
 struct sqlite3_vtab(Movable):
     """Structures used by the virtual table interface."""
 
-    var pModule: MutExternalPointer[sqlite3_module]
+    var pModule: Optional[MutExternalPointer[sqlite3_module]]
     """A pointer to the module that implements the virtual table. This is set by the xCreate or xConnect method of the module and is used by SQLite to call the appropriate methods on the module when executing queries against the virtual table."""
     var nRef: c_int
     """The number of references to this virtual table. SQLite uses this value to manage the lifetime of the virtual table. When the reference count drops to zero, SQLite will call the xDisconnect or xDestroy method of the module to clean up the virtual table."""
-    var zErrMsg: MutExternalPointer[c_char]
+    var zErrMsg: Optional[MutExternalPointer[c_char]]
     """A pointer to an error message string. If an error occurs in the xCreate, xConnect, xBestIndex, xDisconnect, or xDestroy methods of the module, the module can set this pointer to point to a string that describes the error. SQLite will free the memory associated with this string when it is no longer needed."""
 
 
+@fieldwise_init
 struct sqlite3_vtab_cursor(Movable):
     """Cursor Object for Virtual Tables."""
 
-    var pVtab: MutExternalPointer[sqlite3_vtab]
+    var pVtab: Optional[MutExternalPointer[sqlite3_vtab]]
     """A pointer to the virtual table that this cursor is associated with. This is set by the xOpen method of the module and is used by SQLite to call the appropriate methods on the module when executing queries against the virtual table."""
 
 

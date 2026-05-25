@@ -34,6 +34,7 @@ from slight.c.types import (
     sqlite3_context,
     sqlite3_file,
     sqlite3_index_info,
+    sqlite3_module,
     sqlite3_snapshot,
     sqlite3_stmt,
     sqlite3_value,
@@ -41,6 +42,7 @@ from slight.c.types import (
 from slight.result import SQLite3Result
 from slight.util import ptr_copy, CopyDestructible
 from slight.enums import TextEncoding
+from slight.functions import _default_destructor
 
 
 struct sqlite3(Movable):
@@ -3025,6 +3027,59 @@ struct sqlite3(Movable):
             DISTINCT mode indicator.
         """
         return self.lib.sqlite3_vtab_distinct(pIdxInfo)
+
+    def create_module(
+        self,
+        db: MutExternalPointer[sqlite3_connection],
+        module_name: String,
+        module_ptr: MutExternalPointer[sqlite3_module],
+    ) -> SQLite3Result:
+        """Register A Virtual Table Module.
+
+        Registers a virtual table module with a database connection. The module
+        is identified by name and can be used to create virtual tables.
+
+        The module_ptr must remain valid for the lifetime of the database
+        connection. Pass it as the pClientData so it can be freed via the
+        default destructor when the connection is closed.
+
+        Args:
+            db: Database connection handle.
+            module_name: Name to register the virtual table module under.
+            module_ptr: Pointer to the module implementation. This is also
+                passed as pClientData so it is freed when the module is
+                unregistered.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        var name = module_name.copy()
+        return self.lib.sqlite3_create_module_v2(
+            db,
+            name.as_c_string_slice().unsafe_ptr(),
+            module_ptr,
+            module_ptr.bitcast[NoneType](),
+            _default_destructor,
+        )
+
+    def declare_vtab(
+        self,
+        db: MutExternalPointer[sqlite3_connection],
+        mut schema_sql: String,
+    ) -> SQLite3Result:
+        """Declare The Schema Of A Virtual Table.
+
+        Must be called from within an xCreate or xConnect method to declare
+        the schema of the virtual table via a CREATE TABLE SQL statement.
+
+        Args:
+            db: Database connection passed to xCreate or xConnect.
+            schema_sql: CREATE TABLE statement describing the virtual table schema.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        return self.lib.sqlite3_declare_vtab(db, schema_sql.as_c_string_slice().unsafe_ptr())
 
     def db_cacheflush(self, db: MutExternalPointer[sqlite3_connection]) -> SQLite3Result:
         """Flush Dirty Pages To Disk.
