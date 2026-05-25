@@ -363,7 +363,7 @@ def _vtab_xConnect[
             pModule=None, nRef=c_int(0), zErrMsg=None
         )
         var box_ptr = alloc[VTabBox[T]](count=1)
-        box_ptr[0] = VTabBox[T](_base=vtab_base^, data=vtab_data^)
+        box_ptr.init_pointee_move(VTabBox[T](_base=vtab_base^, data=vtab_data^))
 
         # Write the vtab pointer back to SQLite.
         ppVTab[] = box_ptr.bitcast[sqlite3_vtab]().unsafe_origin_cast[MutExternalOrigin]()
@@ -391,7 +391,8 @@ def _vtab_xBestIndex[
     """
     var box_ptr = pVTab.bitcast[VTabBox[T]]()
     try:
-        _ = best_index_fn(UnsafePointer(to=box_ptr[].data).unsafe_origin_cast[MutExternalOrigin](), pIdxInfo)
+        var data_ptr = UnsafePointer(to=box_ptr[].data).unsafe_origin_cast[MutExternalOrigin]()
+        _ = best_index_fn(data_ptr, pIdxInfo)
         return SQLITE_OK
     except:
         return SQLITE_ERROR
@@ -409,7 +410,9 @@ def _vtab_xDisconnect[T: MoveDestructible](
         T: The user-provided virtual table state type.
     """
     var box_ptr = pVTab.bitcast[VTabBox[T]]()
-    # Move the data out to trigger its destructor before freeing.
+    # Destroy the user data in-place so its destructor runs (frees inner heap
+    # allocations) before we free the raw VTabBox memory.
+    UnsafePointer(to=box_ptr[].data).destroy_pointee()
     box_ptr.free()
     return SQLITE_OK
 
@@ -439,8 +442,8 @@ def _vtab_xOpen[
         # Allocate VTabCursorBox[C] on the heap.
         var cursor_base = sqlite3_vtab_cursor(pVtab=None)
         var cursor_box_ptr = alloc[VTabCursorBox[C]](count=1)
-        cursor_box_ptr[0] = VTabCursorBox[C](
-            _base=cursor_base^, data=cursor_data^
+        cursor_box_ptr.init_pointee_move(
+            VTabCursorBox[C](_base=cursor_base^, data=cursor_data^)
         )
 
         # Write the cursor pointer back to SQLite.
@@ -464,7 +467,8 @@ def _vtab_xClose[C: MoveDestructible](
         C: The user-provided cursor state type.
     """
     var cursor_box_ptr = pCursor.bitcast[VTabCursorBox[C]]()
-    # Free the cursor allocation.
+    # Destroy the cursor data in-place so its destructor runs before freeing memory.
+    UnsafePointer(to=cursor_box_ptr[].data).destroy_pointee()
     cursor_box_ptr.free()
     return SQLITE_OK
 
