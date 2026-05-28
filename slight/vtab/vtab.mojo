@@ -106,9 +106,6 @@ struct VTabConnectResult[T: MoveDestructible](Movable):
         """Consume this result, returning the schema and dropping vtab.
 
         This is an escape hatch: call only when vtab is already moved out.
-
-        Args:
-            schema: Receives the `CREATE TABLE` schema string.
         """
         schema = self.schema^
 
@@ -119,7 +116,6 @@ struct VTabConnectResult[T: MoveDestructible](Movable):
 
         Args:
             schema: Receives the `CREATE TABLE` schema string.
-            vtab: Receives the virtual table state.
         """
         schema = self.schema^
         vtab = self.vtab^

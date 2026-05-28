@@ -1,6 +1,8 @@
 """CSV Virtual Table for slight/SQLite.
 
 Provides a read-only virtual table that exposes a CSV file as an SQL table.
+Rows are streamed one at a time from the file rather than loaded into memory
+up-front, matching the behaviour of ``rusqlite/src/vtab/csvtab.rs``.
 
 Usage::
 
@@ -18,7 +20,6 @@ Port of ``rusqlite/src/vtab/csvtab.rs``.
 """
 
 from std.ffi import c_char, c_int
-from std.pathlib import Path
 from slight.c.types import (
     ImmutExternalOrigin,
     MutExternalPointer,
@@ -26,9 +27,18 @@ from slight.c.types import (
     sqlite3_index_info,
     sqlite3_value,
 )
+from slight.c.stdio import (
+    SEEK_SET,
+    SEEK_CUR,
+    fopen,
+    fclose,
+    fseek,
+    ftell,
+    fread,
+)
 from slight.connection import Connection
 from slight.context import Context
-from slight.vtab import (
+from slight.vtab.vtab import (
     VTabConnectFn,
     VTabBestIndexFn,
     VTabOpenFn,
@@ -40,6 +50,9 @@ from slight.vtab import (
     VTabConnectResult,
 )
 
+# Read buffer size for streaming (bytes per fread call).
+comptime _READ_BUF_SIZE: Int = 4096
+
 
 # ===----------------------------------------------------------------------=== #
 # Virtual table / cursor state structs
@@ -48,7 +61,12 @@ from slight.vtab import (
 
 @fieldwise_init
 struct CsvState(Movable):
-    """State shared across all cursors for a given CSV virtual table instance."""
+    """State shared across all cursors for a given CSV virtual table instance.
+
+    Unlike the previous in-memory design, ``CsvState`` no longer stores any
+    row data.  Each cursor opens its own ``FILE *`` handle at ``xFilter``
+    time and streams rows on demand.
+    """
 
     var filename: String
     """Path to the CSV file."""
@@ -65,22 +83,68 @@ struct CsvState(Movable):
     var n_cols: Int
     """Number of columns in the virtual table."""
 
-    var rows: List[List[String]]
-    """All data rows parsed from the CSV file (header excluded when has_headers)."""
+    var data_start_offset: Int
+    """Byte offset of the first data row (skips the header row when present).
+
+    Equivalent to ``offset_first_row`` in the Rust implementation.
+    Cursors seek to this position at the start of each scan so the header
+    row is never re-exposed as a data row.
+    """
 
 
 @fieldwise_init
 struct CsvCursor(Movable):
-    """Cursor state for iterating over CSV rows."""
+    """Streaming cursor state for a CSV virtual table scan.
 
-    var rows: List[List[String]]
-    """All data rows (shallow copy from the vtab at open time)."""
+    Each cursor holds an open ``FILE *`` handle (represented as ``Int``).
+    Rows are parsed one at a time: only ``current_row`` is kept in memory.
+    The file is closed when the cursor is destroyed (``__del__``).
+    """
 
-    var row_idx: Int
-    """Current 0-based row index into rows."""
+    var fp: Int
+    """Open ``FILE *`` handle (0 = not open)."""
+
+    var filename: String
+    """Path of the CSV file — needed to re-open on each ``xFilter`` call."""
+
+    var data_start_offset: Int
+    """Byte offset at which data rows begin (header already skipped)."""
+
+    var delimiter: UInt8
+    """Field delimiter byte."""
+
+    var quote: UInt8
+    """Quote character byte (0 = no quoting)."""
+
+    var current_row: List[String]
+    """Fields of the row most recently read by ``xNext``."""
+
+    var row_number: Int
+    """1-based row counter used as the rowid."""
 
     var eof: Bool
-    """True when the cursor has consumed all rows."""
+    """True when the cursor has read past the last row."""
+
+    def __init__(
+        out self,
+        filename: String,
+        data_start_offset: Int,
+        delimiter: UInt8,
+        quote: UInt8,
+    ):
+        self.fp = 0
+        self.filename = filename
+        self.data_start_offset = data_start_offset
+        self.delimiter = delimiter
+        self.quote = quote
+        self.current_row = List[String]()
+        self.row_number = 0
+        self.eof = True
+
+    def __del__(deinit self):
+        """Close the file handle when the cursor is destroyed."""
+        if self.fp != 0:
+            _ = fclose(self.fp)
 
 
 # ===----------------------------------------------------------------------=== #
@@ -88,66 +152,56 @@ struct CsvCursor(Movable):
 # ===----------------------------------------------------------------------=== #
 
 
-def _parse_csv(
-    content: String,
-    delimiter: UInt8,
-    quote: UInt8,
-) -> List[List[String]]:
-    """Parse CSV content into a list of rows.
-
-    Handles CRLF and LF line endings. Quoted fields (enclosed by ``quote``)
-    may contain the delimiter or embedded newlines. Doubled quote characters
-    inside a quoted field are treated as an escaped single quote.
+def _fgetc(fp: Int) -> Int:
+    """Read one byte from an open file handle.
 
     Args:
-        content: Full CSV file content.
+        fp: Open file handle.
+
+    Returns:
+        The byte value (0-255), or -1 at end-of-file / on error.
+    """
+    var buf = List[UInt8](capacity=1)
+    buf.append(UInt8(0))
+    var n = fread(Int(buf.unsafe_ptr()), 1, 1, fp)
+    if n == 0:
+        return -1
+    return Int(buf[0])
+
+
+def _read_row_from_fp(
+    fp: Int,
+    delimiter: UInt8,
+    quote: UInt8,
+) -> Optional[List[String]]:
+    """Read one CSV row from an open file handle.
+
+    Handles CRLF and LF line endings. Quoted fields (enclosed by ``quote``)
+    may span multiple lines. Doubled quote characters inside a quoted field
+    are treated as an escaped single quote (RFC 4180).
+
+    Args:
+        fp: Open file handle positioned at the start of the next row.
         delimiter: Field separator byte (e.g. 44 for ``,``).
         quote: Quote character byte (e.g. 34 for ``"``); 0 disables quoting.
 
     Returns:
-        A list of rows; each row is a list of field strings.
+        The next row as a list of field strings, or ``None`` at end-of-file.
     """
-    var rows = List[List[String]]()
-    var n = content.byte_length()
-    if n == 0:
-        return rows^
-    var raw = content.unsafe_ptr().bitcast[UInt8]()
-    var i = 0
+    var row = List[String]()
 
-    while i < n:
-        var row = List[String]()
+    while True:  # one iteration per field
+        var field_bytes = List[UInt8]()
+        var next_action: Int = 0  # 0 = end_of_row, 1 = next_field
 
-        # Parse fields for one row (ends at LF, CRLF, or EOF).
-        while True:
-            var field_bytes = List[UInt8]()
+        var b = _fgetc(fp)
 
-            # --- parse one field ---
-            if i < n and quote != UInt8(0) and raw[i] == quote:
-                # Quoted field: read until the closing quote.
-                i += 1
-                while i < n:
-                    var b = raw[i]
-                    if b == quote:
-                        # Doubled quote inside field → literal quote char.
-                        if i + 1 < n and raw[i + 1] == quote:
-                            field_bytes.append(b)
-                            i += 2
-                        else:
-                            i += 1
-                            break  # end of quoted field
-                    else:
-                        field_bytes.append(b)
-                        i += 1
-            else:
-                # Unquoted field: read until delimiter, CR, or LF.
-                while i < n:
-                    var b = raw[i]
-                    if b == delimiter or b == UInt8(10) or b == UInt8(13):
-                        break
-                    field_bytes.append(b)
-                    i += 1
-
-            # Build a String from the accumulated bytes (null-terminate first).
+        if b == -1:
+            # EOF — if no fields have been read yet this is a clean EOF.
+            if len(row) == 0:
+                return None
+            # EOF at the start of an expected field (no trailing newline):
+            # add an empty final field to match behaviour of _parse_csv.
             field_bytes.append(UInt8(0))
             row.append(
                 String(
@@ -156,27 +210,96 @@ def _parse_csv(
                     )
                 )
             )
+            break
 
-            # --- determine what follows the field ---
-            if i >= n:
-                break  # EOF: end of last row
-            var sep = raw[i]
-            if sep == delimiter:
-                i += 1
-                continue  # next field in the same row
-            elif sep == UInt8(13):  # CR or CRLF
-                i += 1
-                if i < n and raw[i] == UInt8(10):
-                    i += 1
-                break
-            elif sep == UInt8(10):  # LF
-                i += 1
-                break
+        elif b == Int(UInt8(10)):  # LF — empty field, end of row
+            next_action = 0
 
-        if len(row) > 0:
-            rows.append(row^)
+        elif b == Int(UInt8(13)):  # CR (possibly CRLF) — empty field, end of row
+            var peek = _fgetc( fp)
+            if peek != Int(UInt8(10)) and peek != -1:
+                # Bare CR: put the peeked byte back.
+                _ = fseek(fp, -1, SEEK_CUR)
+            next_action = 0
 
-    return rows^
+        elif b == Int(delimiter):
+            # Empty field followed immediately by a delimiter.
+            next_action = 1
+
+        elif quote != UInt8(0) and b == Int(quote):
+            # Quoted field — read until the matching closing quote.
+            var done = False
+            while not done:
+                var c = _fgetc(fp)
+                if c == -1:
+                    done = True  # Unclosed quote at EOF.
+                    next_action = 0
+                elif c == Int(quote):
+                    # Doubled quote → literal quote character.
+                    var next_c = _fgetc(fp)
+                    if next_c == Int(quote):
+                        field_bytes.append(quote)
+                    else:
+                        # Closing quote: next_c determines row/field boundary.
+                        if next_c == -1:
+                            next_action = 0
+                        elif next_c == Int(delimiter):
+                            next_action = 1
+                        elif next_c == Int(UInt8(13)):
+                            var lf = _fgetc(fp)
+                            if lf != Int(UInt8(10)) and lf != -1:
+                                _ = fseek(fp, -1, SEEK_CUR)
+                            next_action = 0
+                        elif next_c == Int(UInt8(10)):
+                            next_action = 0
+                        else:
+                            # Malformed: content after closing quote; include.
+                            field_bytes.append(UInt8(next_c))
+                            next_action = 1
+                        done = True
+                else:
+                    field_bytes.append(UInt8(c))
+
+        else:
+            # Unquoted field; ``b`` is the first byte of the field value.
+            field_bytes.append(UInt8(b))
+            var done = False
+            while not done:
+                var c = _fgetc(fp)
+                if c == -1:
+                    next_action = 0
+                    done = True
+                elif c == Int(delimiter):
+                    next_action = 1
+                    done = True
+                elif c == Int(UInt8(13)):  # CR
+                    var lf = _fgetc(fp)
+                    if lf != Int(UInt8(10)) and lf != -1:
+                        _ = fseek(fp, -1, SEEK_CUR)
+                    next_action = 0
+                    done = True
+                elif c == Int(UInt8(10)):  # LF
+                    next_action = 0
+                    done = True
+                else:
+                    field_bytes.append(UInt8(c))
+
+        # Build a String from the accumulated bytes and append to the row.
+        field_bytes.append(UInt8(0))
+        row.append(
+            String(
+                StringSlice(
+                    unsafe_from_utf8_ptr=field_bytes.unsafe_ptr().bitcast[c_char]()
+                )
+            )
+        )
+
+        if next_action == 0:
+            break
+
+    if len(row) == 0:
+        return None
+    return row^
 
 
 def _dequote(s: String) -> String:
@@ -210,11 +333,17 @@ def _dequote(s: String) -> String:
     for i in range(1, n - 1):
         inner.append(bytes[i])
     inner.append(UInt8(0))
-    return String(
+    # `String(StringSlice(unsafe_from_utf8_ptr=...))` may not include the null
+    # terminator in all Mojo versions, causing `unsafe_ptr()` to fail for C
+    # interop (e.g. fopen).  Appending via `+=` into a fresh empty `String`
+    # forces a proper copy with null termination regardless of version.
+    var result = String()
+    result += String(
         StringSlice(
             unsafe_from_utf8_ptr=inner.unsafe_ptr().bitcast[c_char]()
         )
     )
+    return result
 
 
 def _parse_boolean(s: String) -> Optional[Bool]:
@@ -281,7 +410,13 @@ def csv_connect(
     db: MutExternalPointer[sqlite3_connection],
     argv: List[String],
 ) raises -> VTabConnectResult[CsvState]:
-    """Parse module arguments, read the CSV file, and build the virtual table.
+    """Parse module arguments, open the CSV file for schema detection, and
+    build the virtual table state.
+
+    The file is opened **once** at connect time only to determine column names
+    and the byte offset of the first data row (``data_start_offset``). No row
+    data is retained in ``CsvState``; rows are streamed on demand by each
+    cursor at query time.
 
     Supported arguments (``argv[2+]``):
 
@@ -303,7 +438,7 @@ def csv_connect(
         A ``VTabConnectResult[CsvState]`` with the schema SQL and vtab state.
 
     Raises:
-        Error: If ``filename`` is missing, the file cannot be read, a
+        Error: If ``filename`` is missing, the file cannot be opened, a
                parameter value is invalid, or columns cannot be determined.
     """
     var filename = String()
@@ -317,11 +452,9 @@ def csv_connect(
     # argv[2] = table name, argv[3+] = user-supplied arguments.
     for i in range(3, len(argv)):
         var raw_arg = argv[i]
-        # Split on first '=': collect chars before and after the '=' separator.
         var eq_idx = raw_arg.find("=")
         if eq_idx < 0:
             raise Error("illegal argument: '" + raw_arg + "'")
-        # Build key bytes.
         var raw_bytes = raw_arg.as_bytes()
         var key_bytes = List[UInt8]()
         for bi in range(eq_idx):
@@ -334,7 +467,6 @@ def csv_connect(
                 )
             ).strip()
         )
-        # Build value bytes (everything after '=').
         var val_bytes = List[UInt8]()
         for bi in range(eq_idx + 1, raw_arg.byte_length()):
             val_bytes.append(raw_bytes[bi])
@@ -372,7 +504,6 @@ def csv_connect(
         elif key == "quote":
             if val.byte_length() == 1:
                 var q = val.as_bytes()[0]
-                # The character literal '0' (ASCII 48) means "disable quoting".
                 quote = UInt8(0) if q == UInt8(48) else q
             else:
                 raise Error("unrecognized argument to 'quote': " + val)
@@ -382,35 +513,57 @@ def csv_connect(
     if filename.byte_length() == 0:
         raise Error("no CSV file specified")
 
-    # Read and parse the CSV file.
-    var content = Path(filename).read_text()
-    var all_rows = _parse_csv(content, delimiter, quote)
+    # Open the CSV file to determine schema and data_start_offset.
+    # Use as_c_string_slice().unsafe_ptr() — the same pattern as the rest of the
+    # bindings — so fopen receives typed ImmutUnsafePointer[c_char] args.  This
+    # prevents LLVM from dead-store-eliminating the string buffer contents in
+    # AOT-compiled code (unlike passing the pointer cast to Int).
+    var open_mode = String("r")
+    var fp = fopen(
+        filename.as_c_string_slice().unsafe_ptr(),
+        open_mode.as_c_string_slice().unsafe_ptr(),
+    )
+    if fp == 0:
+        raise Error("cannot open CSV file: " + filename)
 
-    # Determine column names and the index of the first data row.
     var col_names = List[String]()
-    var data_start = 0
+    var data_start_offset: Int
 
     if has_headers:
-        if len(all_rows) == 0:
+        # Read the header row to derive column names.
+        var header_row = _read_row_from_fp(fp, delimiter, quote)
+        if not header_row:
+            _ = fclose(fp)
             raise Error("CSV file is empty (no header row found): " + filename)
-        var header = all_rows[0].copy()
+        var header = header_row.value().copy()
         for j in range(len(header)):
             col_names.append(_escape_double_quotes(header[j]))
-        data_start = 1
-    elif n_col:
-        var nc = n_col.value()
-        for j in range(nc):
-            col_names.append("c" + String(j))
-    elif not schema:
-        # No headers, no explicit columns, no explicit schema:
-        # count columns from the first data row.
-        if len(all_rows) == 0:
-            raise Error(
-                "CSV file is empty (cannot determine column count): " + filename
-            )
-        var nc = len(all_rows[0])
-        for j in range(nc):
-            col_names.append("c" + String(j))
+        # Record the byte position immediately after the header row; each
+        # cursor will seek here before streaming data rows.
+        data_start_offset = ftell(fp)
+        _ = fclose(fp)
+    else:
+        data_start_offset = 0
+        if n_col:
+            var nc = n_col.value()
+            for j in range(nc):
+                col_names.append("c" + String(j))
+            _ = fclose(fp)
+        elif not schema:
+            # Infer column count from the first data row.
+            var first_row = _read_row_from_fp(fp, delimiter, quote)
+            _ = fclose(fp)
+            if not first_row:
+                raise Error(
+                    "CSV file is empty (cannot determine column count): "
+                    + filename
+                )
+            var nc = len(first_row.value())
+            for j in range(nc):
+                col_names.append("c" + String(j))
+            # data_start_offset stays 0: the first row is data, not a header.
+        else:
+            _ = fclose(fp)
 
     # Build the CREATE TABLE schema if not provided explicitly.
     var schema_sql: String
@@ -431,18 +584,13 @@ def csv_connect(
         sql += ");"
         schema_sql = sql^
 
-    # Collect data rows (skip the header row when has_headers).
-    var rows = List[List[String]]()
-    for j in range(data_start, len(all_rows)):
-        rows.append(all_rows[j].copy())
-
     var vtab = CsvState(
         filename=filename^,
         has_headers=has_headers,
         delimiter=delimiter,
         quote=quote,
         n_cols=len(col_names),
-        rows=rows^,
+        data_start_offset=data_start_offset,
     )
 
     return VTabConnectResult[CsvState](
@@ -482,10 +630,11 @@ def csv_best_index(
 
 
 def csv_open(vtab: MutExternalPointer[CsvState]) raises -> CsvCursor:
-    """Create a new cursor positioned before the first row.
+    """Create a new cursor from the vtab's connection metadata.
 
-    Copies the row data from the vtab at open time so the cursor is
-    self-contained and does not need to hold a pointer back to the vtab.
+    The cursor does not open a file here; the file is opened lazily in
+    ``csv_filter`` so that multiple ``SELECT`` statements on the same table
+    each get a fresh file handle positioned at the first data row.
 
     Args:
         vtab: Pointer to the shared virtual table state.
@@ -493,12 +642,38 @@ def csv_open(vtab: MutExternalPointer[CsvState]) raises -> CsvCursor:
     Returns:
         A new ``CsvCursor`` ready to be initialised by ``csv_filter``.
     """
-    return CsvCursor(rows=vtab[].rows.copy(), row_idx=0, eof=True)
+    return CsvCursor(
+        filename=vtab[].filename,
+        data_start_offset=vtab[].data_start_offset,
+        delimiter=vtab[].delimiter,
+        quote=vtab[].quote,
+    )
 
 
 # ===----------------------------------------------------------------------=== #
 # xFilter
 # ===----------------------------------------------------------------------=== #
+
+
+def _csv_advance(cursor: MutExternalPointer[CsvCursor]) raises:
+    """Read the next row from the file into ``cursor[].current_row``.
+
+    Sets ``cursor[].eof = True`` when there are no more rows.
+
+    Args:
+        cursor: Pointer to the cursor whose file handle to advance.
+    """
+    var maybe_row = _read_row_from_fp(
+        cursor[].fp, cursor[].delimiter, cursor[].quote
+    )
+    if maybe_row:
+        var row = maybe_row.value().copy()
+        cursor[].current_row = row^
+        cursor[].row_number += 1
+        cursor[].eof = False
+    else:
+        cursor[].current_row = List[String]()
+        cursor[].eof = True
 
 
 def csv_filter(
@@ -508,7 +683,11 @@ def csv_filter(
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
     argc: c_int,
 ) raises:
-    """Begin a full-table scan by resetting the cursor to the first data row.
+    """Begin a full-table scan by opening the file and reading the first row.
+
+    Closes any previously open file handle, re-opens the CSV file, seeks to
+    ``data_start_offset`` (past the header row when present), and reads the
+    first data row into ``cursor[].current_row``.
 
     Args:
         cursor: Pointer to the cursor state to reset.
@@ -517,8 +696,31 @@ def csv_filter(
         argv: Constraint values from the query planner (unused for full scan).
         argc: Number of constraint values (unused).
     """
-    cursor[].row_idx = 0
-    cursor[].eof = len(cursor[].rows) == 0
+    # Close any file handle from a previous scan.
+    if cursor[].fp != 0:
+        _ = fclose(cursor[].fp)
+        cursor[].fp = 0
+
+    # Open a fresh file handle.  See csv_connect for the as_c_string_slice()
+    # pattern rationale.
+    var xf_open_mode = String("r")
+    var fp = fopen(
+        cursor[].filename.as_c_string_slice().unsafe_ptr(),
+        xf_open_mode.as_c_string_slice().unsafe_ptr(),
+    )
+    if fp == 0:
+        raise Error("cannot open CSV file: " + cursor[].filename)
+    cursor[].fp = fp
+
+    # Seek past the header row (data_start_offset == 0 for headerless files).
+    if cursor[].data_start_offset > 0:
+        _ = fseek(fp, cursor[].data_start_offset, SEEK_SET)
+
+    # Reset row counter and read the first data row.
+    cursor[].row_number = 0
+    cursor[].current_row = List[String]()
+    cursor[].eof = False
+    _csv_advance(cursor)
 
 
 # ===----------------------------------------------------------------------=== #
@@ -527,15 +729,14 @@ def csv_filter(
 
 
 def csv_next(cursor: MutExternalPointer[CsvCursor]) raises:
-    """Advance the cursor to the next row.
+    """Advance the cursor to the next row by reading from the file.
 
     Sets ``eof = True`` when there are no more rows.
 
     Args:
         cursor: Pointer to the cursor state to advance.
     """
-    cursor[].row_idx += 1
-    cursor[].eof = cursor[].row_idx >= len(cursor[].rows)
+    _csv_advance(cursor)
 
 
 # ===----------------------------------------------------------------------=== #
@@ -567,22 +768,22 @@ def csv_column(
 ) raises:
     """Return the value of column ``col`` from the current row as TEXT.
 
-    Returns SQL ``NULL`` if the column index is out of range.
+    Returns SQL ``NULL`` if the column index is out of range or the cursor
+    is at EOF.
 
     Args:
         cursor: Pointer to the cursor state.
         ctx: The SQLite function context used to set the return value.
         col: 0-based column index.
     """
-    var row_idx = cursor[].row_idx
-    if row_idx < 0 or row_idx >= len(cursor[].rows):
+    if cursor[].eof:
         ctx.result_null()
         return
     var col_idx = Int(col)
-    if col_idx < 0 or col_idx >= len(cursor[].rows[row_idx]):
+    if col_idx < 0 or col_idx >= len(cursor[].current_row):
         ctx.result_null()
         return
-    ctx.result_text(cursor[].rows[row_idx][col_idx])
+    ctx.result_text(cursor[].current_row[col_idx])
 
 
 # ===----------------------------------------------------------------------=== #
@@ -599,7 +800,7 @@ def csv_rowid(cursor: MutExternalPointer[CsvCursor]) raises -> Int64:
     Returns:
         The 1-based index of the current row.
     """
-    return Int64(cursor[].row_idx + 1)
+    return Int64(cursor[].row_number)
 
 
 # ===----------------------------------------------------------------------=== #

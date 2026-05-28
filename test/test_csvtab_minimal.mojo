@@ -1,6 +1,6 @@
 """Minimal test: create CSV vtab and run a SELECT."""
 from slight.connection import Connection
-from slight.csvtab import csv_connect, csv_best_index, csv_open, csv_filter, csv_next, csv_eof, csv_column, csv_rowid, CsvState, CsvCursor
+from slight.vtab.csvtab import csv_connect, csv_best_index, csv_open, csv_filter, csv_next, csv_eof, csv_column, csv_rowid, CsvState, CsvCursor
 
 
 def main() raises:

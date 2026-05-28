@@ -9,7 +9,7 @@ from slight.c.types import (
 )
 from slight.connection import Connection
 from slight.context import Context
-from slight.vtab import (
+from slight.vtab.vtab import (
     VTabConnectResult,
     VTabBestIndexFn,
     VTabOpenFn,

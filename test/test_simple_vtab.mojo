@@ -11,7 +11,7 @@ from slight.c.types import (
 )
 from slight.api import sqlite_ffi
 from slight.context import Context
-from slight.vtab import (
+from slight.vtab.vtab import (
     VTabConnectFn,
     VTabConnectResult,
     VTabBestIndexFn,

@@ -1,6 +1,6 @@
 from std.testing import assert_equal, assert_true, TestSuite
 from slight.connection import Connection
-from slight.csvtab import (
+from slight.vtab.csvtab import (
     CsvState,
     CsvCursor,
     csv_connect,
