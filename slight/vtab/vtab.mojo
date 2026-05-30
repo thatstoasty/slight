@@ -89,6 +89,8 @@ struct VTabCursorBox[C: MoveDestructible](Movable):
 # ===----------------------------------------------------------------------=== #
 
 
+# TODO: We use this for now because we can't move a value out of a Tuple return.
+# So this is a workaround so we don't need to copy the vtab state when returning it from the connect callback.
 @fieldwise_init
 struct VTabConnectResult[T: MoveDestructible](Movable):
     """Return value of a VTabConnectFn callback.
@@ -121,9 +123,64 @@ struct VTabConnectResult[T: MoveDestructible](Movable):
         vtab = self.vtab^
 
 
+@fieldwise_init
+struct VTabConfig(Copyable, Equatable, Writable, TrivialRegisterPassable):
+    var value: c_int
+    comptime CONSTRAINT_SUPPORT = Self(1)
+    """Equivalent to `SQLITE_VTAB_CONSTRAINT_SUPPORT`"""
+    comptime INNOCUOUS = Self(2)
+    """Equivalent to `SQLITE_VTAB_INNOCUOUS`"""
+    comptime DIRECT_ONLY = Self(3)
+    """Equivalent to `SQLITE_VTAB_DIRECTONLY`"""
+    comptime USES_ALL_SCHEMAS = Self(4)
+    """Equivalent to `SQLITE_VTAB_USES_ALL_SCHEMAS`"""
+
+
+@fieldwise_init
+struct VTabConnection(Movable):
+    """Encapsulates the sqlite3_connection pointer passed to xConnect/xCreate."""
+    var db: MutExternalPointer[sqlite3_connection]
+    """VTab connection handle supplied by SQLite to xConnect/xCreate callbacks."""
+
+    def config(mut self, config: VTabConfig) raises:
+        """Configure various facets of the virtual table interface.
+        
+        Args:
+            config: The configuration option to set.
+        
+        Raises:
+            Error: If the underlying `sqlite3_vtab_config` call fails.
+        """
+        var result = sqlite_ffi()[].vtab_config(self.db, config.value)
+        if result != SQLITE_OK:
+            raise Error(t"sqlite3_vtab_config failed with code: {result}")
+
+    def unsafe_ptr[
+        origin: Origin, address_space: AddressSpace, //
+    ](ref[origin, address_space] self) -> UnsafePointer[sqlite3_connection, origin, address_space=address_space]:
+        """Retrieves a pointer to the underlying memory.
+
+        Parameters:
+            origin: The origin of the `VTabConnection`.
+            address_space: The `AddressSpace` of the `VTabConnection`.
+
+        Returns:
+            The pointer to the underlying memory.
+        """
+        return self.db.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().address_space_cast[address_space]()
+
+
+# comptime VTabConnectFn[T: MoveDestructible] = def(
+#     MutExternalPointer[sqlite3_connection],
+#     List[String],
+# ) raises thin -> VTabConnectResult[T]
 comptime VTabConnectFn[T: MoveDestructible] = def(
-    MutExternalPointer[sqlite3_connection],
-    List[String],
+    VTabConnection,
+    MutExternalPointer[NoneType], # Maybe make this a Copyable struct and pass a pointer to a copy?
+    String,
+    String,
+    String,
+    Span[String, ...],
 ) raises thin -> VTabConnectResult[T]
 """User-provided xCreate / xConnect callback.
 
@@ -339,26 +396,30 @@ def _vtab_xConnect[
         connect_fn: The user-provided xCreate / xConnect implementation.
     """
     # Build a List[String] from the argv array supplied by SQLite.
-    var args = List[String]()
-    for i in range(Int(argc)):
-        var ptr = argv[i]
-        args.append(String(StringSlice(unsafe_from_utf8_ptr=ptr)))
+    var connection = VTabConnection(db)
 
     try:
-        var result = connect_fn(db, args^)
-        var schema: String = ""
+        var result = connect_fn(
+            connection,
+            pAux,
+            String(unsafe_from_utf8_ptr=argv[0]),
+            String(unsafe_from_utf8_ptr=argv[1]),
+            String(unsafe_from_utf8_ptr=argv[2]),
+            [ String(unsafe_from_utf8_ptr=argv[i]) for i in range(3, Int(argc)) ]
+        )
+        var schema = ""
         var vtab_data = result^.take_vtab(schema)
 
         # Register the schema with SQLite — must happen inside xCreate/xConnect.
         var rc = sqlite_ffi()[].declare_vtab(db, schema)
         if rc != SQLITE_OK:
-            return c_int(Int(rc))
+            return rc.value
 
         # Allocate VTabBox[T] on the heap.
         var vtab_base = sqlite3_vtab(
             pModule=None, nRef=c_int(0), zErrMsg=None
         )
-        var box_ptr = alloc[VTabBox[T]](count=1)
+        var box_ptr = alloc[VTabBox[T]](count=1) # TODO: Maybe use OwnedPointer here instead of VTabBox
         box_ptr.init_pointee_move(VTabBox[T](_base=vtab_base^, data=vtab_data^))
 
         # Write the vtab pointer back to SQLite.

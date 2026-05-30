@@ -48,6 +48,7 @@ from slight.vtab.vtab import (
     VTabColumnFn,
     VTabRowidFn,
     VTabConnectResult,
+    VTabConnection,
 )
 
 # Read buffer size for streaming (bytes per fread call).
@@ -407,8 +408,12 @@ def _escape_double_quotes(s: String) -> String:
 
 
 def csv_connect(
-    db: MutExternalPointer[sqlite3_connection],
-    argv: List[String],
+    db: VTabConnection,
+    aux: MutExternalPointer[NoneType],
+    module_name: String,
+    database_name: String,
+    table_name: String,
+    argv: Span[String, ...],
 ) raises -> VTabConnectResult[CsvState]:
     """Parse module arguments, open the CSV file for schema detection, and
     build the virtual table state.
@@ -430,9 +435,11 @@ def csv_connect(
 
     Args:
         db: The SQLite database connection (supplied by SQLite).
-        argv: Module arguments; ``argv[0]`` = module name,
-              ``argv[1]`` = database name, ``argv[2]`` = table name,
-              ``argv[3+]`` = user-supplied args.
+        aux: Auxiliary pointer from the module registration (unused).
+        module_name: Name of the virtual table module (e.g. "csv").
+        database_name: Name of the database (e.g. "main").
+        table_name: Name of the virtual table being created.
+        argv: User supplied args to the module.
 
     Returns:
         A ``VTabConnectResult[CsvState]`` with the schema SQL and vtab state.
@@ -450,11 +457,11 @@ def csv_connect(
 
     # Parse key=value arguments. argv[0] = module name, argv[1] = db name,
     # argv[2] = table name, argv[3+] = user-supplied arguments.
-    for i in range(3, len(argv)):
+    for i in range(len(argv)):
         var raw_arg = argv[i]
         var eq_idx = raw_arg.find("=")
         if eq_idx < 0:
-            raise Error("illegal argument: '" + raw_arg + "'")
+            raise Error(t"Illegal argument: '{raw_arg}'")
         var raw_bytes = raw_arg.as_bytes()
         var key_bytes = List[UInt8]()
         for bi in range(eq_idx):

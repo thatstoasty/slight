@@ -32,7 +32,7 @@ version = "0.2.0"
 backend = { name = "pixi-build-mojo", version = "0.1.*" }
 
 [dependencies]
-mojo = ">=1.0.0b1,<2"
+mojo = ">=1.0.0b1,<1.0.0b2"
 sqlite = ">=3.53.1,<4"
 
 # TODO: json feature should be optional when Mojo supports conditional dependencies.
