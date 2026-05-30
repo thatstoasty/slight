@@ -320,13 +320,13 @@ struct TraceEvent:
             StringSlice(unsafe_from_utf8_ptr=sql_ptr.value())
         )
 
-    def expanded_sql(self) raises -> Optional[String]:
+    def expanded_sql(self) raises -> String:
         """Return expanded SQL (parameters substituted) from the statement.
 
         Valid for STMT, PROFILE, and ROW events.
 
         Returns:
-            The expanded SQL as a `String`, or `None` on OOM or if unavailable.
+            The expanded SQL as a `String`.
         """
         var stmt = self._p.bitcast[sqlite3_stmt]()
         var s = sqlite_ffi()[].expanded_sql(stmt)

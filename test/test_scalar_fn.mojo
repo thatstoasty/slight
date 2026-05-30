@@ -23,7 +23,10 @@ def add_two(ctx: Context) raises -> Float64:
 
 def greet(ctx: Context) raises -> String:
     """Return a greeting string from two text arguments."""
-    return String("Hello, ") + String(ctx.get_text(0)) + String("!")
+    var name = ctx.get_text(0)
+    if not name:
+        raise Error("Name cannot be NULL")
+    return String(t"Hello, {name.value()}!")
 
 
 def constant_42(ctx: Context) raises -> Int64:
@@ -198,7 +201,10 @@ def my_concat(ctx: Context) raises -> String:
     """Concatenate all string arguments into a single string."""
     var ret = ""
     for idx in range(len(ctx)):
-        ret += String(ctx.get_text(idx))
+        var arg = ctx.get_text(idx)
+        if not arg:
+            raise Error("All arguments to my_concat must be non-NULL")
+        ret.write(arg.value())
     return ret^
 
 

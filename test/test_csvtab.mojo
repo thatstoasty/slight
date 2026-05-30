@@ -15,7 +15,7 @@ from slight.vtab.csvtab import (
 )
 
 # Path to the test CSV (relative to workspace root; tests run from project root).
-comptime TEST_CSV = "rusqlite/test.csv"
+comptime TEST_CSV = "test/data/test.csv"
 
 # Expected data from rusqlite/test.csv (excluding the header row).
 # Row format: (colA, colB, colC)

@@ -40,12 +40,15 @@ def concat_init(mut ctx: Context) raises -> String:
 
 def concat_step(mut ctx: Context, mut acc: String) raises:
     if acc.byte_length() > 0:
-        acc += ","
-    acc += String(ctx.get_text(0))
+        acc.write(",")
+    var arg = ctx.get_text(0)
+    if not arg:
+        raise Error("All arguments to concat_step must be non-NULL")
+    acc.write(arg.value())
 
 
 def concat_finalize(mut ctx: Context, acc: String) raises -> String:
-    return acc
+    return acc.copy()
 
 
 def _setup_numbers_table(db: Connection) raises:

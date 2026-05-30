@@ -286,7 +286,7 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
             t"I must implement `RowIndex`. {reflect[I]().name()} does not implement `RowIndex`."
         )
 
-        ref i = trait_downcast[RowIndex](idx).idx(self.stmt[])
+        var i = trait_downcast[RowIndex](idx).idx(self.stmt[])
         return downcast[S, FromSQL](self.stmt[].value_ref(i))
 
 

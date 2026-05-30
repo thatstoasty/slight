@@ -19,7 +19,7 @@ def main() raises:
     ]("csv")
     print("Module registered OK")
     conn.execute_batch(
-        "CREATE VIRTUAL TABLE vtab USING csv(filename='rusqlite/test.csv', header=yes)"
+        "CREATE VIRTUAL TABLE vtab USING csv(filename='test/data/test.csv', header=yes)"
     )
     print("CREATE VIRTUAL TABLE OK")
     var stmt = conn.prepare("SELECT * FROM vtab LIMIT 1")
