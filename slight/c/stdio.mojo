@@ -105,10 +105,10 @@ def fgetc(fp: CPointer[NoneType, MutExternalOrigin]) -> Optional[Byte]:
     Returns:
         The byte value (0-255), or -1 at end-of-file / on error.
     """
-    var ret = external_call["fgetc", Int](fp)
-    if ret == -1:
+    var ret = external_call["fgetc", c_int](fp)
+    if ret < c_int(0):
         return None
-    return Byte(ret)
+    return Byte(Int(ret))
 
 
 def feof(fp: CPointer[NoneType, MutExternalOrigin]) -> c_int:
