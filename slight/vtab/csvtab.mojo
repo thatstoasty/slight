@@ -50,6 +50,7 @@ from slight.vtab.vtab import (
     VTabConnectResult,
     VTabConnection,
 )
+from slight.util import as_byte
 
 # Read buffer size for streaming (bytes per fread call).
 comptime _READ_BUF_SIZE: Int = 4096
@@ -302,8 +303,14 @@ def _read_row_from_fp(
         return None
     return row^
 
+comptime SINGLE_QUOTE_BYTE = as_byte["'"]()
+comptime DOUBLE_QUOTE_BYTE = as_byte['"']()
+comptime BACKTICK_BYTE = as_byte["`"]()
+comptime L_BRACKET_BYTE = as_byte["["]()
+comptime R_BRACKET_BYTE = as_byte["]"]()
 
-def _dequote(s: String) -> String:
+
+def _dequote(s: StringSlice) -> String:
     """Remove surrounding quote characters from a string.
 
     Handles ``"..."``, ``'...'``, `` `...` ``, and ``[...]`` delimiters.
@@ -317,37 +324,27 @@ def _dequote(s: String) -> String:
     """
     var n = s.byte_length()
     if n < 2:
-        return s
+        return String(s)
+
     var bytes = s.as_bytes()
     var first = bytes[0]
     var last = bytes[n - 1]
+
     # ASCII: 34 = ", 39 = ', 96 = `, 91 = [, 93 = ]
     var is_match = False
-    if first == UInt8(34) or first == UInt8(39) or first == UInt8(96):
+    if first == DOUBLE_QUOTE_BYTE or first == SINGLE_QUOTE_BYTE or first == BACKTICK_BYTE:
         is_match = last == first
-    elif first == UInt8(91) and last == UInt8(93):  # [ ... ]
+    elif first == L_BRACKET_BYTE and last == R_BRACKET_BYTE:  # [ ... ]
         is_match = True
+
     if not is_match:
-        return s
+        return String(s)
+
     # Build the inner string (bytes[1 .. n-2] inclusive).
-    var inner = List[UInt8]()
-    for i in range(1, n - 1):
-        inner.append(bytes[i])
-    inner.append(UInt8(0))
-    # `String(StringSlice(unsafe_from_utf8_ptr=...))` may not include the null
-    # terminator in all Mojo versions, causing `unsafe_ptr()` to fail for C
-    # interop (e.g. fopen).  Appending via `+=` into a fresh empty `String`
-    # forces a proper copy with null termination regardless of version.
-    var result = String()
-    result += String(
-        StringSlice(
-            unsafe_from_utf8_ptr=inner.unsafe_ptr().bitcast[c_char]()
-        )
-    )
-    return result
+    return String(unsafe_from_utf8=bytes[1 : n - 1])
 
 
-def _parse_boolean(s: String) -> Optional[Bool]:
+def _parse_boolean(s: StringSlice) -> Optional[Bool]:
     """Parse a boolean keyword.
 
     Recognised **true** values (case-insensitive): ``yes``, ``on``, ``true``,
@@ -369,7 +366,7 @@ def _parse_boolean(s: String) -> Optional[Bool]:
     return None
 
 
-def _escape_double_quotes(s: String) -> String:
+def _escape_double_quotes(s: StringSlice) -> String:
     """Escape double-quote characters in a string by doubling them.
 
     Used when embedding CSV column names inside a double-quoted SQL identifier.
@@ -382,24 +379,16 @@ def _escape_double_quotes(s: String) -> String:
         The escaped string.
     """
     if s.find('"') == -1:
-        return s
+        return String(s)
+
     var result = String()
-    var n = s.byte_length()
-    var raw = s.unsafe_ptr().bitcast[UInt8]()
-    for i in range(n):
-        var b = raw[i]
-        if b == UInt8(34):  # '"'
-            result += "\"\""
-        else:
-            var tmp = List[UInt8]()
-            tmp.append(b)
-            tmp.append(UInt8(0))
-            result += String(
-                StringSlice(
-                    unsafe_from_utf8_ptr=tmp.unsafe_ptr().bitcast[c_char]()
-                )
-            )
-    return result
+    for b in s.as_bytes():
+        if b == DOUBLE_QUOTE_BYTE:
+            result.write("\"\"")
+            continue
+        
+        result.write(Codepoint(b))
+    return result^
 
 
 # ===----------------------------------------------------------------------=== #
@@ -450,40 +439,21 @@ def csv_connect(
     """
     var filename = String()
     var has_headers = False
-    var delimiter = UInt8(44)  # ','
-    var quote = UInt8(34)  # '"'
+    var delimiter = as_byte[","]()  # ','
+    var quote = as_byte['"']()  # '"'
     var n_col: Optional[Int] = None
     var schema: Optional[String] = None
 
     # Parse key=value arguments. argv[0] = module name, argv[1] = db name,
     # argv[2] = table name, argv[3+] = user-supplied arguments.
     for i in range(len(argv)):
-        var raw_arg = argv[i]
+        ref raw_arg = argv[i]
         var eq_idx = raw_arg.find("=")
         if eq_idx < 0:
             raise Error(t"Illegal argument: '{raw_arg}'")
-        var raw_bytes = raw_arg.as_bytes()
-        var key_bytes = List[UInt8]()
-        for bi in range(eq_idx):
-            key_bytes.append(raw_bytes[bi])
-        key_bytes.append(UInt8(0))
-        var key = String(
-            String(
-                StringSlice(
-                    unsafe_from_utf8_ptr=key_bytes.unsafe_ptr().bitcast[c_char]()
-                )
-            ).strip()
-        )
-        var val_bytes = List[UInt8]()
-        for bi in range(eq_idx + 1, raw_arg.byte_length()):
-            val_bytes.append(raw_bytes[bi])
-        val_bytes.append(UInt8(0))
-        var raw_val = String(
-            StringSlice(
-                unsafe_from_utf8_ptr=val_bytes.unsafe_ptr().bitcast[c_char]()
-            )
-        ).strip()
-        var val = _dequote(String(raw_val))
+
+        var key = StringSlice(unsafe_from_utf8=raw_arg.as_bytes()[:eq_idx]).strip()
+        var val = _dequote(StringSlice(unsafe_from_utf8=raw_arg.as_bytes()[eq_idx + 1 :]).strip())
 
         if key == "filename":
             filename = val
@@ -491,31 +461,30 @@ def csv_connect(
             schema = val
         elif key == "columns":
             try:
-                var n = atol(val)
-                if n <= 0:
-                    raise Error("'columns' must be a positive integer, got: " + val)
-                n_col = Int(n)
+                var n_col = atol(val)
+                if n_col <= 0:
+                    raise Error(t"'columns' must be a positive integer, got: {val}")
             except:
-                raise Error("unrecognized argument to 'columns': " + val)
+                raise Error(t"unrecognized argument to 'columns': {val}")
         elif key == "header":
             var b = _parse_boolean(val)
             if b:
                 has_headers = b.value()
             else:
-                raise Error("unrecognized argument to 'header': " + val)
+                raise Error(t"unrecognized argument to 'header': {val}")
         elif key == "delimiter":
             if val.byte_length() == 1:
                 delimiter = val.as_bytes()[0]
             else:
-                raise Error("unrecognized argument to 'delimiter': " + val)
+                raise Error(t"unrecognized argument to 'delimiter': {val}")
         elif key == "quote":
             if val.byte_length() == 1:
                 var q = val.as_bytes()[0]
                 quote = UInt8(0) if q == UInt8(48) else q
             else:
-                raise Error("unrecognized argument to 'quote': " + val)
+                raise Error(t"unrecognized argument to 'quote': {val}")
         else:
-            raise Error("unrecognized parameter '" + key + "'")
+            raise Error(t"unrecognized parameter '{key}'")
 
     if filename.byte_length() == 0:
         raise Error("no CSV file specified")
@@ -525,13 +494,13 @@ def csv_connect(
     # bindings — so fopen receives typed ImmutUnsafePointer[c_char] args.  This
     # prevents LLVM from dead-store-eliminating the string buffer contents in
     # AOT-compiled code (unlike passing the pointer cast to Int).
-    var open_mode = String("r")
+    var open_mode = "r"
     var fp = fopen(
         filename.as_c_string_slice().unsafe_ptr(),
         open_mode.as_c_string_slice().unsafe_ptr(),
     )
     if fp == 0:
-        raise Error("cannot open CSV file: " + filename)
+        raise Error(t"cannot open CSV file: {filename}")
 
     var col_names = List[String]()
     var data_start_offset: Int
@@ -541,10 +510,12 @@ def csv_connect(
         var header_row = _read_row_from_fp(fp, delimiter, quote)
         if not header_row:
             _ = fclose(fp)
-            raise Error("CSV file is empty (no header row found): " + filename)
-        var header = header_row.value().copy()
-        for j in range(len(header)):
-            col_names.append(_escape_double_quotes(header[j]))
+            raise Error(t"CSV file is empty (no header row found): {filename}")
+
+        var headers = header_row.value().copy()
+        for header in headers:
+            col_names.append(_escape_double_quotes(header))
+
         # Record the byte position immediately after the header row; each
         # cursor will seek here before streaming data rows.
         data_start_offset = ftell(fp)
@@ -554,20 +525,18 @@ def csv_connect(
         if n_col:
             var nc = n_col.value()
             for j in range(nc):
-                col_names.append("c" + String(j))
+                col_names.append(String(t"c{j}"))
             _ = fclose(fp)
         elif not schema:
             # Infer column count from the first data row.
             var first_row = _read_row_from_fp(fp, delimiter, quote)
             _ = fclose(fp)
             if not first_row:
-                raise Error(
-                    "CSV file is empty (cannot determine column count): "
-                    + filename
-                )
+                raise Error(t"CSV file is empty (cannot determine column count): {filename}")
+
             var nc = len(first_row.value())
             for j in range(nc):
-                col_names.append("c" + String(j))
+                col_names.append(String(t"c{j}"))
             # data_start_offset stays 0: the first row is data, not a header.
         else:
             _ = fclose(fp)
@@ -578,17 +547,14 @@ def csv_connect(
         schema_sql = schema.value()
     else:
         if len(col_names) == 0:
-            raise Error(
-                "no columns specified and schema could not be determined"
-            )
-        var sql = String("CREATE TABLE x(")
+            raise Error("no columns specified and schema could not be determined")
+
+        var sql = "CREATE TABLE x("
         for j in range(len(col_names)):
-            sql += "\""
-            sql += col_names[j]
-            sql += "\" TEXT"
+            sql.write('"', col_names[j], '" TEXT')
             if j < len(col_names) - 1:
-                sql += ", "
-        sql += ");"
+                sql.write(", ")
+        sql.write(");")
         schema_sql = sql^
 
     var vtab = CsvState(
@@ -710,13 +676,13 @@ def csv_filter(
 
     # Open a fresh file handle.  See csv_connect for the as_c_string_slice()
     # pattern rationale.
-    var xf_open_mode = String("r")
+    var xf_open_mode = "r"
     var fp = fopen(
         cursor[].filename.as_c_string_slice().unsafe_ptr(),
         xf_open_mode.as_c_string_slice().unsafe_ptr(),
     )
     if fp == 0:
-        raise Error("cannot open CSV file: " + cursor[].filename)
+        raise Error(t"cannot open CSV file: {cursor[].filename}")
     cursor[].fp = fp
 
     # Seek past the header row (data_start_offset == 0 for headerless files).
@@ -786,10 +752,12 @@ def csv_column(
     if cursor[].eof:
         ctx.result_null()
         return
+
     var col_idx = Int(col)
     if col_idx < 0 or col_idx >= len(cursor[].current_row):
         ctx.result_null()
         return
+
     ctx.result_text(cursor[].current_row[col_idx])
 
 

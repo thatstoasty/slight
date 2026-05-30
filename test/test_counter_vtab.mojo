@@ -21,6 +21,7 @@ from slight.vtab.vtab import (
     VTabEofFn,
     VTabColumnFn,
     VTabRowidFn,
+    VTabConnection,
 )
 
 
@@ -43,8 +44,12 @@ struct CounterCursor(Movable):
 
 
 def counter_connect(
-    db: MutExternalPointer[sqlite3_connection],
-    argv: List[String],
+    db: VTabConnection,
+    aux: MutExternalPointer[NoneType],
+    module_name: String,
+    database_name: String,
+    table_name: String,
+    argv: Span[String, ...],
 ) raises -> VTabConnectResult[CounterVTab]:
     print("counter_connect called, argc =", len(argv))
     var n = 5
@@ -58,8 +63,8 @@ def counter_connect(
     r.append("hello")
     rows.append(r^)
     return VTabConnectResult[CounterVTab](
-        schema=String("CREATE TABLE x(value INTEGER)"),
-        vtab=CounterVTab(n=n, name=String("test"), rows=rows^, b=True, u1=UInt8(44), u2=UInt8(34), m=1),
+        schema="CREATE TABLE x(value INTEGER)",
+        vtab=CounterVTab(n=n, name="test", rows=rows^, b=True, u1=UInt8(44), u2=UInt8(34), m=1),
     )
 
 

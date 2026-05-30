@@ -21,6 +21,7 @@ from slight.vtab.vtab import (
     VTabEofFn,
     VTabColumnFn,
     VTabRowidFn,
+    VTabConnection,
 )
 
 
@@ -43,8 +44,12 @@ struct SimpleCursor(Movable):
 
 
 def simple_connect(
-    db: MutExternalPointer[sqlite3_connection],
-    argv: List[String],
+    db: VTabConnection,
+    aux: MutExternalPointer[NoneType],
+    module_name: String,
+    database_name: String,
+    table_name: String,
+    argv: Span[String, ...],
 ) raises -> VTabConnectResult[SimpleVTab]:
     print("simple_connect called")
     var items = List[String]()
@@ -55,8 +60,8 @@ def simple_connect(
     row.append("b")
     matrix.append(row^)
     return VTabConnectResult[SimpleVTab](
-        schema=String("CREATE TABLE x(value INTEGER)"),
-        vtab=SimpleVTab(n=5, name=String("test"), items=items^, matrix=matrix^, b=True, u1=UInt8(44), u2=UInt8(34)),
+        schema="CREATE TABLE x(value INTEGER)",
+        vtab=SimpleVTab(n=5, name="test", items=items^, matrix=matrix^, b=True, u1=UInt8(44), u2=UInt8(34)),
     )
 
 

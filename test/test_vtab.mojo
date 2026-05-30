@@ -20,6 +20,7 @@ from slight.vtab.vtab import (
     VTabEofFn,
     VTabColumnFn,
     VTabRowidFn,
+    VTabConnection,
 )
 from std.testing import TestSuite, assert_equal
 
@@ -54,8 +55,12 @@ struct GenerateSeriesCursor(Movable):
 # ---- xConnect / xCreate --------------------------------------------------
 
 def gs_connect(
-    db: MutExternalPointer[sqlite3_connection],
-    argv: List[String],
+    db: VTabConnection,
+    aux: MutExternalPointer[NoneType],
+    module_name: String,
+    database_name: String,
+    table_name: String,
+    argv: Span[String, ...],
 ) raises -> VTabConnectResult[GenerateSeriesVTab]:
     """Parse (start, stop, step) from module argv and declare the schema."""
     # argv[0] = module name, argv[1] = database name, argv[2+] = user args
@@ -77,11 +82,8 @@ def gs_connect(
             step = Int64(atol(argv[4]))
         except:
             pass
-    var schema = String(
-        "CREATE TABLE x(value INTEGER, start INTEGER HIDDEN, stop INTEGER HIDDEN, step INTEGER HIDDEN)"
-    )
     return VTabConnectResult[GenerateSeriesVTab](
-        schema=schema^,
+        schema="CREATE TABLE x(value INTEGER, start INTEGER HIDDEN, stop INTEGER HIDDEN, step INTEGER HIDDEN)",
         vtab=GenerateSeriesVTab(start=start, stop=stop, step=step),
     )
 

@@ -19,6 +19,7 @@ from slight.vtab.vtab import (
     VTabColumnFn,
     VTabRowidFn,
     VTabConnectFn,
+    VTabConnection,
 )
 
 
@@ -40,8 +41,12 @@ struct FakeCursor(Movable):
 
 
 def fake_connect(
-    db: MutExternalPointer[sqlite3_connection],
-    argv: List[String],
+    db: VTabConnection,
+    aux: MutExternalPointer[NoneType],
+    module_name: String,
+    database_name: String,
+    table_name: String,
+    argv: Span[String, ...],
 ) raises -> VTabConnectResult[FakeState]:
     print("fake_connect called, argc =", len(argv))
     var rows = List[List[String]]()
@@ -49,7 +54,7 @@ def fake_connect(
     r.append("hello")
     rows.append(r^)
     var st = FakeState(
-        filename=String("test.csv"),
+        filename="test.csv",
         has_headers=True,
         delimiter=UInt8(44),
         quote=UInt8(34),
@@ -57,7 +62,7 @@ def fake_connect(
         rows=rows^,
     )
     return VTabConnectResult[FakeState](
-        schema=String('CREATE TABLE x("col" TEXT);'),
+        schema='CREATE TABLE x("col" TEXT);',
         vtab=st^,
     )
 
