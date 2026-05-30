@@ -36,7 +36,7 @@ mojo = ">=1.0.0b1,<1.0.0b2"
 sqlite = ">=3.53.1,<4"
 
 # TODO: json feature should be optional when Mojo supports conditional dependencies.
-emberjson = { git = "https://github.com/bgreni/EmberJson", tag = "0.3.2" }
+# emberjson = { git = "https://github.com/bgreni/EmberJson", tag = "0.3.2" }
 
 [package.build-dependencies]
 mojo-compiler = ">=1.0.0b1,<1.0.0b2"
@@ -44,9 +44,9 @@ mojo-compiler = ">=1.0.0b1,<1.0.0b2"
 [package.host-dependencies]
 mojo-compiler = ">=1.0.0b1,<1.0.0b2"
 sqlite = ">=3.50.4"
-emberjson = { git = "https://github.com/bgreni/EmberJson", tag = "0.3.2" }
+# emberjson = { git = "https://github.com/bgreni/EmberJson", tag = "0.3.2" }
 
 [package.run-dependencies]
 mojo-compiler = ">=1.0.0b1,<1.0.0b2"
 sqlite = ">=3.50.4"
-emberjson = { git = "https://github.com/bgreni/EmberJson", tag = "0.3.2" }
+# emberjson = { git = "https://github.com/bgreni/EmberJson", tag = "0.3.2" }
