@@ -13,6 +13,7 @@ The caller is responsible for:
 
 from std.ffi import external_call, c_char, c_int
 
+comptime CPointer[T: AnyType, origin: Origin] = Optional[UnsafePointer[T, origin]]
 # SEEK_* constants (POSIX)
 comptime SEEK_SET: c_int = c_int(0)
 """Seek from the beginning of the file."""
@@ -28,23 +29,20 @@ def fopen[
 ](
     path: ImmutUnsafePointer[c_char, path_origin],
     mode: ImmutUnsafePointer[c_char, mode_origin],
-) -> Int:
-    """Open a file and return an opaque ``FILE *`` handle as ``Int``.
-
-    Both ``path`` and ``mode`` must be null-terminated byte buffers that remain
-    alive for the duration of the call.
+) -> CPointer[NoneType, MutExternalOrigin]:
+    """Open a file and return an opaque ``FILE *`` handle.
 
     Args:
         path: Immutable pointer to a null-terminated file path string.
         mode: Immutable pointer to a null-terminated mode string (e.g. ``"r"``).
 
     Returns:
-        Non-zero ``FILE *`` handle on success, 0 on failure.
+        Opaque ``FILE *`` pointer on success, None on failure.
     """
-    return external_call["fopen", Int](path, mode)
+    return external_call["fopen", CPointer[NoneType, MutExternalOrigin]](path, mode)
 
 
-def fclose(fp: Int) -> c_int:
+def fclose(fp: CPointer[NoneType, MutExternalOrigin]) -> c_int:
     """Close a ``FILE *`` handle.
 
     Args:
@@ -56,7 +54,7 @@ def fclose(fp: Int) -> c_int:
     return external_call["fclose", c_int](fp)
 
 
-def fseek(fp: Int, offset: Int, whence: c_int) -> c_int:
+def fseek(fp: CPointer[NoneType, MutExternalOrigin], offset: Int, whence: c_int) -> c_int:
     """Reposition the file-position indicator.
 
     Args:
@@ -70,7 +68,7 @@ def fseek(fp: Int, offset: Int, whence: c_int) -> c_int:
     return external_call["fseek", c_int](fp, offset, whence)
 
 
-def ftell(fp: Int) -> Int:
+def ftell(fp: CPointer[NoneType, MutExternalOrigin]) -> Int:
     """Return the current file-position indicator.
 
     Args:
@@ -82,14 +80,11 @@ def ftell(fp: Int) -> Int:
     return external_call["ftell", Int](fp)
 
 
-def fread(buf: Int, size: Int, count: Int, fp: Int) -> Int:
+def fread(buf: CPointer[NoneType, MutExternalOrigin], size: Int, count: Int, fp: CPointer[NoneType, MutExternalOrigin]) -> Int:
     """Read up to ``count`` elements of ``size`` bytes each from ``fp``.
 
-    ``buf`` should be the ``Int``-cast address of a ``List[UInt8]`` or similar
-    mutable buffer (e.g. ``Int(my_list.unsafe_ptr())``).
-
     Args:
-        buf: Integer representation of the destination buffer pointer.
+        buf: Opaque pointer to the destination buffer.
         size: Size of each element in bytes.
         count: Maximum number of elements to read.
         fp: Open file handle.
@@ -101,7 +96,22 @@ def fread(buf: Int, size: Int, count: Int, fp: Int) -> Int:
     return external_call["fread", Int](buf, size, count, fp)
 
 
-def feof(fp: Int) -> c_int:
+def fgetc(fp: CPointer[NoneType, MutExternalOrigin]) -> Optional[Byte]:
+    """Read one byte from an open file handle.
+
+    Args:
+        fp: Open file handle.
+
+    Returns:
+        The byte value (0-255), or -1 at end-of-file / on error.
+    """
+    var ret = external_call["fgetc", Int](fp)
+    if ret == -1:
+        return None
+    return Byte(ret)
+
+
+def feof(fp: CPointer[NoneType, MutExternalOrigin]) -> c_int:
     """Test the end-of-file indicator.
 
     Args:

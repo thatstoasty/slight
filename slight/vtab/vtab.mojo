@@ -170,10 +170,6 @@ struct VTabConnection(Movable):
         return self.db.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().address_space_cast[address_space]()
 
 
-# comptime VTabConnectFn[T: MoveDestructible] = def(
-#     MutExternalPointer[sqlite3_connection],
-#     List[String],
-# ) raises thin -> VTabConnectResult[T]
 comptime VTabConnectFn[T: MoveDestructible] = def(
     VTabConnection,
     MutExternalPointer[NoneType], # Maybe make this a Copyable struct and pass a pointer to a copy?

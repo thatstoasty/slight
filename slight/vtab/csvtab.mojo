@@ -35,6 +35,8 @@ from slight.c.stdio import (
     fseek,
     ftell,
     fread,
+    fgetc,
+    CPointer,
 )
 from slight.connection import Connection
 from slight.context import Context
@@ -103,8 +105,8 @@ struct CsvCursor(Movable):
     The file is closed when the cursor is destroyed (``__del__``).
     """
 
-    var fp: Int
-    """Open ``FILE *`` handle (0 = not open)."""
+    var fp: CPointer[NoneType, MutExternalOrigin]
+    """Open ``FILE *`` handle (None = not open)."""
 
     var filename: String
     """Path of the CSV file — needed to re-open on each ``xFilter`` call."""
@@ -134,7 +136,7 @@ struct CsvCursor(Movable):
         delimiter: UInt8,
         quote: UInt8,
     ):
-        self.fp = 0
+        self.fp = None
         self.filename = filename
         self.data_start_offset = data_start_offset
         self.delimiter = delimiter
@@ -145,7 +147,7 @@ struct CsvCursor(Movable):
 
     def __del__(deinit self):
         """Close the file handle when the cursor is destroyed."""
-        if self.fp != 0:
+        if self.fp:
             _ = fclose(self.fp)
 
 
@@ -154,25 +156,28 @@ struct CsvCursor(Movable):
 # ===----------------------------------------------------------------------=== #
 
 
-def _fgetc(fp: Int) -> Int:
-    """Read one byte from an open file handle.
+# def _fgetc(fp: CPointer[NoneType, MutExternalOrigin]) -> Int:
+#     """Read one byte from an open file handle.
 
-    Args:
-        fp: Open file handle.
+#     Args:
+#         fp: Open file handle.
 
-    Returns:
-        The byte value (0-255), or -1 at end-of-file / on error.
-    """
-    var buf = List[UInt8](capacity=1)
-    buf.append(UInt8(0))
-    var n = fread(Int(buf.unsafe_ptr()), 1, 1, fp)
-    if n == 0:
-        return -1
-    return Int(buf[0])
+#     Returns:
+#         The byte value (0-255), or -1 at end-of-file / on error.
+#     """
+#     var buf = List[UInt8](capacity=1)
+#     buf.append(UInt8(0))
+#     var n = fread(buf.unsafe_ptr().bitcast[CPointer[NoneType, MutExternalOrigin]](), 1, 1, fp)
+#     if n == 0:
+#         return -1
+#     return Int(buf[0])
+
+comptime LF_BYTE = as_byte["\n"]()
+comptime CR_BYTE = as_byte["\r"]()
 
 
 def _read_row_from_fp(
-    fp: Int,
+    fp: CPointer[NoneType, MutExternalOrigin],
     delimiter: UInt8,
     quote: UInt8,
 ) -> Optional[List[String]]:
@@ -196,105 +201,90 @@ def _read_row_from_fp(
         var field_bytes = List[UInt8]()
         var next_action: Int = 0  # 0 = end_of_row, 1 = next_field
 
-        var b = _fgetc(fp)
-
-        if b == -1:
+        var b = fgetc(fp)
+        if not b:
             # EOF — if no fields have been read yet this is a clean EOF.
             if len(row) == 0:
                 return None
             # EOF at the start of an expected field (no trailing newline):
             # add an empty final field to match behaviour of _parse_csv.
-            field_bytes.append(UInt8(0))
-            row.append(
-                String(
-                    StringSlice(
-                        unsafe_from_utf8_ptr=field_bytes.unsafe_ptr().bitcast[c_char]()
-                    )
-                )
-            )
+            row.append(String(unsafe_from_utf8=field_bytes))
             break
 
-        elif b == Int(UInt8(10)):  # LF — empty field, end of row
+        elif b.value() == LF_BYTE:  # LF — empty field, end of row
             next_action = 0
 
-        elif b == Int(UInt8(13)):  # CR (possibly CRLF) — empty field, end of row
-            var peek = _fgetc( fp)
-            if peek != Int(UInt8(10)) and peek != -1:
+        elif b.value() == CR_BYTE:  # CR (possibly CRLF) — empty field, end of row
+            var peek = fgetc(fp)
+            if peek and peek.value() != LF_BYTE:
                 # Bare CR: put the peeked byte back.
                 _ = fseek(fp, -1, SEEK_CUR)
             next_action = 0
 
-        elif b == Int(delimiter):
+        elif b == delimiter:
             # Empty field followed immediately by a delimiter.
             next_action = 1
 
-        elif quote != UInt8(0) and b == Int(quote):
+        elif quote != UInt8(0) and b.value() == quote:
             # Quoted field — read until the matching closing quote.
             var done = False
             while not done:
-                var c = _fgetc(fp)
-                if c == -1:
+                var c = fgetc(fp)
+                if not c:
                     done = True  # Unclosed quote at EOF.
                     next_action = 0
-                elif c == Int(quote):
+                elif c.value() == quote:
                     # Doubled quote → literal quote character.
-                    var next_c = _fgetc(fp)
-                    if next_c == Int(quote):
+                    var next_c = fgetc(fp)
+                    if next_c and next_c.value() == quote:
                         field_bytes.append(quote)
                     else:
                         # Closing quote: next_c determines row/field boundary.
-                        if next_c == -1:
+                        if not next_c:
                             next_action = 0
-                        elif next_c == Int(delimiter):
+                        elif next_c.value() == delimiter:
                             next_action = 1
-                        elif next_c == Int(UInt8(13)):
-                            var lf = _fgetc(fp)
-                            if lf != Int(UInt8(10)) and lf != -1:
+                        elif next_c.value() == CR_BYTE:
+                            var lf = fgetc(fp)
+                            if lf and lf.value() != LF_BYTE:
                                 _ = fseek(fp, -1, SEEK_CUR)
                             next_action = 0
-                        elif next_c == Int(UInt8(10)):
+                        elif next_c.value() == LF_BYTE:
                             next_action = 0
                         else:
                             # Malformed: content after closing quote; include.
-                            field_bytes.append(UInt8(next_c))
+                            field_bytes.append(next_c.value())
                             next_action = 1
                         done = True
                 else:
-                    field_bytes.append(UInt8(c))
+                    field_bytes.append(c.value())
 
         else:
             # Unquoted field; ``b`` is the first byte of the field value.
-            field_bytes.append(UInt8(b))
+            field_bytes.append(b.value())
             var done = False
             while not done:
-                var c = _fgetc(fp)
-                if c == -1:
+                var c = fgetc(fp)
+                if not c:
                     next_action = 0
                     done = True
-                elif c == Int(delimiter):
+                elif c.value() == delimiter:
                     next_action = 1
                     done = True
-                elif c == Int(UInt8(13)):  # CR
-                    var lf = _fgetc(fp)
-                    if lf != Int(UInt8(10)) and lf != -1:
+                elif c.value() == CR_BYTE:  # CR
+                    var lf = fgetc(fp)
+                    if lf and lf.value() != LF_BYTE:
                         _ = fseek(fp, -1, SEEK_CUR)
                     next_action = 0
                     done = True
-                elif c == Int(UInt8(10)):  # LF
+                elif c.value() == LF_BYTE:  # LF
                     next_action = 0
                     done = True
                 else:
-                    field_bytes.append(UInt8(c))
+                    field_bytes.append(c.value())
 
         # Build a String from the accumulated bytes and append to the row.
-        field_bytes.append(UInt8(0))
-        row.append(
-            String(
-                StringSlice(
-                    unsafe_from_utf8_ptr=field_bytes.unsafe_ptr().bitcast[c_char]()
-                )
-            )
-        )
+        row.append(String(unsafe_from_utf8=field_bytes))
 
         if next_action == 0:
             break
@@ -499,7 +489,7 @@ def csv_connect(
         filename.as_c_string_slice().unsafe_ptr(),
         open_mode.as_c_string_slice().unsafe_ptr(),
     )
-    if fp == 0:
+    if not fp:
         raise Error(t"cannot open CSV file: {filename}")
 
     var col_names = List[String]()
@@ -670,9 +660,9 @@ def csv_filter(
         argc: Number of constraint values (unused).
     """
     # Close any file handle from a previous scan.
-    if cursor[].fp != 0:
+    if cursor[].fp:
         _ = fclose(cursor[].fp)
-        cursor[].fp = 0
+        cursor[].fp = None
 
     # Open a fresh file handle.  See csv_connect for the as_c_string_slice()
     # pattern rationale.
@@ -681,7 +671,7 @@ def csv_filter(
         cursor[].filename.as_c_string_slice().unsafe_ptr(),
         xf_open_mode.as_c_string_slice().unsafe_ptr(),
     )
-    if fp == 0:
+    if not fp:
         raise Error(t"cannot open CSV file: {cursor[].filename}")
     cursor[].fp = fp
 
