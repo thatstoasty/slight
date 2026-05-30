@@ -2,7 +2,6 @@ version: 6
 environments:
   default:
     channels:
-    - url: https://repo.prefix.dev/modular-community/
     - url: https://conda.anaconda.org/conda-forge/
     - url: https://conda.modular.com/max/
     packages:
@@ -13,9 +12,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/click-8.4.1-pyhc90fa1f_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cpython-3.14.5-py314hd8ed1ab_100.conda
-      - conda: git+https://github.com/bgreni/emberjson?tag=0.3.2#f8aa1d74630afefa3b552d9443d7ac1e3455c4be
-        build: hb0f4dca_0
-      - conda: https://repo.prefix.dev/modular-community/linux-64/extramojo-0.22.0-hb0f4dca_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/importlib-metadata-9.0.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_client-8.6.3-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_core-5.9.1-pyhc90fa1f_0.conda
@@ -67,9 +63,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/click-8.4.1-pyhc90fa1f_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cpython-3.14.5-py314hd8ed1ab_100.conda
-      - conda: git+https://github.com/bgreni/emberjson?tag=0.3.2#f8aa1d74630afefa3b552d9443d7ac1e3455c4be
-        build: he8cfe8b_0
-      - conda: https://repo.prefix.dev/modular-community/linux-aarch64/extramojo-0.22.0-he8cfe8b_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/importlib-metadata-9.0.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_client-8.6.3-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_core-5.9.1-pyhc90fa1f_0.conda
@@ -120,9 +113,6 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/ca-certificates-2026.5.20-hbd8a1cb_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/click-8.4.1-pyhc90fa1f_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/cpython-3.14.5-py314hd8ed1ab_100.conda
-      - conda: git+https://github.com/bgreni/emberjson?tag=0.3.2#f8aa1d74630afefa3b552d9443d7ac1e3455c4be
-        build: h60d57d3_0
-      - conda: https://repo.prefix.dev/modular-community/osx-arm64/extramojo-0.22.0-h60d57d3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/importlib-metadata-9.0.0-pyhcf101f3_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_client-8.6.3-pyhd8ed1ab_1.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/jupyter_core-5.9.1-pyhc90fa1f_0.conda
@@ -255,54 +245,6 @@ packages:
   license: Python-2.0
   size: 50212
   timestamp: 1779236682725
-- conda: git+https://github.com/bgreni/emberjson?tag=0.3.2#f8aa1d74630afefa3b552d9443d7ac1e3455c4be
-  name: emberjson
-  version: 0.3.2
-  build: h60d57d3_0
-  subdir: osx-arm64
-  depends:
-  - mojo-compiler >=1.0.0b1,<2
-  channel: null
-- conda: git+https://github.com/bgreni/emberjson?tag=0.3.2#f8aa1d74630afefa3b552d9443d7ac1e3455c4be
-  name: emberjson
-  version: 0.3.2
-  build: hb0f4dca_0
-  subdir: linux-64
-  depends:
-  - mojo-compiler >=1.0.0b1,<2
-  channel: null
-- conda: git+https://github.com/bgreni/emberjson?tag=0.3.2#f8aa1d74630afefa3b552d9443d7ac1e3455c4be
-  name: emberjson
-  version: 0.3.2
-  build: he8cfe8b_0
-  subdir: linux-aarch64
-  depends:
-  - mojo-compiler >=1.0.0b1,<2
-  channel: null
-- conda: https://repo.prefix.dev/modular-community/linux-64/extramojo-0.22.0-hb0f4dca_0.conda
-  sha256: ac0fa14707bc17745a29184174a973dfa4196540027d2bbd7449e0b3b854ccd4
-  md5: a289b256f0fe59fef0b141946e18f37f
-  depends:
-  - mojo-compiler 1.0.0b1.*
-  license: Unlicense OR MIT
-  size: 1724674
-  timestamp: 1779290376308
-- conda: https://repo.prefix.dev/modular-community/linux-aarch64/extramojo-0.22.0-he8cfe8b_0.conda
-  sha256: 5db46e9359db732e94c08f98d5677d636b5b19dddddb0d74eaad7c745a5157b3
-  md5: e9ef3a681405f1d30f81c365bdfebd3a
-  depends:
-  - mojo-compiler 1.0.0b1.*
-  license: Unlicense OR MIT
-  size: 1723627
-  timestamp: 1779290293654
-- conda: https://repo.prefix.dev/modular-community/osx-arm64/extramojo-0.22.0-h60d57d3_0.conda
-  sha256: 6703572a3d4d12102f648cb8d39eba2c7f0076fd669c491f842c09c38a1450eb
-  md5: 236c2d161fcf2507fa393efee57991d7
-  depends:
-  - mojo-compiler 1.0.0b1.*
-  license: Unlicense OR MIT
-  size: 1725465
-  timestamp: 1779290421522
 - conda: https://conda.anaconda.org/conda-forge/noarch/importlib-metadata-9.0.0-pyhcf101f3_0.conda
   sha256: 43e2a5497cad1598ff88a3e69f69bc88b7b8f141fa63c60eab5db296317318b8
   md5: ffc17e785d64e12fc311af9184221839
