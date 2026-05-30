@@ -671,3 +671,4 @@ And took notes from:
 - Add `collect` methods to the `MappedRows` and `TypedRows` iterators to allow users to easily collect query results into a list or other collection types. This would enhance the ergonomics of working with query results and make it easier for users to manipulate and work with their data after retrieval. This is dependent on conditional conformance, as we would need `T` to be `Copyable` to be added to a List. But I don't want to constrain `T` to be `Copyable` in the iterator itself.
 - Assess origins of `ValueRef` in general, because I'm pretty sure I have a few incorrect origins being used.
 - I would like `RowTransformFn` to be properly parametrized on the connection and statement origins for `Row`, but I can't get partial parameter binding working for `Connection` functions. Maybe I'll revisit that one day.
+- Improve CSV Reader logic.
