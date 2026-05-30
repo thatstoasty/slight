@@ -9,8 +9,6 @@ See the official documentation for more information:
 - https://www.sqlite.org/limits.html
 """
 
-from std.ffi import c_int
-
 
 @fieldwise_init
 struct Limit(Copyable, ImplicitlyCopyable, Movable, Writable, TrivialRegisterPassable):
@@ -64,7 +62,7 @@ struct Limit(Copyable, ImplicitlyCopyable, Movable, Writable, TrivialRegisterPas
     """The maximum number of auxiliary worker threads that a single prepared
     statement may start."""
 
-    fn write_to(self, mut writer: Some[Writer]):
+    def write_to(self, mut writer: Some[Writer]):
         """Write a human-readable representation.
 
         Args:

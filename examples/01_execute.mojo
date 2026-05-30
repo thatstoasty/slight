@@ -2,7 +2,7 @@ from slight.connection import Connection
 from slight.row import Row
 
 
-fn main() raises:
+def main() raises:
     var db = Connection.open_in_memory()
 
     # Execute statements to create table and insert data.

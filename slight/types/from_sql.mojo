@@ -1,13 +1,12 @@
 from slight.types.value_ref import ValueRef
 from std.builtin.rebind import downcast
-from std.reflection import get_type_name
 from std.sys.intrinsics import _type_is_eq
 
 
-trait FromSQL(Copyable):
+trait FromSQL(Movable):
     """A trait for types that can be constructed from a SQL value."""
 
-    fn __init__(out self, value: ValueRef) raises:
+    def __init__(out self, value: ValueRef) raises:
         """Initializes the type from a SQL value.
 
         Args:
@@ -20,7 +19,7 @@ trait FromSQL(Copyable):
 
 
 __extension Int(FromSQL):
-    fn __init__(out self, value: ValueRef) raises:
+    def __init__(out self, value: ValueRef) raises:
         """Initializes the type from a SQL value.
 
         Args:
@@ -33,13 +32,13 @@ __extension Int(FromSQL):
 
 
 __extension Optional(FromSQL):
-    fn __init__(out self, value: ValueRef) raises:
+    def __init__(out self, value: ValueRef) raises:
         # Assert T conforms to FromSQL at compile time.
         # Then that enables us to safely downcast the value to T and call its FromSQL initializer.
         # We rely on the that initializer to properly construct itself from the sqlite value.
         comptime assert conforms_to(Self.T, FromSQL), String(
             "Optional can only be used with types that implement `FromSQL`. ",
-            get_type_name[Self.T](),
+            reflect[Self.T]().name(),
             " does not implement `FromSQL`.",
         )
         if value.isa[SQLite3Null]():
@@ -49,7 +48,7 @@ __extension Optional(FromSQL):
 
 
 __extension String(FromSQL):
-    fn __init__(out self, value: ValueRef) raises:
+    def __init__(out self, value: ValueRef) raises:
         """Initializes the type from a SQL value.
 
         Args:
@@ -62,13 +61,13 @@ __extension String(FromSQL):
 
 
 # __extension StringSlice(FromSQL):
-#     fn __init__(out self, value: ValueRef[Self.origin]) raises:
+#     def __init__(out self, value: ValueRef[Self.origin]) raises:
 #         var val = value.as_string_slice()
 #         self = val
 
 
 __extension Bool(FromSQL):
-    fn __init__(out self, value: ValueRef) raises:
+    def __init__(out self, value: ValueRef) raises:
         """Initializes the type from a SQL value.
 
         Args:
@@ -81,7 +80,7 @@ __extension Bool(FromSQL):
 
 
 __extension NoneType(FromSQL):
-    fn __init__(out self, value: ValueRef) raises:
+    def __init__(out self, value: ValueRef) raises:
         """Initializes the type from a SQL value.
 
         Args:
@@ -94,7 +93,7 @@ __extension NoneType(FromSQL):
 
 
 __extension SIMD(FromSQL):
-    fn __init__(out self, value: ValueRef) raises:
+    def __init__(out self, value: ValueRef) raises:
         """Initializes the type from a SQL value.
 
         Args:
@@ -122,10 +121,10 @@ __extension SIMD(FromSQL):
 
 
 __extension List(FromSQL):
-    # fn __init__(out self, value: ValueRef) raises where _type_is_eq_parse_time[
+    # def __init__(out self, value: ValueRef) raises where _type_is_eq_parse_time[
     #     Self.T, Byte
     # ]():
-    fn __init__(out self, value: ValueRef) raises:
+    def __init__(out self, value: ValueRef) raises:
         """Initializes the type from a SQL value.
 
         Args:
@@ -135,6 +134,6 @@ __extension List(FromSQL):
             Error: If the value cannot be converted to the type.
         """
         comptime assert _type_is_eq[Self.T, Byte](), String(
-            "List can only be used with Byte type for `FromSQL`. ", get_type_name[Self.T](), " is not Byte."
+            "List can only be used with Byte type for `FromSQL`. ", reflect[Self.T]().name(), " is not Byte."
         )
         self = rebind_var[List[Self.T]](List[Byte](value.as_blob()))

@@ -7,21 +7,21 @@ from slight import SIMD, Bool, Int, Params, Row, String
 
 comptime dummy_int: Int = 1
 
-# fn insert(x: Int, conn: Pointer[Connection, _]) raises -> Int:
+# def insert(x: Int, conn: Pointer[Connection, _]) raises -> Int:
 #     """Insert a value into the foo table."""
 #     return conn[].execute("INSERT INTO foo VALUES(?1)", [x])
 
 
-fn assert_current_sum(x: Int, conn: Connection) raises:
+def assert_current_sum(x: Int, conn: Connection) raises:
     """Assert that the sum of all values in foo equals x."""
-    fn get_int(r: Row) raises -> Int:
+    def get_int(r: Row) raises -> Int:
         return r.get[Int](0)
     
     var result = conn.one_row[get_int]("SELECT SUM(x) FROM foo")
     assert_equal(result, x)
 
 
-fn test_drop() raises:
+def test_drop() raises:
     """Test default rollback and commit behaviors using drop behavior."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
@@ -38,7 +38,7 @@ fn test_drop() raises:
     tx^.finish()
     
     # Test 3: Verify only the committed transaction persisted
-    fn get_sum(r: Row) raises -> Int:
+    def get_sum(r: Row) raises -> Int:
         return r.get[Int](0)
     
     tx = db.transaction()
@@ -47,7 +47,7 @@ fn test_drop() raises:
     tx^.finish()
 
 
-fn test_explicit_rollback_commit() raises:
+def test_explicit_rollback_commit() raises:
     """Test explicit rollback and commit with savepoints."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
@@ -64,7 +64,7 @@ fn test_explicit_rollback_commit() raises:
         tx.conn[].execute_batch("INSERT INTO foo VALUES(4)")
         tx.commit()
     
-    fn get_sum(r: Row) raises -> Int:
+    def get_sum(r: Row) raises -> Int:
         return r.get[Int](0)
     
     with db.transaction() as tx:
@@ -72,7 +72,7 @@ fn test_explicit_rollback_commit() raises:
         assert_equal(sum, 6)
 
 
-fn test_savepoint() raises:
+def test_savepoint() raises:
     """Test nested savepoints with various commit/rollback scenarios."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
@@ -114,7 +114,7 @@ fn test_savepoint() raises:
     assert_current_sum(1, db)
 
 
-fn test_ignore_drop_behavior() raises:
+def test_ignore_drop_behavior() raises:
     """Test IGNORE drop behavior which leaves savepoint active."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
@@ -135,7 +135,7 @@ fn test_ignore_drop_behavior() raises:
         assert_current_sum(6, tx.conn[])
 
 
-fn test_savepoint_drop_behavior_releases() raises:
+def test_savepoint_drop_behavior_releases() raises:
     """Test that savepoints with COMMIT/ROLLBACK drop behaviors properly release."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
@@ -151,7 +151,7 @@ fn test_savepoint_drop_behavior_releases() raises:
     assert_true(db.is_autocommit())
 
 
-fn test_savepoint_names() raises:
+def test_savepoint_names() raises:
     """Test savepoints with custom names."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
@@ -185,7 +185,7 @@ fn test_savepoint_names() raises:
     assert_current_sum(8, db)
 
 
-fn test_transaction_behavior() raises:
+def test_transaction_behavior() raises:
     """Test different transaction behaviors (DEFERRED, IMMEDIATE, EXCLUSIVE)."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
@@ -205,14 +205,14 @@ fn test_transaction_behavior() raises:
         tx3.conn[].execute_batch("INSERT INTO foo VALUES(3)")
         tx3.commit()
     
-    fn get_sum(r: Row) raises -> Int:
+    def get_sum(r: Row) raises -> Int:
         return r.get[Int](0)
     
     var sum = db.one_row[get_sum]("SELECT SUM(x) FROM foo")
     assert_equal(sum, 6)
 
 
-fn test_rollback_after_commit() raises:
+def test_rollback_after_commit() raises:
     """Test that rolling back after commit raises an error."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
@@ -226,7 +226,7 @@ fn test_rollback_after_commit() raises:
             tx.rollback()
 
 
-fn test_commit_after_commit() raises:
+def test_commit_after_commit() raises:
     """Test that committing after commit raises an error."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
@@ -240,7 +240,7 @@ fn test_commit_after_commit() raises:
             tx.commit()
         
 
-fn test_savepoint_rollback_after_commit() raises:
+def test_savepoint_rollback_after_commit() raises:
     """Test that rolling back a savepoint after commit raises an error."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
@@ -255,7 +255,7 @@ fn test_savepoint_rollback_after_commit() raises:
                 sp.rollback()
 
 
-fn test_multiple_inserts_in_transaction() raises:
+def test_multiple_inserts_in_transaction() raises:
     """Test multiple inserts within a single transaction."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
@@ -265,14 +265,14 @@ fn test_multiple_inserts_in_transaction() raises:
             _ = tx.conn[].execute("INSERT INTO foo VALUES(?1)", [i])
         tx.commit()
     
-    fn get_sum(r: Row) raises -> Int:
+    def get_sum(r: Row) raises -> Int:
         return r.get[Int](0)
     
     var sum = db.one_row[get_sum]("SELECT SUM(x) FROM foo")
     assert_equal(sum, 45)  # 0+1+2+...+9 = 45
 
 
-fn test_nested_savepoint_rollback() raises:
+def test_nested_savepoint_rollback() raises:
     """Test nested savepoint rollback behavior."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
@@ -295,5 +295,5 @@ fn test_nested_savepoint_rollback() raises:
     assert_current_sum(3, db)
 
 
-fn main() raises:
+def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()

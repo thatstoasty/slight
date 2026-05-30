@@ -1,6 +1,5 @@
-from slight.connection import Connection
-from std.memory import Pointer
 from std.os import abort
+from slight.connection import Connection
 
 
 @fieldwise_init
@@ -22,7 +21,7 @@ struct TransactionBehavior(Equatable, ImplicitlyCopyable, TrivialRegisterPassabl
     """EXCLUSIVE prevents other database connections from reading the database
     while the transaction is underway."""
 
-    fn __eq__(self, other: Self) -> Bool:
+    def __eq__(self, other: Self) -> Bool:
         """Check if two values are equal.
 
         Args:
@@ -33,7 +32,7 @@ struct TransactionBehavior(Equatable, ImplicitlyCopyable, TrivialRegisterPassabl
         """
         return self.value == other.value
 
-    fn to_sql(self) -> String:
+    def to_sql(self) -> String:
         """Convert the transaction behavior to its SQL representation.
 
         Returns:
@@ -63,7 +62,7 @@ struct DropBehavior(Equatable, ImplicitlyCopyable, TrivialRegisterPassable):
     comptime PANIC = Self(3)
     """Panic. Used to enforce intentional behavior during development."""
 
-    fn __eq__(self, other: Self) -> Bool:
+    def __eq__(self, other: Self) -> Bool:
         """Check if two DropBehavior values are equal.
 
         Args:
@@ -88,7 +87,7 @@ struct TransactionState(Equatable, ImplicitlyCopyable, TrivialRegisterPassable):
     comptime WRITE = Self(2)
     """A write transaction is active. Equivalent to `SQLITE_TXN_WRITE`."""
 
-    fn __eq__(self, other: Self) -> Bool:
+    def __eq__(self, other: Self) -> Bool:
         """Check if two values are equal.
 
         Args:
@@ -116,7 +115,7 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
 
     ```mojo
     from slight import Connection
-    fn perform_queries(mut conn: Connection) raises:
+    def perform_queries(mut conn: Connection) raises:
         var tx = conn.transaction()
 
         _ = tx.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
@@ -133,7 +132,7 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
     var finished: Bool
     """Whether the transaction has been finished (committed or rolled back)."""
 
-    fn __init__(
+    def __init__(
         out self,
         conn: Pointer[Connection, Self.conn_origin],
         behavior: TransactionBehavior = TransactionBehavior.DEFERRED,
@@ -156,7 +155,7 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
             self^.finish()
             raise e^
 
-    fn __del__(deinit self):
+    def __del__(deinit self):
         """Destructor for the Transaction.
 
         If the transaction has not been finished (committed or rolled back),
@@ -169,7 +168,7 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
             # If a user wants to handle errors, they should use finish() directly.
             pass
 
-    fn __enter__(var self) -> Self:
+    def __enter__(var self) -> Self:
         """Enter the transaction context manager.
 
         Returns:
@@ -177,7 +176,7 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
         """
         return self^
 
-    fn savepoint(self, name: Optional[String] = None) raises -> Savepoint[Self.conn_origin]:
+    def savepoint(self, name: Optional[String] = None) raises -> Savepoint[Self.conn_origin]:
         """Create a new savepoint within this transaction.
 
         Args:
@@ -194,7 +193,7 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
         else:
             return Savepoint[Self.conn_origin](self.conn)
 
-    fn commit(mut self) raises:
+    def commit(mut self) raises:
         """A convenience method which consumes and commits a transaction.
 
         Raises:
@@ -203,7 +202,7 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
         self.conn[].execute_batch("COMMIT")
         self.finished = True
 
-    fn rollback(mut self) raises:
+    def rollback(mut self) raises:
         """A convenience method which consumes and rolls back a transaction.
 
         Raises:
@@ -212,7 +211,7 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
         self.conn[].execute_batch("ROLLBACK")
         self.finished = True
 
-    fn finish(deinit self) raises:
+    def finish(deinit self) raises:
         """Consumes the transaction, committing or rolling back according to the
         current setting (see `drop_behavior`).
 
@@ -259,7 +258,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
     ```mojo
     from slight import Connection
 
-    fn perform_queries(mut conn: Connection) raises:
+    def perform_queries(mut conn: Connection) raises:
         var sp = conn.savepoint()
 
         _ = sp.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
@@ -278,7 +277,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
     var committed: Bool
     """Whether the savepoint has been committed."""
 
-    fn __init__(
+    def __init__(
         out self,
         conn: Pointer[Connection, Self.conn_origin],
         name: String = "_slight_sp",
@@ -301,8 +300,8 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
         except e:
             self^.finish()
             raise e^
-
-    fn __del__(deinit self):
+    
+    def __del__(deinit self):
         """Destructor for the Savepoint.
 
         If the savepoint has not been committed, it will be rolled back.
@@ -314,7 +313,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
             # If a user wants to handle errors, they should use finish() directly.
             pass
 
-    fn __enter__(var self) -> Self:
+    def __enter__(var self) -> Self:
         """Enter the savepoint context manager.
 
         Returns:
@@ -322,7 +321,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
         """
         return self^
 
-    fn savepoint(self, name: Optional[String] = None) raises -> Self:
+    def savepoint(self, name: Optional[String] = None) raises -> Self:
         """Create a new nested savepoint within this savepoint.
 
         Args:
@@ -339,7 +338,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
         else:
             return Self(self.conn)
 
-    fn commit(mut self) raises:
+    def commit(mut self) raises:
         """A convenience method which consumes and commits a savepoint.
 
         Raises:
@@ -348,7 +347,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
         self.conn[].execute_batch(t"RELEASE {self.name}")
         self.committed = True
 
-    fn rollback(mut self) raises:
+    def rollback(mut self) raises:
         """Roll back a savepoint.
 
         ## Note
@@ -361,7 +360,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
         """
         self.conn[].execute_batch(t"ROLLBACK TO {self.name}")
 
-    fn finish(deinit self) raises:
+    def finish(deinit self) raises:
         """Consumes the savepoint, committing or rolling back according to the
         current setting (see `drop_behavior`).
 

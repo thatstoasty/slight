@@ -6,7 +6,7 @@ struct ExtensionLoadGuard[conn: MutOrigin]:
     var connection: Pointer[Connection, Self.conn]
     """Pointer to a SQLite connection."""
 
-    fn disable_extension_loading(deinit self) raises:
+    def disable_extension_loading(deinit self) raises:
         """Disables extension loading on the associated connection.
         
         This MUST be called at some point to disable extension loading.

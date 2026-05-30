@@ -9,7 +9,7 @@ from slight.row import Row
 from slight.transaction import DropBehavior, Savepoint, Transaction, TransactionBehavior
 
 
-fn print_account_balances(db: Connection) raises:
+def print_account_balances(db: Connection) raises:
     """Helper function to print all account balances."""
     print("Current account balances:")
     var stmt = db.prepare("SELECT name, balance FROM accounts ORDER BY name")
@@ -17,7 +17,7 @@ fn print_account_balances(db: Connection) raises:
         print("  ", row.get[String](0), ":", row.get[Float64](1))
 
 
-fn example_basic_transaction() raises:
+def example_basic_transaction() raises:
     """Demonstrates basic transaction usage with commit."""
     print("=== Basic Transaction Example ===")
     var db = Connection.open_in_memory()
@@ -48,7 +48,7 @@ fn example_basic_transaction() raises:
     print_account_balances(db)
 
 
-fn example_transaction_rollback() raises:
+def example_transaction_rollback() raises:
     """Demonstrates transaction rollback - changes are discarded."""
     print("=== Transaction Rollback Example ===")
     var db = Connection.open_in_memory()
@@ -74,7 +74,7 @@ fn example_transaction_rollback() raises:
     print_account_balances(db)
 
 
-fn example_savepoints() raises:
+def example_savepoints() raises:
     """Demonstrates nested savepoints for partial rollbacks."""
     print("=== Savepoints Example ===")
     var db = Connection.open_in_memory()
@@ -83,7 +83,7 @@ fn example_savepoints() raises:
         INSERT INTO inventory VALUES ('Apples', 100);
     """)
 
-    fn print_inventory(conn: Connection) raises:
+    def print_inventory(conn: Connection) raises:
         var stmt = conn.prepare("SELECT item, quantity FROM inventory")
         for row in stmt.query(()):
             print("  ", row.get[String](0), ":", row.get[Int](1))
@@ -118,7 +118,7 @@ fn example_savepoints() raises:
     print_inventory(db)
 
 
-fn example_nested_savepoints() raises:
+def example_nested_savepoints() raises:
     """Demonstrates deeply nested savepoints."""
     print("=== Nested Savepoints Example ===")
     var db = Connection.open_in_memory()
@@ -150,7 +150,7 @@ fn example_nested_savepoints() raises:
         print("  Level", row.get[Int](0), ":", row.get[String](1))
 
 
-fn example_transaction_behaviors() raises:
+def example_transaction_behaviors() raises:
     """Demonstrates different transaction isolation behaviors."""
     print("\n=== Transaction Behaviors Example ===")
     var db = Connection.open_in_memory()
@@ -177,14 +177,14 @@ fn example_transaction_behaviors() raises:
         tx.commit()
     print("  Inserted value 3")
 
-    fn get_sum(r: Row) raises -> Int:
+    def get_sum(r: Row) raises -> Int:
         return r.get[Int](0)
 
     var total = db.one_row[get_sum]("SELECT SUM(value) FROM data LIMIT 1;")
     print("Total sum:", total)
 
 
-fn example_drop_behavior() raises:
+def example_drop_behavior() raises:
     """Demonstrates using drop_behavior to control transaction finalization."""
     print("\n=== Drop Behavior Example ===")
     var db = Connection.open_in_memory()
@@ -207,7 +207,7 @@ fn example_drop_behavior() raises:
         print("  ", row.get[String](0))
 
 
-fn main() raises:
+def main() raises:
     example_basic_transaction()
     example_transaction_rollback()
     example_savepoints()

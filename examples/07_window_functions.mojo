@@ -4,32 +4,32 @@ from slight import Connection, Row
 
 
 # TODO: Show what happens if an error is raised in one of the funcs.
-fn sum_init(mut ctx: Context) raises -> Int64:
+def sum_init(mut ctx: Context) raises -> Int64:
     """Initialize the accumulator to 0."""
     return 0
 
 
-fn sum_step(mut ctx: Context, mut acc: Int64) raises:
+def sum_step(mut ctx: Context, mut acc: Int64) raises:
     """Add the current row's first argument to the running sum."""
     acc += ctx.get_int64(0)
 
 
-fn sum_finalize(mut ctx: Context, acc: Int64) raises -> Optional[Int64]:
+def sum_finalize(mut ctx: Context, acc: Int64) raises -> Optional[Int64]:
     """Return the final accumulated sum."""
     return acc
 
 
-fn sum_inverse(mut ctx: Context, mut acc: Int64) raises:
+def sum_inverse(mut ctx: Context, mut acc: Int64) raises:
     """Subtract the current row's first argument from the running sum (for window functions)."""
     acc -= ctx.get_int64(0)
 
 
-fn sum_value(acc: Optional[Int64]) raises -> Optional[Int64]:
+def sum_value(acc: Optional[Int64]) raises -> Optional[Int64]:
     """Return the current value of the accumulator (for window functions)."""
     return acc.copy()
 
 
-fn main() raises:
+def main() raises:
     var conn = Connection.open_in_memory()
 
     # Set up a test table with some integer values.
@@ -51,8 +51,8 @@ fn main() raises:
         flags=FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
     )
 
-    fn get_row(row: Row) raises -> String:
-        return t"{row.get[Int64](0)} | {row.get[Int64](1)}"
+    def get_row(row: Row) raises -> String:
+        return String(t"{row.get[Int64](0)} | {row.get[Int64](1)}")
 
     # Use the window function with a sliding frame: running sum over the current
     # row and the one before it (ROWS BETWEEN 1 PRECEDING AND CURRENT ROW).

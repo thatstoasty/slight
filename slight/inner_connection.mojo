@@ -1,20 +1,22 @@
-from slight.busy import BusyHandlerFn, _busy_handler_callback
-from slight.c.api import sqlite_ffi
-from slight.c.raw_bindings import sqlite3_connection, sqlite3_stmt
-from slight.trace import TraceFn, TraceEventCodes, _trace_v2_callback
-from slight.unlock_notify import (
-    is_locked as _is_locked,
-    wait_for_unlock_notify as _wait_for_unlock_notify,
-)
+from std.ffi import c_char, c_int
+from std.pathlib import Path
 from slight.c.types import (
+    MutExternalPointer,
     AggFinalCallback,
     AggStepCallback,
-    MutExternalPointer,
-    MutUnsafePointer,
     WindowInverseCallback,
     WindowValueCallback,
     sqlite3_context,
     sqlite3_value,
+    sqlite3_connection,
+    sqlite3_stmt
+)
+from slight.busy import BusyHandlerFn, _busy_handler_callback
+from slight.api import sqlite_ffi
+from slight.trace import TraceFn, TraceEventCodes, _trace_v2_callback
+from slight.unlock_notify import (
+    is_locked,
+    wait_for_unlock_notify,
 )
 from slight.limits import Limit
 from slight.functions import (
@@ -26,10 +28,6 @@ from slight.functions import (
     WindowAggregateInverseUDF,
 )
 from slight.types.to_sql import ToSQL
-from std.ffi import c_char, c_int
-from std.pathlib import Path
-from std.reflection import get_type_name
-
 from slight.error import decode_error, error_msg, error_from_sqlite_code, raise_if_error
 from slight.functions import (
     _call_scalar_callback,
@@ -43,24 +41,21 @@ from slight.flags import OpenFlag, PrepFlag
 from slight.functions import FunctionFlags
 from slight.context import Context
 from slight.result import SQLite3Result
-from slight.util import CopyDestructible, MoveDestructible
+from slight.util import CopyDestructible, MoveDestructible, ptr_copy, str_slice_to_path
+from slight.vtab import (
+    VTabConnectFn,
+    VTabBestIndexFn,
+    VTabOpenFn,
+    VTabFilterFn,
+    VTabNextFn,
+    VTabEofFn,
+    VTabColumnFn,
+    VTabRowidFn,
+    make_read_only_module,
+)
 
 
-fn ptr_copy[T: CopyDestructible](data: T) -> MutExternalPointer[T]:
-    """Creates a copy of the value as a mutable external pointer.
-
-    This is used to create a copy of the application data to pass to SQLite when creating user-defined functions.
-    This data can be freed on demand by the destructor callback, and we don't have to worry
-    about Mojo's ASAP destruction.
-
-    Returns:
-        A mutable external pointer containing a copy of the value.
-    """
-    var ptr = alloc[T](count=1)
-    ptr[0] = data.copy()
-    return ptr
-
-
+@fieldwise_init
 @explicit_destroy("InnerConnection must be explicitly destroyed. Use self.close() to destroy.")
 struct InnerConnection(Movable):
     """A connection to a SQLite3 database."""
@@ -69,7 +64,7 @@ struct InnerConnection(Movable):
     """A pointer to the underlying sqlite3 connection. This is managed by the InnerConnection and should not be accessed directly."""
 
     # TODO: Enable zVfs support in the future.
-    fn __init__(out self, var path: String, flags: OpenFlag) raises:
+    def __init__(out self, var path: String, flags: OpenFlag) raises:
         """Open a SQLite3 database connection with default flags.
 
         Args:
@@ -82,41 +77,27 @@ struct InnerConnection(Movable):
         Raises:
             Will return an `Error` if the underlying SQLite open call fails.
         """
-        var ptr = MutExternalPointer[sqlite3_connection]()
+        var ptr = MutExternalPointer[sqlite3_connection].unsafe_dangling()
         var result = sqlite_ffi()[].open_v2(path, UnsafePointer(to=ptr), flags.value, None)
         if result != SQLite3Result.OK:
             raise Error("Could not open database: ", String(result))
         self.db = ptr
+    
+    def unsafe_ptr[
+        origin: Origin, address_space: AddressSpace, //
+    ](ref[origin, address_space] self) -> UnsafePointer[sqlite3_connection, origin, address_space=address_space]:
+        """Retrieves a pointer to the underlying memory.
 
-    @doc_private
-    fn __init__(out self):
-        """Creates an empty InnerConnection.
-
-        Returns:
-            A new `InnerConnection` instance.
-        """
-        self.db = MutExternalPointer[sqlite3_connection]()
-
-    fn __init__(out self, db: MutExternalPointer[sqlite3_connection]):
-        """Creates a new `InnerConnection` from an existing `sqlite3_connection` pointer.
-
-        Args:
-            db: An existing `sqlite3_connection` pointer.
+        Parameters:
+            origin: The origin of the `SQLiteMallocString`.
+            address_space: The `AddressSpace` of the `SQLiteMallocString`.
 
         Returns:
-            A new `InnerConnection` instance.
+            The pointer to the underlying memory.
         """
-        self.db = db
+        return self.db.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().address_space_cast[address_space]()
 
-    fn __bool__(self) -> Bool:
-        """Returns whether the connection is open.
-
-        Returns:
-            Whether the pointer to the sqlite3 connection is valid or not.
-        """
-        return Bool(self.db)
-
-    fn is_autocommit(self) -> Bool:
+    def is_autocommit(self) -> Bool:
         """Returns whether the connection is in auto-commit mode.
 
         Returns:
@@ -124,31 +105,31 @@ struct InnerConnection(Movable):
         """
         return sqlite_ffi()[].get_autocommit(self.db)
 
-    fn is_busy(self) -> Bool:
+    def is_busy(self) -> Bool:
         """Returns whether the connection is currently busy.
 
         Returns:
             True if the connection is busy, False otherwise.
         """
-        var stmt = sqlite_ffi()[].next_stmt(self.db, MutExternalPointer[sqlite3_stmt]())
+        var stmt = sqlite_ffi()[].next_stmt(self.db, None)
         while stmt:
-            if sqlite_ffi()[].stmt_busy(stmt) != 0:
+            if sqlite_ffi()[].stmt_busy(stmt.value()):
                 return True
             stmt = sqlite_ffi()[].next_stmt(self.db, stmt)
         return False
 
-    fn close(deinit self) -> SQLite3Result:
+    def close(deinit self) -> SQLite3Result:
         """Closes the underlying sqlite3 connection.
 
         Returns:
             The SQLite3Result code from the close operation.
         """
-        if not self.db:
-            return SQLite3Result.OK
+        # if not self.db:
+        #     return SQLite3Result.OK
 
         return sqlite_ffi()[].close(self.db)
 
-    fn changes(self) -> Int64:
+    def changes(self) -> Int64:
         """Returns the number of rows changed by the last INSERT, UPDATE, or DELETE statement.
 
         Returns:
@@ -156,7 +137,7 @@ struct InnerConnection(Movable):
         """
         return sqlite_ffi()[].changes64(self.db)
 
-    fn total_changes(self) -> Int64:
+    def total_changes(self) -> Int64:
         """Returns the total number of changes made to the database.
 
         Returns:
@@ -164,7 +145,7 @@ struct InnerConnection(Movable):
         """
         return sqlite_ffi()[].total_changes64(self.db)
 
-    fn last_insert_row_id(self) -> Int64:
+    def last_insert_row_id(self) -> Int64:
         """Returns the row ID of the last inserted row.
 
         Returns:
@@ -172,9 +153,9 @@ struct InnerConnection(Movable):
         """
         return sqlite_ffi()[].last_insert_rowid(self.db)
 
-    fn prepare(
+    def prepare(
         self, var sql: String, flags: PrepFlag = PrepFlag.PREPARE_PERSISTENT
-    ) raises -> Tuple[MutExternalPointer[sqlite3_stmt], UInt]:
+        ) raises -> Tuple[Optional[MutExternalPointer[sqlite3_stmt]], UInt]:
         """Prepares an SQL statement for execution.
 
         Args:
@@ -187,45 +168,42 @@ struct InnerConnection(Movable):
         Raises:
             Will return an `Error` if the underlying SQLite prepare call fails.
         """
-        var stmt = MutExternalPointer[sqlite3_stmt]()
+        var stmt: Optional[MutExternalPointer[sqlite3_stmt]] = None
         var str = sql.as_c_string_slice().unsafe_ptr()
         var c_tail = UnsafePointer(to=str)
 
         try:
             self.raise_if_error(
-                sqlite_ffi()[].prepare_v3(self.db, str, Int32(len(sql)), flags.value, stmt, c_tail),
+                sqlite_ffi()[].prepare_v3(self.db, str, Int32(sql.byte_length()), flags.value, stmt, c_tail),
             )
         except e:
             if stmt:
-                _ = sqlite_ffi()[].finalize(stmt)
+                _ = sqlite_ffi()[].finalize(stmt.value())
             raise e^
 
         var tail: UInt = 0
-        var tail_len = len(StringSlice(unsafe_from_utf8_ptr=c_tail[]))
+        var tail_len = StringSlice(unsafe_from_utf8_ptr=c_tail[]).byte_length()
         if tail_len > 0:
-            var n = len(sql) - tail_len
+            var n = sql.byte_length() - tail_len
 
             # Somehow the remaining tail is negative, or is longer than the original sql. Set to 0.
-            if n <= 0 or n >= len(sql):
+            if n <= 0 or n >= sql.byte_length():
                 tail = 0
             else:
                 tail = UInt(n)
         return stmt, tail
 
-    fn path(self) -> Optional[Path]:
+    def path(self) -> Optional[Path]:
         """Returns the file path of the database.
 
         Returns:
             The file path of the database, or None if the database is in-memory.
         """
         var db_name = "main"
-        var path = sqlite_ffi()[].db_filename(self.db, db_name)
-        if not path:
-            return None
+        return sqlite_ffi()[].db_filename(self.db, db_name).and_then[To=Path](str_slice_to_path)
 
-        return Path(StringSlice(unsafe_from_utf8_ptr=path))
 
-    fn is_database_read_only(self, var database: String) raises -> Bool:
+    def is_database_read_only(self, var database: String) raises -> Bool:
         """Checks if the specified database is opened in read-only mode.
 
         Args:
@@ -247,7 +225,7 @@ struct InnerConnection(Movable):
         else:
             raise Error(t"Unexpected result from sqlite3_db_readonly: {result}")
 
-    fn raise_if_error(self, code: SQLite3Result) raises:
+    def raise_if_error(self, code: SQLite3Result) raises:
         """Raises if the SQLite error code is not `SQLITE_OK`.
 
         Args:
@@ -256,9 +234,9 @@ struct InnerConnection(Movable):
         Raises:
             Error: If the SQLite error code is not `SQLITE_OK`.
         """
-        raise_if_error(self.db, code)
+        raise_if_error(self, code)
 
-    fn error_msg(self, code: SQLite3Result) -> Optional[String]:
+    def error_msg(self, code: SQLite3Result) -> Optional[String]:
         """Checks for the error message set in sqlite3, or what the description of the provided code is.
 
         Args:
@@ -267,9 +245,9 @@ struct InnerConnection(Movable):
         Returns:
             An optional string slice containing the error message, or None if not found.
         """
-        return error_msg(self.db, code)
+        return error_msg(self, code)
 
-    fn decode_error(self, code: SQLite3Result) -> Error:
+    def decode_error(self, code: SQLite3Result) -> Error:
         """Raises if the SQLite error code is not `SQLITE_OK`.
 
         Args:
@@ -278,10 +256,10 @@ struct InnerConnection(Movable):
         Returns:
             Error: If the SQLite error code is not `SQLITE_OK`.
         """
-        return decode_error(self.db, code)
+        return decode_error(self, code)
 
     # TODO: V should be constrained to ToSQL, but I want to keep extensions private from users for now.
-    fn create_scalar_function[
+    def create_scalar_function[
         T: CopyDestructible,
         V: MoveDestructible, //,
         x_func: ScalarUDF[V],
@@ -313,7 +291,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(V, ToSQL), String(
-            t"Return type V must conform to `ToSQL` trait. {get_type_name[V]()} does not implement `ToSQL`."
+            t"Return type V must conform to `ToSQL` trait. {reflect[V]().name()} does not implement `ToSQL`."
         )
 
         # Copy data to the heap and pass a pointer to it as pApp.
@@ -329,7 +307,7 @@ struct InnerConnection(Movable):
             _default_destructor,
         )
 
-    fn create_scalar_function[
+    def create_scalar_function[
         V: MoveDestructible, //, x_func: ScalarUDF[V]
     ](self, fn_name: String, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
         """Attach a user-defined scalar function to a database connection.
@@ -353,7 +331,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(V, ToSQL), String(
-            t"Return type V must conform to `ToSQL` trait. {get_type_name[V]()} does not implement `ToSQL`."
+            t"Return type V must conform to `ToSQL` trait. {reflect[V]().name()} does not implement `ToSQL`."
         )
         return sqlite_ffi()[].create_scalar_function(
             self.db,
@@ -363,7 +341,7 @@ struct InnerConnection(Movable):
             _call_scalar_callback[x_func],
         )
 
-    fn create_aggregate_function[
+    def create_aggregate_function[
         A: MoveDestructible,
         T: MoveDestructible,
         P: CopyDestructible,
@@ -371,7 +349,7 @@ struct InnerConnection(Movable):
         init_fn: AggregateInitUDF[A],
         step_fn: AggregateStepUDF[A],
         final_fn: AggregateFinalUDF[A, T],
-    ](self, fn_name: String, n_arg: Int, flags: FunctionFlags, pApp: P,) -> SQLite3Result:
+    ](self, fn_name: String, n_arg: Int, flags: FunctionFlags, pApp: P) -> SQLite3Result:
         """Attach a user-defined aggregate function to a database connection.
 
         Aggregate functions process multiple rows and produce a single result.
@@ -399,7 +377,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
         )
 
         # Copy data to the heap and pass a pointer to it as pApp.
@@ -416,7 +394,7 @@ struct InnerConnection(Movable):
             _default_destructor,
         )
 
-    fn create_aggregate_function[
+    def create_aggregate_function[
         A: MoveDestructible,
         T: MoveDestructible,
         //,
@@ -449,7 +427,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
         )
         return sqlite_ffi()[].create_aggregate_function(
             self.db,
@@ -460,7 +438,7 @@ struct InnerConnection(Movable):
             _call_final_callback[final_fn],
         )
 
-    fn create_window_function[
+    def create_window_function[
         A: CopyDestructible,
         T: MoveDestructible,
         P: CopyDestructible,
@@ -500,7 +478,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
         )
 
         # Copy data to the heap and pass a pointer to it as pApp.
@@ -519,7 +497,7 @@ struct InnerConnection(Movable):
             _default_destructor,
         )
 
-    fn create_window_function[
+    def create_window_function[
         A: CopyDestructible,
         T: MoveDestructible,
         //,
@@ -556,7 +534,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {get_type_name[T]()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
         )
         return sqlite_ffi()[].create_window_function(
             self.db,
@@ -569,7 +547,56 @@ struct InnerConnection(Movable):
             _call_inverse_callback[inverse_fn],
         )
 
-    fn remove_function(
+    def create_module[
+        T: MoveDestructible,
+        C: MoveDestructible,
+        connect_fn: VTabConnectFn[T],
+        best_index_fn: VTabBestIndexFn[T],
+        open_fn: VTabOpenFn[T, C],
+        filter_fn: VTabFilterFn[C],
+        next_fn: VTabNextFn[C],
+        eof_fn: VTabEofFn[C],
+        column_fn: VTabColumnFn[C],
+        rowid_fn: VTabRowidFn[C],
+    ](self, module_name: String) -> SQLite3Result:
+        """Register a read-only virtual table module with this connection.
+
+        Allocates a `sqlite3_module` on the heap, fills in all required and
+        stub callbacks, then calls `sqlite3_create_module_v2` to register it.
+        The module pointer is automatically freed when the connection is closed
+        or the module is unregistered.
+
+        Parameters:
+            T: The user-provided virtual table state type.
+            C: The user-provided cursor state type.
+            connect_fn: Called for both xCreate and xConnect.
+            best_index_fn: Called for xBestIndex.
+            open_fn: Called for xOpen to create a new cursor.
+            filter_fn: Called for xFilter to begin a scan.
+            next_fn: Called for xNext to advance the cursor.
+            eof_fn: Called for xEof to check end-of-rows.
+            column_fn: Called for xColumn to retrieve a column value.
+            rowid_fn: Called for xRowid to retrieve the rowid.
+
+        Args:
+            module_name: Name to register the virtual table module under.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        var module_ptr = make_read_only_module[
+            connect_fn,
+            best_index_fn,
+            open_fn,
+            filter_fn,
+            next_fn,
+            eof_fn,
+            column_fn,
+            rowid_fn,
+        ]()
+        return sqlite_ffi()[].create_module(self.db, module_name, module_ptr)
+
+    def remove_function(
         self,
         fn_name: String,
         n_arg: Int,
@@ -593,7 +620,7 @@ struct InnerConnection(Movable):
             c_int(n_arg),
         )
 
-    fn busy_timeout(self, ms: c_int) -> SQLite3Result:
+    def busy_timeout(self, ms: c_int) -> SQLite3Result:
         """Set a busy handler that sleeps for a specified amount of time when a
         table is locked.
 
@@ -609,7 +636,7 @@ struct InnerConnection(Movable):
         """
         return sqlite_ffi()[].busy_timeout(self.db, ms)
 
-    fn busy_handler[callback: Optional[BusyHandlerFn]](
+    def busy_handler[callback: Optional[BusyHandlerFn]](
         self,
     ) -> SQLite3Result:
         """Register a callback to handle `SQLITE_BUSY` errors.
@@ -624,7 +651,7 @@ struct InnerConnection(Movable):
         Calling `busy_timeout()` also clears any custom busy handler.
 
         Parameters:
-            callback: A function `fn(Int32) -> Bool`, or `None` to clear.
+            callback: A function `def(Int32) -> Bool`, or `None` to clear.
 
         Returns:
             SQLITE_OK on success, or an error code on failure.
@@ -641,7 +668,7 @@ struct InnerConnection(Movable):
             # Passing timeout=0 clears all busy handlers (per SQLite docs).
             return sqlite_ffi()[].busy_timeout(self.db, 0)
 
-    fn limit(self, limit: Limit) -> Int32:
+    def limit(self, limit: Limit) -> Int32:
         """Returns the current value of a run-time limit.
 
         Passing -1 as the second argument to `sqlite3_limit` queries the
@@ -656,7 +683,7 @@ struct InnerConnection(Movable):
         """
         return sqlite_ffi()[].limit(self.db, c_int(limit.value), c_int(-1))
 
-    fn set_limit(self, limit: Limit, new_val: Int32) -> Int32:
+    def set_limit(self, limit: Limit, new_val: Int32) -> Int32:
         """Changes a run-time limit, returning the prior value.
 
         Args:
@@ -669,17 +696,16 @@ struct InnerConnection(Movable):
         """
         return sqlite_ffi()[].limit(self.db, c_int(limit.value), c_int(new_val))
 
-    fn trace_v2[callback: Optional[TraceFn]](
+    def trace_v2[callback: TraceFn](
         self,
         mask: TraceEventCodes,
     ) -> SQLite3Result:
-        """Register or clear a trace callback (version 2).
+        """Register a trace callback (version 2).
 
-        If `callback` is `None`, tracing is disabled. Otherwise the callback
-        is invoked for each event type selected by `mask`.
+        The callback is invoked for each event type selected by `mask`.
 
         Parameters:
-            callback: An optional trace callback function. If None, tracing is disabled.
+            callback: A trace callback function.
 
         Args:
             mask: Bitmask of `TraceEventCodes` to monitor.
@@ -687,28 +713,33 @@ struct InnerConnection(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        comptime if callback:
-            var fn_val = callback.value()
-            # Transmute: store fn pointer VALUE as the void pointer address
-            # (same as Rust's `f as *mut c_void`)
-            var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
-            var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
-            return sqlite_ffi()[].trace_v2(
-                    self.db,
-                    mask.value,
-                    _trace_v2_callback,
-                    ctx,
-                )
-        else:
-            # Passing a null callback disables tracing.
-            return sqlite_ffi()[].trace_v2(
-                    self.db,
-                    UInt32(0),
-                    _trace_v2_callback,
-                    MutExternalPointer[NoneType](),
-                )
+        var fn_val = callback
+        # Transmute: store def pointer VALUE as the void pointer address
+        # (same as Rust's `f as *mut c_void`)
+        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
+        return sqlite_ffi()[].trace_v2(
+            self.db,
+            mask.value,
+            _trace_v2_callback,
+            ctx,
+        )
 
-    fn log(self, err_code: Int32, mut msg: String):
+    def clear_trace_v2(self) -> SQLite3Result:
+        """Disable tracing by unregistering the trace callback.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        # Passing mask=0 disables tracing regardless of the callback pointer.
+        return sqlite_ffi()[].trace_v2(
+            self.db,
+            UInt32(0),
+            _trace_v2_callback,
+            None,
+        )
+
+    def log(self, err_code: Int32, mut msg: String):
         """Write a message to the SQLite error log.
 
         Args:
@@ -717,7 +748,7 @@ struct InnerConnection(Movable):
         """
         sqlite_ffi()[].log(c_int(err_code), msg)
 
-    fn set_extension_loading(mut self, *, enable: Bool) -> SQLite3Result:
+    def set_extension_loading(mut self, *, enable: Bool) -> SQLite3Result:
         """Enable or disable the ability to load SQLite extensions.
 
         When extension loading is enabled, you can use `load_extension` to load
@@ -729,7 +760,7 @@ struct InnerConnection(Movable):
         """
         return sqlite_ffi()[].enable_load_extension(self.db, c_int(1 if enable else 0))
 
-    fn load_extension(mut self, dylib_path: Path, entry_point: Optional[String] = None) raises:
+    def load_extension(mut self, dylib_path: Path, entry_point: Optional[String] = None) raises:
         """Load an SQLite extension library.
 
         Extension loading must be enabled via `set_extension_loading(enable=True)`
@@ -744,7 +775,7 @@ struct InnerConnection(Movable):
             Error: If the extension cannot be loaded.
         """
         var path = String(dylib_path)
-        var errmsg = MutExternalPointer[c_char]()
+        var errmsg: Optional[MutExternalPointer[c_char]] = None
         var ep = entry_point.copy()
         var result = sqlite_ffi()[].load_extension(
             self.db, path, ep, errmsg,
@@ -755,12 +786,13 @@ struct InnerConnection(Movable):
         # Extract the error message returned by SQLite, then free it.
         var message: Optional[String] = None
         if errmsg:
-            message = String(unsafe_from_utf8_ptr=errmsg)
-            sqlite_ffi()[].free(errmsg.bitcast[NoneType]())
+            var errmsg_ptr = errmsg.take()
+            message = String(unsafe_from_utf8_ptr=errmsg_ptr)
+            sqlite_ffi()[].free(errmsg_ptr.bitcast[NoneType]())
 
         raise Error(error_from_sqlite_code(result, message))
 
-    fn is_locked(self, rc: SQLite3Result) -> Bool:
+    def is_locked(self, rc: SQLite3Result) -> Bool:
         """Check whether a result code indicates shared-cache lock contention.
 
         Args:
@@ -769,9 +801,9 @@ struct InnerConnection(Movable):
         Returns:
             True if the error is SQLITE_LOCKED due to shared-cache contention.
         """
-        return _is_locked(self.db, rc)
+        return is_locked(self.db, rc)
 
-    fn wait_for_unlock_notify(self) -> SQLite3Result:
+    def wait_for_unlock_notify(self) -> SQLite3Result:
         """Block until an unlock-notify callback fires, then return SQLITE_OK.
 
         Should only be called after a `SQLITE_LOCKED` result in shared-cache mode.
@@ -781,5 +813,5 @@ struct InnerConnection(Movable):
         Returns:
             SQLITE_OK when the lock is released, or an error code.
         """
-        return _wait_for_unlock_notify(self.db)
+        return wait_for_unlock_notify(self.db)
 

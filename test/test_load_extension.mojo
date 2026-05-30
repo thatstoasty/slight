@@ -88,5 +88,5 @@ def test_multiple_connections_independent_guards() raises:
         guard2^.disable_extension_loading()
 
 
-fn main() raises:
+def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()

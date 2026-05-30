@@ -9,30 +9,30 @@ from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal,
 # ===----------------------------------------------------------------------=== #
 
 
-fn win_sum_init(mut ctx: Context) raises -> Int64:
+def win_sum_init(mut ctx: Context) raises -> Int64:
     return 0
 
 
-fn win_sum_step(mut ctx: Context, mut acc: Int64) raises:
+def win_sum_step(mut ctx: Context, mut acc: Int64) raises:
     acc += ctx.get_int64(0)
 
 
-fn win_sum_finalize(mut ctx: Context, acc: Int64) raises -> Optional[Int64]:
+def win_sum_finalize(mut ctx: Context, acc: Int64) raises -> Optional[Int64]:
     return acc
 
 
-fn win_sum_inverse(mut ctx: Context, mut acc: Int64) raises:
+def win_sum_inverse(mut ctx: Context, mut acc: Int64) raises:
     acc -= ctx.get_int64(0)
 
 
-fn win_sum_value(acc: Optional[Int64]) raises -> Optional[Int64]:
+def win_sum_value(acc: Optional[Int64]) raises -> Optional[Int64]:
     return acc.copy()
 
 # ===----------------------------------------------------------------------=== #
 # Window function tests
 # ===----------------------------------------------------------------------=== #
 
-fn _setup_numbers_table(db: Connection) raises:
+def _setup_numbers_table(db: Connection) raises:
     """Helper: create a numbers table with values 1-5."""
     db.execute_batch(
         """
@@ -46,7 +46,7 @@ fn _setup_numbers_table(db: Connection) raises:
     )
 
 
-fn test_window_running_sum() raises:
+def test_window_running_sum() raises:
     """Test window function computing a running sum over the entire partition."""
     var db = Connection.open_in_memory()
     _setup_numbers_table(db)
@@ -55,7 +55,7 @@ fn test_window_running_sum() raises:
         "win_sum", n_arg=1,
     )
 
-    fn get_row(row: Row) raises -> Tuple[Int64, Int64]:
+    def get_row(row: Row) raises -> Tuple[Int64, Int64]:
         return (row.get[Int64](0), row.get[Int64](1))
 
     var stmt = db.prepare(
@@ -78,7 +78,7 @@ fn test_window_running_sum() raises:
     assert_equal(results[4][1], 15)
 
 
-fn test_window_sliding_frame() raises:
+def test_window_sliding_frame() raises:
     """Test window function with a sliding 2-row frame (1 PRECEDING to CURRENT ROW)."""
     var db = Connection.open_in_memory()
     _setup_numbers_table(db)
@@ -87,7 +87,7 @@ fn test_window_sliding_frame() raises:
         "win_sum", n_arg=1,
     )
 
-    fn get_row(row: Row) raises -> Tuple[Int64, Int64]:
+    def get_row(row: Row) raises -> Tuple[Int64, Int64]:
         return (row.get[Int64](0), row.get[Int64](1))
 
     var stmt = db.prepare(
@@ -110,7 +110,7 @@ fn test_window_sliding_frame() raises:
     assert_equal(results[4][1], 9)
 
 
-fn test_window_full_partition() raises:
+def test_window_full_partition() raises:
     """Test window function over the entire partition (no frame restriction)."""
     var db = Connection.open_in_memory()
     _setup_numbers_table(db)
@@ -119,7 +119,7 @@ fn test_window_full_partition() raises:
         "win_sum", n_arg=1,
     )
 
-    fn get_row(row: Row) raises -> Tuple[Int64, Int64]:
+    def get_row(row: Row) raises -> Tuple[Int64, Int64]:
         return (row.get[Int64](0), row.get[Int64](1))
 
     var stmt = db.prepare(
@@ -139,7 +139,7 @@ fn test_window_full_partition() raises:
         assert_equal(results[i][1], 15)
 
 
-fn test_window_with_partition_by() raises:
+def test_window_with_partition_by() raises:
     """Test window function with PARTITION BY, creating separate windows per group."""
     var db = Connection.open_in_memory()
     db.execute_batch(
@@ -157,7 +157,7 @@ fn test_window_with_partition_by() raises:
         "win_sum", n_arg=1,
     )
 
-    fn get_row(row: Row) raises -> Tuple[String, Int64, Int64]:
+    def get_row(row: Row) raises -> Tuple[String, Int64, Int64]:
         return (row.get[String](0), row.get[Int64](1), row.get[Int64](2))
 
     var stmt = db.prepare(
@@ -183,5 +183,5 @@ fn test_window_with_partition_by() raises:
     assert_equal(results[4][2], 20)
 
 
-fn main() raises:
+def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()

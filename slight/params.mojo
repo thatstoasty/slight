@@ -1,13 +1,11 @@
+from std.builtin.constrained import _constrained_conforms_to
 from slight.bind import BindIndex
 from slight.statement import Statement
-from std.builtin.constrained import _constrained_conforms_to
-from std.reflection import get_type_name
-
 
 trait Params(Movable):
     """A trait for types that can be used as parameters in SQL queries."""
 
-    fn bind(self, stmt: Statement) raises:
+    def bind(self, stmt: Statement) raises:
         """Binds the parameters to the given statement.
 
         Args:
@@ -20,7 +18,7 @@ trait Params(Movable):
 
 
 __extension List(Params):
-    fn bind(self, stmt: Statement) raises:
+    def bind(self, stmt: Statement) raises:
         """Binds the parameters to the given statement.
 
         Args:
@@ -51,7 +49,7 @@ __extension List(Params):
 
 
 __extension Dict(Params):
-    fn bind(self, stmt: Statement) raises:
+    def bind(self, stmt: Statement) raises:
         """Binds the parameters to the given statement.
 
         Args:
@@ -82,7 +80,7 @@ __extension Dict(Params):
 
 
 __extension Tuple(Params):
-    fn bind(self, stmt: Statement) raises:
+    def bind(self, stmt: Statement) raises:
         """Binds the parameters to the given statement.
 
         Args:
@@ -92,18 +90,18 @@ __extension Tuple(Params):
         Raises:
             Error: If the parameters cannot be bound to the statement.
         """
-        comptime parameter_count = Variadic.size(Self.element_types)
+        comptime parameter_count = len(Self.element_types)
         comptime if parameter_count == 0:
             return  # No parameters to bind
 
         var expected = Int(stmt.stmt.bind_parameter_count())
         var index = 0
-        comptime for i in range(Variadic.size(Self.element_types)):
+        comptime for i in range(len(Self.element_types)):
             comptime assert conforms_to(Self.element_types[i], ToSQL), String(
                 "All elements of the tuple must conform to `ToSQL`. Element at index ",
                 i,
                 "of type ",
-                get_type_name[Self.element_types[i]](),
+                reflect[Self.element_types[i]]().name(),
                 " does not conform to `ToSQL`",
             )
             index += 1  # The leftmost SQL parameter has an index of 1.

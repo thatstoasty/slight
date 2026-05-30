@@ -5,6 +5,7 @@ from slight.flags import OpenFlag
 from slight.result import SQLite3Result
 from slight.transaction import TransactionBehavior
 from slight.unlock_notify import is_locked, wait_for_unlock_notify
+from slight import Row
 from std.testing import TestSuite, assert_equal, assert_false, assert_true
 
 
@@ -14,7 +15,7 @@ from std.testing import TestSuite, assert_equal, assert_false, assert_true
 # Verifies that `is_locked` returns True when given the
 # SQLITE_LOCKED_SHAREDCACHE (262) extended result code directly.
 # ===----------------------------------------------------------------------=== #
-fn test_is_locked_with_locked_sharedcache() raises:
+def test_is_locked_with_locked_sharedcache() raises:
     var db = Connection.open_in_memory()
     assert_true(is_locked(db.db.db, SQLite3Result.LOCKED_SHAREDCACHE))
 
@@ -25,7 +26,7 @@ fn test_is_locked_with_locked_sharedcache() raises:
 # Verifies that `is_locked` returns False for common non-locked result
 # codes (OK, BUSY, ERROR, DONE, ROW).
 # ===----------------------------------------------------------------------=== #
-fn test_is_locked_with_non_locked_codes() raises:
+def test_is_locked_with_non_locked_codes() raises:
     var db = Connection.open_in_memory()
     assert_false(is_locked(db.db.db, SQLite3Result.OK))
     assert_false(is_locked(db.db.db, SQLite3Result.BUSY))
@@ -41,7 +42,7 @@ fn test_is_locked_with_non_locked_codes() raises:
 # value (262 = SQLITE_LOCKED | (1 << 8)) and that its primary code
 # masked to 0xFF equals SQLITE_LOCKED (6).
 # ===----------------------------------------------------------------------=== #
-fn test_locked_sharedcache_result_code() raises:
+def test_locked_sharedcache_result_code() raises:
     assert_equal(Int(SQLite3Result.LOCKED_SHAREDCACHE.value), 262)
     assert_equal(Int(SQLite3Result.LOCKED_SHAREDCACHE.value & 0xFF), Int(SQLite3Result.LOCKED.value))
 
@@ -53,7 +54,7 @@ fn test_locked_sharedcache_result_code() raises:
 # in-memory database, and that one connection can see tables and data
 # created by the other.
 # ===----------------------------------------------------------------------=== #
-fn test_shared_cache_open() raises:
+def test_shared_cache_open() raises:
     var url = "file:sc_open_test?mode=memory&cache=shared"
     var flags = OpenFlag.READ_WRITE | OpenFlag.URI | OpenFlag.CREATE
 
@@ -64,7 +65,7 @@ fn test_shared_cache_open() raises:
     # Open second connection to the SAME shared-cache database.
     var db2 = Connection.open(url, flags)
 
-    fn get_int(r: slight.row.Row) raises -> Int:
+    def get_int(r: Row) raises -> Int:
         return r.get[Int](0)
 
     # db2 should see the table and data created by db1.
@@ -84,7 +85,7 @@ fn test_shared_cache_open() raises:
 # then the second connection attempts a write and should get a LOCKED
 # error.
 # ===----------------------------------------------------------------------=== #
-fn test_shared_cache_locked() raises:
+def test_shared_cache_locked() raises:
     var url = "file:shared_lock_test?mode=memory&cache=shared"
     var flags = OpenFlag.READ_WRITE | OpenFlag.URI | OpenFlag.CREATE
 
@@ -112,7 +113,7 @@ fn test_shared_cache_locked() raises:
     # Now db2 can write successfully.
     db2.execute_batch("INSERT INTO foo VALUES (99)")
 
-    fn get_int(r: slight.row.Row) raises -> Int:
+    def get_int(r: Row) raises -> Int:
         return r.get[Int](0)
 
     var result = db2.one_row[get_int]("SELECT SUM(x) FROM foo")
@@ -127,7 +128,7 @@ fn test_shared_cache_locked() raises:
 # lock contention, sqlite3_unlock_notify returns SQLITE_LOCKED. This
 # test verifies that the call returns without hanging.
 # ===----------------------------------------------------------------------=== #
-fn test_wait_for_unlock_notify_no_contention() raises:
+def test_wait_for_unlock_notify_no_contention() raises:
     var db = Connection.open_in_memory()
     # With no actual contention, sqlite3_unlock_notify should return
     # a non-OK code (typically SQLITE_LOCKED) rather than blocking.
@@ -135,9 +136,9 @@ fn test_wait_for_unlock_notify_no_contention() raises:
     # We just verify it doesn't hang and returns a result code.
     assert_true(
         rc == SQLite3Result.OK or rc == SQLite3Result.LOCKED or rc == SQLite3Result.LOCKED_SHAREDCACHE,
-        String("Unexpected result from wait_for_unlock_notify: ", rc),
+        String(t"Unexpected result from wait_for_unlock_notify: {rc}"),
     )
 
 
-fn main() raises:
+def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
