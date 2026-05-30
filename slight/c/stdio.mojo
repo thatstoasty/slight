@@ -80,7 +80,7 @@ def ftell(fp: CPointer[NoneType, MutExternalOrigin]) -> Int:
     return external_call["ftell", Int](fp)
 
 
-def fread(buf: CPointer[NoneType, MutExternalOrigin], size: Int, count: Int, fp: CPointer[NoneType, MutExternalOrigin]) -> Int:
+def fread[origin: MutOrigin, //](buf: MutUnsafePointer[NoneType, origin], size: Int, count: Int, fp: CPointer[NoneType, MutExternalOrigin]) -> Int:
     """Read up to ``count`` elements of ``size`` bytes each from ``fp``.
 
     Args:
@@ -108,7 +108,7 @@ def fgetc(fp: CPointer[NoneType, MutExternalOrigin]) -> Optional[Byte]:
     var ret = external_call["fgetc", c_int](fp)
     if ret < c_int(0):
         return None
-    return Byte(Int(ret))
+    return Byte(ret)
 
 
 def feof(fp: CPointer[NoneType, MutExternalOrigin]) -> c_int:

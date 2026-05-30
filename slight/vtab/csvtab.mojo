@@ -20,6 +20,7 @@ Port of ``rusqlite/src/vtab/csvtab.rs``.
 """
 
 from std.ffi import c_char, c_int
+from std.memory import stack_allocation
 from slight.c.types import (
     ImmutExternalOrigin,
     MutExternalPointer,
@@ -154,23 +155,6 @@ struct CsvCursor(Movable):
 # ===----------------------------------------------------------------------=== #
 # CSV parsing helpers
 # ===----------------------------------------------------------------------=== #
-
-
-# def _fgetc(fp: CPointer[NoneType, MutExternalOrigin]) -> Int:
-#     """Read one byte from an open file handle.
-
-#     Args:
-#         fp: Open file handle.
-
-#     Returns:
-#         The byte value (0-255), or -1 at end-of-file / on error.
-#     """
-#     var buf = List[UInt8](capacity=1)
-#     buf.append(UInt8(0))
-#     var n = fread(buf.unsafe_ptr().bitcast[CPointer[NoneType, MutExternalOrigin]](), 1, 1, fp)
-#     if n == 0:
-#         return -1
-#     return Int(buf[0])
 
 comptime LF_BYTE = as_byte["\n"]()
 comptime CR_BYTE = as_byte["\r"]()
