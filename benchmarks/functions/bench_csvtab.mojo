@@ -16,18 +16,6 @@ from slight.connection import Connection
 from slight.flags import PrepFlag
 from slight.vtab.csvtab import load_module
 
-
-def _bytes_measure(n_bytes: Int) raises -> ThroughputMeasure:
-    return ThroughputMeasure(BenchMetric.bytes, n_bytes)
-
-
-def run[
-    func: def (mut Bencher, String) raises capturing,
-    name: String,
-](mut m: Bench, csv_path: String, file_bytes: Int) raises:
-    m.bench_with_input[String, func](BenchId(name), csv_path, [_bytes_measure(file_bytes)])
-
-
 # ===----------------------------------------------------------------------=== #
 # Benchmark functions
 # ===----------------------------------------------------------------------=== #
@@ -117,28 +105,3 @@ def bench_csvtab_connect(mut b: Bencher, csv_path: String) raises:
         )
 
     b.iter[do]()
-
-
-# ===----------------------------------------------------------------------=== #
-# Entry point
-# ===----------------------------------------------------------------------=== #
-
-
-def main() raises:
-    var config = BenchConfig()
-    config.verbose_timing = True
-    config.flush_denormals = True
-    config.show_progress = True
-    var bench = Bench(config^)
-
-    var csv_path = String(pathlib._dir_of_current_file()) + "/data/bench.csv"
-    var file_bytes: Int
-    with open(csv_path, "r") as f:
-        file_bytes = f.read().byte_length()
-
-    run[bench_csvtab_full_scan, "csvtab_full_scan"](bench, csv_path, file_bytes)
-    run[bench_csvtab_count, "csvtab_count"](bench, csv_path, file_bytes)
-    run[bench_csvtab_filter, "csvtab_filter"](bench, csv_path, file_bytes)
-    run[bench_csvtab_connect, "csvtab_connect"](bench, csv_path, file_bytes)
-
-    bench.dump_report()
