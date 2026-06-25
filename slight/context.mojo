@@ -1,4 +1,4 @@
-from std.ffi import c_int
+from std.ffi import c_int, CStringSlice
 from std.os import abort
 from std.memory import ImmutSpan
 from slight.c.types import MutExternalPointer, sqlite3_connection, sqlite3_context, sqlite3_value, ResultDestructorFn
@@ -138,8 +138,8 @@ struct Context(Movable, Sized, Boolable):
         debug_assert(idx < len(self), "Argument index out of bounds")
         return sqlite_ffi()[].value_double(self.args[idx])
 
-    def get_text(self, idx: Int) -> Optional[StringSlice[origin_of(self)]]:
-        """Returns the `idx`th argument as a StringSlice.
+    def get_text(self, idx: Int) raises -> Optional[CStringSlice[origin_of(self)]]:
+        """Returns the `idx`th argument as a CStringSlice.
 
         This calls `sqlite3_value_text` directly. The returned slice
         references memory managed by SQLite and is valid for the duration
@@ -149,7 +149,10 @@ struct Context(Movable, Sized, Boolable):
             idx: The 0-based argument index.
 
         Returns:
-            The argument value as a string slice.
+            The argument value as a CStringSlice.
+        
+        Raises:
+            Error: SQLite returned non UTF-8 text for the argument, which is not valid.
         """
         debug_assert(idx < len(self), "Argument index out of bounds")
         var text = sqlite_ffi()[].value_text(self.args[idx])
@@ -158,9 +161,8 @@ struct Context(Movable, Sized, Boolable):
         
         # We're laundering the origin here. It should be safe because the value should
         # live as long as the context is alive. That conveys more information than using an external origin.
-        return StringSlice(
-            ptr=text.value().unsafe_ptr().unsafe_origin_cast[origin_of(self)](),
-            length=text.value().byte_length()
+        return CStringSlice(
+            unsafe_from_ptr=text.value().unsafe_ptr().bitcast[Int8]().unsafe_origin_cast[origin_of(self)](),
         )
 
     def get_blob(self, idx: Int) -> Optional[Span[Byte, origin_of(self)]]:

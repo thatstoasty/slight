@@ -1,3 +1,4 @@
+from std.ffi import CStringSlice
 from std.os import abort
 from std.memory import ImmutSpan
 from slight.c.types import ImmutExternalPointer, MutExternalPointer, ResultDestructorFn, sqlite3_stmt
@@ -45,11 +46,8 @@ struct RawStatement(Movable):
         """
         return sqlite_ffi()[].column_double(self.stmt, Int32(idx))
 
-    def column_text(self, idx: UInt) raises -> StringSlice[ImmutExternalOrigin]:
+    def column_text(self, idx: UInt) raises -> StringSlice[ImmutUntrackedOrigin]:
         """Returns the value of the specified column as a text string.
-
-        The program will abort if the column contains NULL data, so this method
-        takes ownership of `self` to be able to finalize the statement in that case.
 
         Args:
             idx: The index of the column to retrieve.
@@ -65,7 +63,7 @@ struct RawStatement(Movable):
             raise Error("Unexpected SQLITE_TEXT column type with NULL data.")
 
         # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
-        return text.take()
+        return StringSlice(unsafe_from_utf8=text.take())
 
     def column_blob(self, idx: UInt) raises -> Span[Byte, origin_of(self)]:
         """Returns the value of the specified column as binary data.

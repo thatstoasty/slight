@@ -3,7 +3,7 @@ from std.memory import OpaquePointer
 from std.utils import StaticTuple
 
 
-comptime ImmutExternalPointer = ImmutUnsafePointer[origin=ImmutExternalOrigin, address_space=AddressSpace.GENERIC, ...]
+comptime ImmutExternalPointer = ImmutUnsafePointer[origin=ImmutUntrackedOrigin, address_space=AddressSpace.GENERIC, ...]
 """Immutable External Pointer.
 
 Parameters:
@@ -15,7 +15,7 @@ comptime ImmutExternalOpaquePointer = ImmutExternalPointer[NoneType]
 Parameters:
     type: The type of the data the pointer points to.
 """
-comptime MutExternalPointer = MutUnsafePointer[origin=MutExternalOrigin, address_space=AddressSpace.GENERIC, ...]
+comptime MutExternalPointer = MutUnsafePointer[origin=MutUntrackedOrigin, address_space=AddressSpace.GENERIC, ...]
 """Mutable External Pointer.
 
 Parameters:
@@ -178,7 +178,7 @@ comptime ScalarFnCallback = def(
     MutExternalPointer[sqlite3_context],
     c_int,
     MutExternalPointer[MutExternalPointer[sqlite3_value]],
-) raises abi("C") thin
+) abi("C") thin
 """Callback type for scalar SQL functions.
 
 The callback receives:

@@ -101,7 +101,7 @@ __extension Tuple(Params):
                 "All elements of the tuple must conform to `ToSQL`. Element at index ",
                 i,
                 "of type ",
-                reflect[Self.element_types[i]]().name(),
+                reflect[Self.element_types[i]].name(),
                 " does not conform to `ToSQL`",
             )
             index += 1  # The leftmost SQL parameter has an index of 1.

@@ -280,10 +280,10 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
             Error: If the column value cannot be converted to type `S`.
         """
         comptime assert conforms_to(S, FromSQL), String(
-            t"S must implement `FromSQL`. {reflect[S]().name()} does not implement `FromSQL`."
+            t"S must implement `FromSQL`. {reflect[S].name()} does not implement `FromSQL`."
         )
         comptime assert conforms_to(I, RowIndex), String(
-            t"I must implement `RowIndex`. {reflect[I]().name()} does not implement `RowIndex`."
+            t"I must implement `RowIndex`. {reflect[I].name()} does not implement `RowIndex`."
         )
 
         var i = trait_downcast[RowIndex](idx).idx(self.stmt[])
@@ -467,7 +467,7 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: ColumnType](Copya
         Raises:
             Error: If the transformation fails.
         """
-        comptime ReflectedT = reflect[Self.T]()
+        comptime ReflectedT = reflect[Self.T]
         comptime assert ReflectedT.is_struct(), "TypedRows can only transform to struct types."
 
         comptime field_count = ReflectedT.field_count()

@@ -1,6 +1,6 @@
 from slight.c.types import MutExternalPointer
 from slight.api import sqlite_ffi
-from std.ffi import c_char
+from std.ffi import c_char, CStringSlice
 
 
 @fieldwise_init
@@ -30,10 +30,10 @@ struct SQLiteMallocString(Movable):
         """
         return self.ptr.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().address_space_cast[address_space]()
 
-    def as_string_slice(self) -> StringSlice[origin_of(self)]:
-        """Returns the C string to a `StringSlice`.
+    def as_string_slice(self) -> CStringSlice[origin_of(self)]:
+        """Returns the C string to a `CStringSlice`.
 
         Returns:
-            A `StringSlice` representing the C string.
+            A `CStringSlice` representing the C string.
         """
-        return StringSlice(unsafe_from_utf8_ptr=self.unsafe_ptr())
+        return CStringSlice(unsafe_from_ptr=self.unsafe_ptr())

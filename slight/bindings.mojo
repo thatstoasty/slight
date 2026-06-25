@@ -1,4 +1,4 @@
-from std.ffi import c_char, c_int, c_uchar, c_uint
+from std.ffi import c_char, c_int, c_uchar, c_uint, CStringSlice
 from std.memory import MutOpaquePointer, MutUnsafePointer
 from std.pathlib import Path
 from slight.c.raw_bindings import _sqlite3
@@ -1150,9 +1150,9 @@ struct sqlite3(Movable):
         # if not ptr:
         #     return None
 
-        # return StringSlice(unsafe_from_utf8_ptr=ptr).get_immutable()
+        # return CStringSlice(unsafe_from_ptr=ptr).get_immutable()
 
-    def column_table_name(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], idx: c_int) -> Optional[StringSlice[ImmutExternalOrigin]]:
+    def column_table_name(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], idx: c_int) -> Optional[CStringSlice[ImmutUntrackedOrigin]]:
         """Get the table name of a column.
 
         This function returns the name of the table that is the origin of
@@ -1170,9 +1170,9 @@ struct sqlite3(Movable):
         if not ptr:
             return None
 
-        return StringSlice(unsafe_from_utf8_ptr=ptr.take())
+        return CStringSlice(unsafe_from_ptr=ptr.take())
 
-    def column_origin_name(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], idx: c_int) raises -> StringSlice[ImmutExternalOrigin]:
+    def column_origin_name(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], idx: c_int) raises -> CStringSlice[ImmutUntrackedOrigin]:
         """Get the origin column name.
 
         This function returns the name of the table column that is the origin
@@ -1190,9 +1190,9 @@ struct sqlite3(Movable):
         if not ptr:
             raise Error(t"Origin column name not available for column index: {idx}. Index may be out of range or SQLite was not compiled with `SQLITE_ENABLE_COLUMN_METADATA` enabled.")
         
-        return StringSlice(unsafe_from_utf8_ptr=ptr.take())
+        return CStringSlice(unsafe_from_ptr=ptr.take())
 
-    def column_decltype(self, pStmt: MutExternalPointer[sqlite3_stmt], idx: c_int) raises -> StringSlice[ImmutExternalOrigin]:
+    def column_decltype(self, pStmt: MutExternalPointer[sqlite3_stmt], idx: c_int) raises -> CStringSlice[ImmutUntrackedOrigin]:
         """Get the declared datatype of a column.
 
         This function returns the declared datatype of a result column. The
@@ -1214,7 +1214,7 @@ struct sqlite3(Movable):
         if not ptr:
             raise Error(t"Declared datatype not available for column index: {idx}. Index may be out of range.")
         
-        return StringSlice(unsafe_from_utf8_ptr=ptr.take())
+        return CStringSlice(unsafe_from_ptr=ptr.take())
 
     def step(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]]) -> SQLite3Result:
         """Execute a prepared statement.
@@ -1284,7 +1284,7 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_column_int64(pStmt, iCol)
 
-    def column_text(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], iCol: c_int) raises -> Optional[StringSlice[ImmutExternalOrigin]]:
+    def column_text(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], iCol: c_int) raises -> Optional[CStringSlice[ImmutUntrackedOrigin]]:
         """Retrieve column data as UTF-8 text.
 
         This function returns the value of the specified column as a UTF-8
@@ -1302,7 +1302,7 @@ struct sqlite3(Movable):
         if not ptr:
             return None
         
-        return StringSlice(unsafe_from_utf8_ptr=ptr.take())
+        return CStringSlice(unsafe_from_ptr=ptr.take().bitcast[Int8]())
 
     def column_value(self, pStmt: MutExternalPointer[sqlite3_stmt], iCol: c_int) raises -> MutExternalPointer[sqlite3_value]:
         """Result Values From A Query - Unprotected sqlite3_value.
@@ -1742,7 +1742,7 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_memory_alarm(callback, arg, n)
 
-    def value_blob(self, value: MutExternalPointer[sqlite3_value]) -> Optional[Span[Byte, ImmutExternalOrigin]]:
+    def value_blob(self, value: MutExternalPointer[sqlite3_value]) -> Optional[Span[Byte, ImmutUntrackedOrigin]]:
         """Obtaining SQL Values - BLOB.
 
         This routine extracts a BLOB value from an sqlite3_value object.
@@ -1808,7 +1808,7 @@ struct sqlite3(Movable):
             raise Error(t"Failed to retrieve pointer value for type: {typeStr}. Type string may not match or value may not be a pointer.")
         return ptr.take()
 
-    def value_text(self, value: MutExternalPointer[sqlite3_value]) -> Optional[StringSlice[ImmutExternalOrigin]]:
+    def value_text(self, value: MutExternalPointer[sqlite3_value]) -> Optional[StringSlice[ImmutUntrackedOrigin]]:
         """Obtaining SQL Values - TEXT.
 
         This routine extracts a text string from an sqlite3_value object.
@@ -1822,7 +1822,12 @@ struct sqlite3(Movable):
         var ptr = self.lib.sqlite3_value_text(value)
         if not ptr:
             return None
-        return StringSlice(ptr=ptr.take(), length=Int(self.lib.sqlite3_value_bytes(value)))
+        return StringSlice(
+            unsafe_from_utf8=Span(
+                ptr=ptr.take().bitcast[Byte](),
+                length=Int(self.lib.sqlite3_value_bytes(value))
+            )
+        )
 
     def value_bytes(self, value: MutExternalPointer[sqlite3_value]) -> SQLite3Result:
         """Size Of A BLOB Or TEXT Value In Bytes.
@@ -2275,21 +2280,21 @@ struct sqlite3(Movable):
         Returns:
             Result code (SQLITE_OK on success).
         """
-        var db_ptr: Optional[ImmutExternalPointer[c_char]] = zDbName.value().as_c_string_slice().unsafe_ptr().bitcast[c_char]().unsafe_origin_cast[ImmutExternalOrigin]() if zDbName else None
-        var col_name_ptr: Optional[ImmutExternalPointer[c_char]] = zColumnName.value().as_c_string_slice().unsafe_ptr().bitcast[c_char]().unsafe_origin_cast[ImmutExternalOrigin]() if zColumnName else None
-        var dt_ptr: Optional[ImmutExternalPointer[c_char]] = pzDataType.value().as_c_string_slice().unsafe_ptr().bitcast[c_char]().unsafe_origin_cast[ImmutExternalOrigin]() if pzDataType else None
-        var coll_seq_ptr: Optional[ImmutExternalPointer[c_char]] = pzCollSeq.value().as_c_string_slice().unsafe_ptr().bitcast[c_char]().unsafe_origin_cast[ImmutExternalOrigin]() if pzCollSeq else None
-        var pNotNull_ptr: Optional[MutExternalPointer[c_int]] = UnsafePointer(to=pNotNull.value()).unsafe_origin_cast[MutExternalOrigin]() if pNotNull else None
-        var pPrimaryKey_ptr: Optional[MutExternalPointer[c_int]] = UnsafePointer(to=pPrimaryKey.value()).unsafe_origin_cast[MutExternalOrigin]() if pPrimaryKey else None
-        var pAutoinc_ptr: Optional[MutExternalPointer[c_int]] = UnsafePointer(to=pAutoinc.value()).unsafe_origin_cast[MutExternalOrigin]() if pAutoinc else None
+        var db_ptr: Optional[ImmutExternalPointer[c_char]] = zDbName.value().as_c_string_slice().unsafe_ptr().bitcast[c_char]().unsafe_origin_cast[ImmutUntrackedOrigin]() if zDbName else None
+        var col_name_ptr: Optional[ImmutExternalPointer[c_char]] = zColumnName.value().as_c_string_slice().unsafe_ptr().bitcast[c_char]().unsafe_origin_cast[ImmutUntrackedOrigin]() if zColumnName else None
+        var dt_ptr: Optional[ImmutExternalPointer[c_char]] = pzDataType.value().as_c_string_slice().unsafe_ptr().bitcast[c_char]().unsafe_origin_cast[ImmutUntrackedOrigin]() if pzDataType else None
+        var coll_seq_ptr: Optional[ImmutExternalPointer[c_char]] = pzCollSeq.value().as_c_string_slice().unsafe_ptr().bitcast[c_char]().unsafe_origin_cast[ImmutUntrackedOrigin]() if pzCollSeq else None
+        var pNotNull_ptr: Optional[MutExternalPointer[c_int]] = UnsafePointer(to=pNotNull.value()).unsafe_origin_cast[MutUntrackedOrigin]() if pNotNull else None
+        var pPrimaryKey_ptr: Optional[MutExternalPointer[c_int]] = UnsafePointer(to=pPrimaryKey.value()).unsafe_origin_cast[MutUntrackedOrigin]() if pPrimaryKey else None
+        var pAutoinc_ptr: Optional[MutExternalPointer[c_int]] = UnsafePointer(to=pAutoinc.value()).unsafe_origin_cast[MutUntrackedOrigin]() if pAutoinc else None
 
         return self.lib.sqlite3_table_column_metadata(
             db,
             db_ptr,
-            zTableName.as_c_string_slice().unsafe_ptr().bitcast[c_char]().unsafe_origin_cast[ImmutExternalOrigin](),
+            zTableName.as_c_string_slice().unsafe_ptr().bitcast[c_char]().unsafe_origin_cast[ImmutUntrackedOrigin](),
             col_name_ptr,
-            UnsafePointer(to=dt_ptr).unsafe_origin_cast[MutExternalOrigin](),
-            UnsafePointer(to=coll_seq_ptr).unsafe_origin_cast[MutExternalOrigin](),
+            UnsafePointer(to=dt_ptr).unsafe_origin_cast[MutUntrackedOrigin](),
+            UnsafePointer(to=coll_seq_ptr).unsafe_origin_cast[MutUntrackedOrigin](),
             pNotNull_ptr,
             pPrimaryKey_ptr,
             pAutoinc_ptr,
@@ -2316,7 +2321,7 @@ struct sqlite3(Movable):
             Result code (SQLITE_OK on success).
         """
         if zProc:
-            return self.lib.sqlite3_load_extension(db, zFile.as_c_string_slice().unsafe_ptr(), zProc.value().as_c_string_slice().unsafe_ptr().unsafe_origin_cast[ImmutExternalOrigin](), UnsafePointer(to=pzErrMsg))
+            return self.lib.sqlite3_load_extension(db, zFile.as_c_string_slice().unsafe_ptr(), zProc.value().as_c_string_slice().unsafe_ptr().unsafe_origin_cast[ImmutUntrackedOrigin](), UnsafePointer(to=pzErrMsg))
         else:
             return self.lib.sqlite3_load_extension(db, zFile.as_c_string_slice().unsafe_ptr(), None, UnsafePointer(to=pzErrMsg))
 
@@ -2361,7 +2366,7 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_db_handle(pStmt)
 
-    def db_name(self, db: MutExternalPointer[sqlite3_connection], N: c_int) -> Optional[StringSlice[ImmutExternalOrigin]]:
+    def db_name(self, db: MutExternalPointer[sqlite3_connection], N: c_int) -> Optional[CStringSlice[ImmutUntrackedOrigin]]:
         """Return The Name Of An Attached Database.
 
         This routine returns the name of the Nth attached database.
@@ -2377,11 +2382,11 @@ struct sqlite3(Movable):
         if not ptr:
             return None
 
-        return StringSlice(unsafe_from_utf8_ptr=ptr.take())
+        return CStringSlice(unsafe_from_ptr=ptr.take())
 
     def db_filename(
         self, db: MutExternalPointer[sqlite3_connection], mut zDbName: String
-    ) -> Optional[StringSlice[ImmutExternalOrigin]]:
+    ) -> Optional[CStringSlice[ImmutUntrackedOrigin]]:
         """Return The Filename For A Database Connection.
 
         This routine returns the filename associated with a database connection.
@@ -2397,7 +2402,7 @@ struct sqlite3(Movable):
         if not ptr:
             return None
 
-        return StringSlice(unsafe_from_utf8_ptr=ptr.take())
+        return CStringSlice(unsafe_from_ptr=ptr.take())
 
     def db_readonly(self, db: MutExternalPointer[sqlite3_connection], mut zDbName: String) -> SQLite3Result:
         """Determine If A Database Is Read-Only.
@@ -2916,7 +2921,7 @@ struct sqlite3(Movable):
             Result code (SQLITE_OK on success).
         """
         if zDb:
-            return self.lib.sqlite3_wal_checkpoint(db, zDb.value().as_c_string_slice().unsafe_ptr().unsafe_origin_cast[ImmutExternalOrigin]())
+            return self.lib.sqlite3_wal_checkpoint(db, zDb.value().as_c_string_slice().unsafe_ptr().unsafe_origin_cast[ImmutUntrackedOrigin]())
         else:
             return self.lib.sqlite3_wal_checkpoint(db)
 
@@ -2948,7 +2953,7 @@ struct sqlite3(Movable):
             Result code (SQLITE_OK on success).
         """
         if zDb:
-            return self.lib.sqlite3_wal_checkpoint_v2(db, zDb.value().as_c_string_slice().unsafe_ptr().unsafe_origin_cast[ImmutExternalOrigin](), eMode, pnLog, pnCkpt)
+            return self.lib.sqlite3_wal_checkpoint_v2(db, zDb.value().as_c_string_slice().unsafe_ptr().unsafe_origin_cast[ImmutUntrackedOrigin](), eMode, pnLog, pnCkpt)
         else:
             return self.lib.sqlite3_wal_checkpoint_v2(db, None, eMode, pnLog, pnCkpt)
 
@@ -2996,7 +3001,7 @@ struct sqlite3(Movable):
 
     def vtab_collation(
         self, pIdxInfo: MutExternalPointer[sqlite3_index_info], iCons: c_int
-    ) -> Optional[StringSlice[ImmutExternalOrigin]]:
+    ) -> Optional[CStringSlice[ImmutUntrackedOrigin]]:
         """Get The Collation For A Virtual Table Constraint.
 
         This routine returns the name of the collation sequence for a constraint
@@ -3013,7 +3018,7 @@ struct sqlite3(Movable):
         if not ptr:
             return None
 
-        return StringSlice(unsafe_from_utf8_ptr=ptr.take())
+        return CStringSlice(unsafe_from_ptr=ptr.take())
 
     def vtab_distinct(self, pIdxInfo: MutExternalPointer[sqlite3_index_info]) -> SQLite3Result:
         """Determine If A Virtual Table Query Is DISTINCT.
@@ -3102,7 +3107,7 @@ struct sqlite3(Movable):
         mut zSchema: String,
         piSize: MutUnsafePointer[Int64, origin],
         mFlags: UInt32,
-    ) -> Optional[Span[Byte, ImmutExternalOrigin]]:
+    ) -> Optional[Span[Byte, ImmutUntrackedOrigin]]:
         """Serialize A Database.
 
         This routine serializes a database into a memory buffer that can be

@@ -22,7 +22,7 @@ Port of ``rusqlite/src/vtab/csvtab.rs``.
 from std.ffi import c_char, c_int
 from std.memory import stack_allocation
 from slight.c.types import (
-    ImmutExternalOrigin,
+    ImmutUntrackedOrigin,
     MutExternalPointer,
     sqlite3_connection,
     sqlite3_index_info,
@@ -106,7 +106,7 @@ struct CsvCursor(Movable):
     The file is closed when the cursor is destroyed (``__del__``).
     """
 
-    var fp: CPointer[NoneType, MutExternalOrigin]
+    var fp: CPointer[NoneType, MutUntrackedOrigin]
     """Open ``FILE *`` handle (None = not open)."""
 
     var filename: String
@@ -161,7 +161,7 @@ comptime CR_BYTE = as_byte["\r"]()
 
 
 def _read_row_from_fp(
-    fp: CPointer[NoneType, MutExternalOrigin],
+    fp: CPointer[NoneType, MutUntrackedOrigin],
     delimiter: UInt8,
     quote: UInt8,
 ) -> Optional[List[String]]:
@@ -626,7 +626,7 @@ def _csv_advance(cursor: MutExternalPointer[CsvCursor]) raises:
 def csv_filter(
     cursor: MutExternalPointer[CsvCursor],
     idx_num: c_int,
-    idx_str: Optional[StringSlice[ImmutExternalOrigin]],
+    idx_str: Optional[StringSlice[ImmutUntrackedOrigin]],
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
     argc: c_int,
 ) raises:

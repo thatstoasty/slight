@@ -24,7 +24,7 @@ from slight.result import SQLite3Result
 
 
 def _unlock_notify_cb(
-    ap_arg: MutUnsafePointer[MutExternalPointer[NoneType], MutExternalOrigin],
+    ap_arg: MutUnsafePointer[MutExternalPointer[NoneType], MutUntrackedOrigin],
     n_arg: c_int,
 ) abi("C"):
     """C-compatible unlock-notify callback.

@@ -14,7 +14,7 @@ See:
 - https://www.sqlite.org/c3ref/c_stmtstatus_counter.html
 """
 
-from std.ffi import c_char, c_int
+from std.ffi import c_char, c_int, CStringSlice
 from slight.c.raw_bindings import sqlite3_connection, sqlite3_stmt
 from slight.c.types import MutExternalPointer
 from slight.api import sqlite_ffi
@@ -301,7 +301,7 @@ struct TraceEvent:
         """
         var ptr = self._x.bitcast[c_char]().unsafe_mut_cast[False]()
         return String(
-            StringSlice(unsafe_from_utf8_ptr=ptr)
+            CStringSlice(unsafe_from_ptr=ptr)
         )
 
     def stmt_sql(self) -> String:
@@ -317,7 +317,7 @@ struct TraceEvent:
         if not sql_ptr:
             return ""
         return String(
-            StringSlice(unsafe_from_utf8_ptr=sql_ptr.value())
+            CStringSlice(unsafe_from_ptr=sql_ptr.value())
         )
 
     def expanded_sql(self) raises -> String:

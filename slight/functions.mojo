@@ -177,7 +177,7 @@ def _call_step_callback[
             # If the user's init function raises an error, we need to convert it to a SQLite error result.
             context.result_error(t"Error in aggregate init function: {e}")
             return
-        agg_context = Optional[UnsafePointer[A, MutExternalOrigin]](agg_context_ptr)
+        agg_context = Optional[UnsafePointer[A, MutUntrackedOrigin]](agg_context_ptr)
 
     try:
         step_fn(context, agg_context.value()[])

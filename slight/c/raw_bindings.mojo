@@ -883,7 +883,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._fn_sqlite3_busy_handler(db, callback, arg.unsafe_origin_cast[MutExternalOrigin]())
+        return self._fn_sqlite3_busy_handler(db, callback, arg.unsafe_origin_cast[MutUntrackedOrigin]())
 
     def sqlite3_busy_timeout(self, db: MutExternalPointer[sqlite3_connection], ms: c_int) -> c_int:
         """Set A Busy Timeout.
@@ -974,7 +974,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._fn_sqlite3_set_authorizer(db, auth_callback, pUserData.unsafe_origin_cast[MutExternalOrigin]())
+        return self._fn_sqlite3_set_authorizer(db, auth_callback, pUserData.unsafe_origin_cast[MutUntrackedOrigin]())
 
     def sqlite3_trace[arg_origin: MutOrigin](
         self,
@@ -998,7 +998,7 @@ struct _sqlite3(Movable):
         Returns:
             Previously registered user data pointer.
         """
-        return self._fn_sqlite3_trace(db, xTrace, pArg.unsafe_origin_cast[MutExternalOrigin]())
+        return self._fn_sqlite3_trace(db, xTrace, pArg.unsafe_origin_cast[MutUntrackedOrigin]())
 
     def sqlite3_profile[
         arg_origin: MutOrigin
@@ -1023,7 +1023,7 @@ struct _sqlite3(Movable):
         Returns:
             Previously registered user data pointer.
         """
-        return self._fn_sqlite3_profile(db, xProfile, pArg.unsafe_origin_cast[MutExternalOrigin]())
+        return self._fn_sqlite3_profile(db, xProfile, pArg.unsafe_origin_cast[MutUntrackedOrigin]())
 
     def sqlite3_trace_v2(
         self,
@@ -1075,7 +1075,7 @@ struct _sqlite3(Movable):
             xProgress: Progress callback function.
             pArg: User data pointer passed to callback.
         """
-        self._fn_sqlite3_progress_handler(db, nOps, xProgress, pArg.unsafe_origin_cast[MutExternalOrigin]())
+        self._fn_sqlite3_progress_handler(db, nOps, xProgress, pArg.unsafe_origin_cast[MutUntrackedOrigin]())
 
     def sqlite3_open_v2[
         filename_origin: ImmutOrigin,
@@ -1116,10 +1116,10 @@ struct _sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         return self._fn_sqlite3_open_v2(
-            filename.unsafe_origin_cast[MutExternalOrigin](),
-            ppDb.unsafe_origin_cast[MutExternalOrigin](),
+            filename.unsafe_origin_cast[MutUntrackedOrigin](),
+            ppDb.unsafe_origin_cast[MutUntrackedOrigin](),
             flags,
-            zVfs.unsafe_origin_cast[MutExternalOrigin]()
+            zVfs.unsafe_origin_cast[MutUntrackedOrigin]()
         )
     
     def sqlite3_open_v2[
@@ -1158,8 +1158,8 @@ struct _sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         return self._fn_sqlite3_open_v2(
-            filename.unsafe_origin_cast[MutExternalOrigin](),
-            ppDb.unsafe_origin_cast[MutExternalOrigin](),
+            filename.unsafe_origin_cast[MutUntrackedOrigin](),
+            ppDb.unsafe_origin_cast[MutUntrackedOrigin](),
             flags,
             None
         )
@@ -1305,13 +1305,13 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        # var temp_tail = pzTail[].unsafe_origin_cast[ImmutExternalOrigin]()
+        # var temp_tail = pzTail[].unsafe_origin_cast[ImmutUntrackedOrigin]()
         # return self._fn_sqlite3_prepare_v2(
         #     db,
-        #     zSql.unsafe_origin_cast[MutExternalOrigin](),
+        #     zSql.unsafe_origin_cast[MutUntrackedOrigin](),
         #     nByte,
-        #     ppStmt.unsafe_origin_cast[MutExternalOrigin](),
-        #     UnsafePointer(to=temp_tail).unsafe_origin_cast[MutExternalOrigin]()
+        #     ppStmt.unsafe_origin_cast[MutUntrackedOrigin](),
+        #     UnsafePointer(to=temp_tail).unsafe_origin_cast[MutUntrackedOrigin]()
         # )
         return self.lib.get_function[
             def(
@@ -1357,15 +1357,15 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        # var temp_tail = pzTail[].unsafe_origin_cast[ImmutExternalOrigin]()
+        # var temp_tail = pzTail[].unsafe_origin_cast[ImmutUntrackedOrigin]()
         # return self._fn_sqlite3_prepare_v3(
         #     db,
-        #     zSql.unsafe_origin_cast[MutExternalOrigin](),
+        #     zSql.unsafe_origin_cast[MutUntrackedOrigin](),
         #     nByte,
         #     prepFlags,
-        #     ppStmt.unsafe_origin_cast[MutExternalOrigin](),
-        #     UnsafePointer(to=temp_tail).unsafe_origin_cast[MutExternalOrigin]()
-        #     # pzTail.unsafe_origin_cast[MutExternalOrigin]()
+        #     ppStmt.unsafe_origin_cast[MutUntrackedOrigin](),
+        #     UnsafePointer(to=temp_tail).unsafe_origin_cast[MutUntrackedOrigin]()
+        #     # pzTail.unsafe_origin_cast[MutUntrackedOrigin]()
         # )
         return self.lib.get_function[
             def(
@@ -1483,7 +1483,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._fn_sqlite3_bind_blob64(pStmt, idx, value.unsafe_origin_cast[MutExternalOrigin](), n, destructor_callback)
+        return self._fn_sqlite3_bind_blob64(pStmt, idx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback)
 
     def sqlite3_bind_double(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], idx: c_int, value: Float64) -> c_int:
         """Binding Values To Prepared Statements - REAL.
@@ -1562,7 +1562,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._fn_sqlite3_bind_text64(pStmt, idx, value.unsafe_origin_cast[MutExternalOrigin](), n, destructor_callback, encoding)
+        return self._fn_sqlite3_bind_text64(pStmt, idx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback, encoding)
 
     def sqlite3_bind_pointer[
         value_origin: MutOrigin,
@@ -1594,7 +1594,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._fn_sqlite3_bind_pointer(pStmt, idx, value.unsafe_origin_cast[MutExternalOrigin](), typeStr.unsafe_origin_cast[MutExternalOrigin](), destructor_callback)
+        return self._fn_sqlite3_bind_pointer(pStmt, idx, value.unsafe_origin_cast[MutUntrackedOrigin](), typeStr.unsafe_origin_cast[MutUntrackedOrigin](), destructor_callback)
 
     def sqlite3_bind_zeroblob(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], idx: c_int, n: c_int) -> c_int:
         """Binding Values To Prepared Statements - Zeroblob.
@@ -1665,7 +1665,7 @@ struct _sqlite3(Movable):
         Returns:
             Index of the parameter (1-based), or 0 if not found.
         """
-        return self._fn_sqlite3_bind_parameter_index(pStmt, zName.unsafe_origin_cast[MutExternalOrigin]())
+        return self._fn_sqlite3_bind_parameter_index(pStmt, zName.unsafe_origin_cast[MutUntrackedOrigin]())
 
     def sqlite3_clear_bindings(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]]) -> c_int:
         """Reset All Bindings On A Prepared Statement.
@@ -1995,7 +1995,7 @@ struct _sqlite3(Movable):
         var eTextRep = c_int(0)
         return self._fn_sqlite3_remove_function(
             db,
-            zFunctionName.unsafe_origin_cast[MutExternalOrigin](),
+            zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
             nArg,
             eTextRep,
             None,
@@ -2034,10 +2034,10 @@ struct _sqlite3(Movable):
         """
         return self._fn_sqlite3_create_scalar_function(
             db,
-            zFunctionName.unsafe_origin_cast[MutExternalOrigin](),
+            zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
             nArg,
             eTextRep,
-            pApp.unsafe_origin_cast[MutExternalOrigin](),
+            pApp.unsafe_origin_cast[MutUntrackedOrigin](),
             xFunc,
             None,
             None,
@@ -2068,7 +2068,7 @@ struct _sqlite3(Movable):
         """
         return self._fn_sqlite3_create_scalar_function_no_data(
             db,
-            zFunctionName.unsafe_origin_cast[MutExternalOrigin](),
+            zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
             nArg,
             eTextRep,
             None,
@@ -2109,10 +2109,10 @@ struct _sqlite3(Movable):
         """
         return self._fn_sqlite3_create_aggregate_function(
             db,
-            zFunctionName.unsafe_origin_cast[MutExternalOrigin](),
+            zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
             nArg,
             eTextRep,
-            pApp.unsafe_origin_cast[MutExternalOrigin](),
+            pApp.unsafe_origin_cast[MutUntrackedOrigin](),
             None,
             xStep,
             xFinal,
@@ -2145,7 +2145,7 @@ struct _sqlite3(Movable):
         """
         return self._fn_sqlite3_create_aggregate_function_no_data(
             db,
-            zFunctionName.unsafe_origin_cast[MutExternalOrigin](),
+            zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
             nArg,
             eTextRep,
             None,
@@ -2190,10 +2190,10 @@ struct _sqlite3(Movable):
         """
         return self._fn_sqlite3_create_window_function(
             db,
-            zFunctionName.unsafe_origin_cast[MutExternalOrigin](),
+            zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
             nArg,
             eTextRep,
-            pApp.unsafe_origin_cast[MutExternalOrigin](),
+            pApp.unsafe_origin_cast[MutUntrackedOrigin](),
             xStep,
             xFinal,
             xValue,
@@ -2231,7 +2231,7 @@ struct _sqlite3(Movable):
         """
         return self._fn_sqlite3_create_window_function_no_data(
             db,
-            zFunctionName.unsafe_origin_cast[MutExternalOrigin](),
+            zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
             nArg,
             eTextRep,
             None,
@@ -2331,7 +2331,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._fn_sqlite3_memory_alarm(callback, arg.unsafe_origin_cast[MutExternalOrigin](), n)
+        return self._fn_sqlite3_memory_alarm(callback, arg.unsafe_origin_cast[MutUntrackedOrigin](), n)
 
     def sqlite3_value_blob(self, value: MutExternalPointer[sqlite3_value]) -> Optional[ImmutExternalPointer[NoneType]]:
         """Obtaining SQL Values - BLOB.
@@ -2393,7 +2393,7 @@ struct _sqlite3(Movable):
         Returns:
             The pointer value, or None if not a matching pointer type.
         """
-        return self._fn_sqlite3_value_pointer(value, typeStr.unsafe_origin_cast[ImmutExternalOrigin]())
+        return self._fn_sqlite3_value_pointer(value, typeStr.unsafe_origin_cast[ImmutUntrackedOrigin]())
 
     def sqlite3_value_text(self, value: MutExternalPointer[sqlite3_value]) -> Optional[ImmutExternalPointer[c_uchar]]:
         """Obtaining SQL Values - TEXT.
@@ -2569,7 +2569,7 @@ struct _sqlite3(Movable):
             data: Pointer to auxiliary data to save.
             destructor_callback: Function to call when data should be freed.
         """
-        self._fn_sqlite3_set_auxdata(ctx, N, data.unsafe_origin_cast[MutExternalOrigin](), destructor_callback)
+        self._fn_sqlite3_set_auxdata(ctx, N, data.unsafe_origin_cast[MutUntrackedOrigin](), destructor_callback)
 
     def sqlite3_result_blob64[
         origin: ImmutOrigin, //
@@ -2593,7 +2593,7 @@ struct _sqlite3(Movable):
             n: Size of BLOB in bytes (64-bit).
             destructor_callback: Function to call when SQLite is done with the BLOB.
         """
-        self._fn_sqlite3_result_blob64(ctx, value.unsafe_origin_cast[MutExternalOrigin](), n, destructor_callback)
+        self._fn_sqlite3_result_blob64(ctx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback)
 
     def sqlite3_result_double(self, ctx: MutExternalPointer[sqlite3_context], value: Float64):
         """Setting The Result Of An SQL Function - REAL.
@@ -2622,7 +2622,7 @@ struct _sqlite3(Movable):
             msg: Error message text (UTF-8).
             n: Length of error message in bytes, or -1 for None-terminated.
         """
-        self._fn_sqlite3_result_error(ctx, msg.unsafe_origin_cast[MutExternalOrigin](), n)
+        self._fn_sqlite3_result_error(ctx, msg.unsafe_origin_cast[MutUntrackedOrigin](), n)
 
     def sqlite3_result_error_toobig(self, ctx: MutExternalPointer[sqlite3_context]):
         """Setting The Result Of An SQL Function - SQLITE_TOOBIG Error.
@@ -2710,7 +2710,7 @@ struct _sqlite3(Movable):
             encoding: Text encoding (SQLITE_UTF8 or SQLITE_UTF16).
             destructor_callback: Function to call when SQLite is done with the text.
         """
-        self._fn_sqlite3_result_text64(ctx, value.unsafe_origin_cast[MutExternalOrigin](), n, destructor_callback, encoding)
+        self._fn_sqlite3_result_text64(ctx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback, encoding)
 
     def sqlite3_result_value(
         self, ctx: MutExternalPointer[sqlite3_context], value: MutExternalPointer[sqlite3_value]
@@ -2751,7 +2751,7 @@ struct _sqlite3(Movable):
             typeStr: Type identifier string for type safety.
             destructor_callback: Function to call when SQLite is done with the pointer.
         """
-        self._fn_sqlite3_result_pointer(ctx, ptr.unsafe_origin_cast[MutExternalOrigin](), typeStr.unsafe_origin_cast[MutExternalOrigin](), destructor_callback)
+        self._fn_sqlite3_result_pointer(ctx, ptr.unsafe_origin_cast[MutUntrackedOrigin](), typeStr.unsafe_origin_cast[MutUntrackedOrigin](), destructor_callback)
 
     def sqlite3_result_zeroblob(self, ctx: MutExternalPointer[sqlite3_context], n: c_int):
         """Setting The Result Of An SQL Function - Zeroblob.
@@ -2816,9 +2816,9 @@ struct _sqlite3(Movable):
         """
         return self._fn_sqlite3_create_collation_v2(
             db,
-            zName.unsafe_origin_cast[MutExternalOrigin](),
+            zName.unsafe_origin_cast[MutUntrackedOrigin](),
             eTextRep,
-            pArg.unsafe_origin_cast[MutExternalOrigin](),
+            pArg.unsafe_origin_cast[MutUntrackedOrigin](),
             xCompare,
             destructor_callback
         )
@@ -2847,7 +2847,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._fn_sqlite3_collation_needed(db, pArg.unsafe_origin_cast[MutExternalOrigin](), callback)
+        return self._fn_sqlite3_collation_needed(db, pArg.unsafe_origin_cast[MutUntrackedOrigin](), callback)
 
     def sqlite3_soft_heap_limit(self, n: c_int) -> c_int:
         """Deprecated Soft Heap Limit.
@@ -2939,14 +2939,14 @@ struct _sqlite3(Movable):
         """
         # return self._fn_sqlite3_table_column_metadata(
         #     db,
-        #     zDbName.unsafe_origin_cast[MutExternalOrigin](),
-        #     zTableName.unsafe_origin_cast[MutExternalOrigin](),
-        #     zColumnName.unsafe_origin_cast[MutExternalOrigin](),
-        #     pzDataType.unsafe_origin_cast[MutExternalOrigin](),
-        #     pzCollSeq.unsafe_origin_cast[MutExternalOrigin](),
-        #     pNotNull.unsafe_origin_cast[MutExternalOrigin](),
-        #     pPrimaryKey.unsafe_origin_cast[MutExternalOrigin](),
-        #     pAutoinc.unsafe_origin_cast[MutExternalOrigin]()
+        #     zDbName.unsafe_origin_cast[MutUntrackedOrigin](),
+        #     zTableName.unsafe_origin_cast[MutUntrackedOrigin](),
+        #     zColumnName.unsafe_origin_cast[MutUntrackedOrigin](),
+        #     pzDataType.unsafe_origin_cast[MutUntrackedOrigin](),
+        #     pzCollSeq.unsafe_origin_cast[MutUntrackedOrigin](),
+        #     pNotNull.unsafe_origin_cast[MutUntrackedOrigin](),
+        #     pPrimaryKey.unsafe_origin_cast[MutUntrackedOrigin](),
+        #     pAutoinc.unsafe_origin_cast[MutUntrackedOrigin]()
         # )
         return self.lib.get_function[
             def(
@@ -2994,7 +2994,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        # return self._fn_sqlite3_load_extension(db, zFile.unsafe_origin_cast[MutExternalOrigin](), zProc.unsafe_origin_cast[MutExternalOrigin](), pzErrMsg.unsafe_origin_cast[MutExternalOrigin]())
+        # return self._fn_sqlite3_load_extension(db, zFile.unsafe_origin_cast[MutUntrackedOrigin](), zProc.unsafe_origin_cast[MutUntrackedOrigin](), pzErrMsg.unsafe_origin_cast[MutUntrackedOrigin]())
         return self.lib.get_function[def(type_of(db), type_of(zFile), type_of(zProc), type_of(pzErrMsg)) abi("C") thin -> c_int](
             "sqlite3_load_extension"
         )(db, zFile, zProc, pzErrMsg)
@@ -3080,7 +3080,7 @@ struct _sqlite3(Movable):
         Returns:
             Pointer to the filename, or None if not found or an empty string if the database is in-memory or temporary.
         """
-        return self._fn_sqlite3_db_filename(db, zDbName.unsafe_origin_cast[MutExternalOrigin]())
+        return self._fn_sqlite3_db_filename(db, zDbName.unsafe_origin_cast[MutUntrackedOrigin]())
 
     def sqlite3_db_readonly[
         origin: ImmutOrigin, //
@@ -3098,7 +3098,7 @@ struct _sqlite3(Movable):
         Returns:
             1 if read-only, 0 if read-write, -1 if not found.
         """
-        return self._fn_sqlite3_db_readonly(db, zDbName.unsafe_origin_cast[MutExternalOrigin]())
+        return self._fn_sqlite3_db_readonly(db, zDbName.unsafe_origin_cast[MutUntrackedOrigin]())
 
     def sqlite3_txn_state[
         origin: ImmutOrigin, //
@@ -3118,7 +3118,7 @@ struct _sqlite3(Movable):
         Returns:
             The transaction state code.
         """
-        return self._fn_sqlite3_txn_state(db, zSchema.unsafe_origin_cast[MutExternalOrigin]())
+        return self._fn_sqlite3_txn_state(db, zSchema.unsafe_origin_cast[MutUntrackedOrigin]())
 
     def sqlite3_next_stmt(
         self, pDb: MutExternalPointer[sqlite3_connection], pStmt: Optional[MutExternalPointer[sqlite3_stmt]]
@@ -3165,8 +3165,8 @@ struct _sqlite3(Movable):
         """
         self._fn_sqlite3_update_hook(
             db,
-            xCallback.unsafe_origin_cast[MutExternalOrigin](),
-            pArg.unsafe_origin_cast[MutExternalOrigin]()
+            xCallback.unsafe_origin_cast[MutUntrackedOrigin](),
+            pArg.unsafe_origin_cast[MutUntrackedOrigin]()
         )
 
     def sqlite3_commit_hook[
@@ -3196,8 +3196,8 @@ struct _sqlite3(Movable):
         """
         return self._fn_sqlite3_commit_hook(
             db,
-            xCallback.unsafe_origin_cast[MutExternalOrigin](),
-            pArg.unsafe_origin_cast[MutExternalOrigin]()
+            xCallback.unsafe_origin_cast[MutUntrackedOrigin](),
+            pArg.unsafe_origin_cast[MutUntrackedOrigin]()
         )
 
     def sqlite3_rollback_hook[
@@ -3230,8 +3230,8 @@ struct _sqlite3(Movable):
         """
         return self._fn_sqlite3_rollback_hook(
             db,
-            xCallback.unsafe_origin_cast[MutExternalOrigin](),
-            pArg.unsafe_origin_cast[MutExternalOrigin]()
+            xCallback.unsafe_origin_cast[MutUntrackedOrigin](),
+            pArg.unsafe_origin_cast[MutUntrackedOrigin]()
         )
 
     def sqlite3_auto_extension(self, xEntryPoint: ExtensionEntrypointCallbackFn) -> c_int:
@@ -3281,7 +3281,7 @@ struct _sqlite3(Movable):
             1 if the extension was found and canceled, 0 otherwise.
         """
         return self._fn_sqlite3_cancel_auto_extension(
-            xEntryPoint.unsafe_origin_cast[MutExternalOrigin]()
+            xEntryPoint.unsafe_origin_cast[MutUntrackedOrigin]()
         )
 
     def sqlite3_reset_auto_extension(self) -> c_int:
@@ -3329,9 +3329,9 @@ struct _sqlite3(Movable):
         """
         return self._fn_sqlite3_create_module_v2(
             db,
-            zName.unsafe_origin_cast[MutExternalOrigin](),
+            zName.unsafe_origin_cast[MutUntrackedOrigin](),
             p,
-            pClientData.unsafe_origin_cast[MutExternalOrigin](),
+            pClientData.unsafe_origin_cast[MutUntrackedOrigin](),
             destructor_callback
         )
 
@@ -3369,7 +3369,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._fn_sqlite3_blob_open(db, zDb.unsafe_origin_cast[MutExternalOrigin](), zTable.unsafe_origin_cast[MutExternalOrigin](), zColumn.unsafe_origin_cast[MutExternalOrigin](), iRow, flags, ppBlob.unsafe_origin_cast[MutExternalOrigin]())
+        return self._fn_sqlite3_blob_open(db, zDb.unsafe_origin_cast[MutUntrackedOrigin](), zTable.unsafe_origin_cast[MutUntrackedOrigin](), zColumn.unsafe_origin_cast[MutUntrackedOrigin](), iRow, flags, ppBlob.unsafe_origin_cast[MutUntrackedOrigin]())
 
     def sqlite3_blob_reopen(self, pBlob: MutExternalPointer[sqlite3_blob], iRow: Int64) -> c_int:
         """Move A BLOB Handle To A New Row.
@@ -3437,7 +3437,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._fn_sqlite3_blob_read(pBlob, Z.unsafe_origin_cast[MutExternalOrigin](), N, iOffset)
+        return self._fn_sqlite3_blob_read(pBlob, Z.unsafe_origin_cast[MutUntrackedOrigin](), N, iOffset)
 
     def sqlite3_blob_write[
         origin: MutOrigin, //
@@ -3458,7 +3458,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._fn_sqlite3_blob_write(pBlob, z.unsafe_origin_cast[MutExternalOrigin](), n, iOffset)
+        return self._fn_sqlite3_blob_write(pBlob, z.unsafe_origin_cast[MutUntrackedOrigin](), n, iOffset)
 
     def sqlite3_file_control[
         db_name_origin: ImmutOrigin,
@@ -3488,7 +3488,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, SQLITE_NOTFOUND if unknown op, or error code.
         """
-        return self._fn_sqlite3_file_control(db, zDbName.unsafe_origin_cast[MutExternalOrigin](), op, pArg.unsafe_origin_cast[MutExternalOrigin]())
+        return self._fn_sqlite3_file_control(db, zDbName.unsafe_origin_cast[MutUntrackedOrigin](), op, pArg.unsafe_origin_cast[MutUntrackedOrigin]())
 
     def sqlite3_backup_init[
         dest_name_origin: ImmutOrigin,
@@ -3517,7 +3517,7 @@ struct _sqlite3(Movable):
         Returns:
             Backup handle, or None on error.
         """
-        return self._fn_sqlite3_backup_init(pDest, zDestName.unsafe_origin_cast[MutExternalOrigin](), pSource, zSourceName.unsafe_origin_cast[MutExternalOrigin]())
+        return self._fn_sqlite3_backup_init(pDest, zDestName.unsafe_origin_cast[MutUntrackedOrigin](), pSource, zSourceName.unsafe_origin_cast[MutUntrackedOrigin]())
 
     def sqlite3_backup_step(self, p: MutExternalPointer[sqlite3_backup], nPage: c_int) -> c_int:
         """Copy Up To nPage Pages.
@@ -3611,7 +3611,7 @@ struct _sqlite3(Movable):
         return self._fn_sqlite3_unlock_notify(
             pBlocked,
             xNotify,
-            pNotifyArg.unsafe_origin_cast[MutExternalOrigin]()
+            pNotifyArg.unsafe_origin_cast[MutUntrackedOrigin]()
         )
 
     def sqlite3_log[origin: ImmutOrigin, //](self, iErrCode: c_int, zFormat: ImmutUnsafePointer[c_char, origin]):
@@ -3626,7 +3626,7 @@ struct _sqlite3(Movable):
             iErrCode: Error code associated with the message.
             zFormat: Printf-style format string.
         """
-        return self._fn_sqlite3_log(iErrCode, zFormat.unsafe_origin_cast[MutExternalOrigin]())
+        return self._fn_sqlite3_log(iErrCode, zFormat.unsafe_origin_cast[MutUntrackedOrigin]())
 
     def sqlite3_wal_hook[
         arg_origin: MutOrigin, //
@@ -3654,7 +3654,7 @@ struct _sqlite3(Movable):
         return self._fn_sqlite3_wal_hook(
             db,
             xCallback,
-            pArg.unsafe_origin_cast[MutExternalOrigin]()
+            pArg.unsafe_origin_cast[MutUntrackedOrigin]()
         )
 
     def sqlite3_wal_autocheckpoint(self, db: MutExternalPointer[sqlite3_connection], N: c_int) -> c_int:
@@ -3723,7 +3723,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._fn_sqlite3_wal_checkpoint_v2(db, zDb, eMode, pnLog.unsafe_origin_cast[MutExternalOrigin](), pnCkpt.unsafe_origin_cast[MutExternalOrigin]())
+        return self._fn_sqlite3_wal_checkpoint_v2(db, zDb, eMode, pnLog.unsafe_origin_cast[MutUntrackedOrigin](), pnCkpt.unsafe_origin_cast[MutUntrackedOrigin]())
 
     def sqlite3_vtab_config(self, db: MutExternalPointer[sqlite3_connection], op: c_int) -> c_int:
         """Configure Virtual Table Behavior.
@@ -3885,7 +3885,7 @@ struct _sqlite3(Movable):
         Returns:
             Pointer to serialized database, or None on error.
         """
-        return self._fn_sqlite3_serialize(db, zSchema.unsafe_origin_cast[MutExternalOrigin](), piSize.unsafe_origin_cast[MutExternalOrigin](), mFlags)
+        return self._fn_sqlite3_serialize(db, zSchema.unsafe_origin_cast[MutUntrackedOrigin](), piSize.unsafe_origin_cast[MutUntrackedOrigin](), mFlags)
 
     def sqlite3_deserialize[
         schema_origin: ImmutOrigin,
@@ -3922,8 +3922,8 @@ struct _sqlite3(Movable):
         """
         return self._fn_sqlite3_deserialize(
             db,
-            zSchema.unsafe_origin_cast[MutExternalOrigin](),
-            pData.unsafe_origin_cast[MutExternalOrigin](),
+            zSchema.unsafe_origin_cast[MutUntrackedOrigin](),
+            pData.unsafe_origin_cast[MutUntrackedOrigin](),
             szDb,
             szBuf,
             mFlags

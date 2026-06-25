@@ -260,7 +260,7 @@ struct Connection(Movable):
         """
         comptime assert conforms_to(P, Params), String(
             "`params` must conform to the `Params` trait. ",
-            reflect[P]().name(),
+            reflect[P].name(),
             " does not implement `Params`. Try a tuple or a list of parameters.",
         )
         var stmt = self.prepare(sql^)
@@ -352,7 +352,7 @@ struct Connection(Movable):
         """
         comptime assert conforms_to(P, Params), String(
             "`params` must conform to the `Params` trait. ",
-            reflect[P]().name(),
+            reflect[P].name(),
             " does not implement `Params`. Try a tuple or a list of parameters.",
         )
         var stmt = self.prepare(sql^)
@@ -685,7 +685,7 @@ struct Connection(Movable):
         ```
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "`value` must conform to `ToSQL` trait. ", reflect[T]().name(), " does not implement `ToSQL`."
+            "`value` must conform to `ToSQL` trait. ", reflect[T].name(), " does not implement `ToSQL`."
         )
         var sql = Sql()
         sql.push_pragma(pragma, schema)
@@ -773,7 +773,7 @@ struct Connection(Movable):
         ```
         """
         comptime assert conforms_to(V, ToSQL), String(
-            t"`value` must conform to `ToSQL` trait. {reflect[V]().name()} does not implement `ToSQL`."
+            t"`value` must conform to `ToSQL` trait. {reflect[V].name()} does not implement `ToSQL`."
         )
         var sql = Sql()
         sql.push_pragma(pragma, schema)
@@ -853,7 +853,7 @@ struct Connection(Movable):
         # xStep/xFinal to be NULL. We call the raw C API directly to pass
         # NULL for the unused callbacks.
         comptime assert conforms_to(V, ToSQL), String(
-            t"Return type V must conform to `ToSQL` trait. {reflect[V]().name()} does not implement `ToSQL`."
+            t"Return type V must conform to `ToSQL` trait. {reflect[V].name()} does not implement `ToSQL`."
         )
         var result = self.db.create_scalar_function[x_func](fn_name, n_arg, flags)
         self.raise_if_error(result)
@@ -902,7 +902,7 @@ struct Connection(Movable):
         # For aggregate functions, SQLite requires xFunc to be NULL and
         # xStep/xFinal to be non-NULL.
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
         var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags, user_data)
         self.raise_if_error(result)
@@ -947,7 +947,7 @@ struct Connection(Movable):
         # For aggregate functions, SQLite requires xFunc to be NULL and
         # xStep/xFinal to be non-NULL.
         comptime assert conforms_to(T, ToSQL), String(
-            "Return type T must conform to `ToSQL` trait. ", reflect[T]().name(), " does not implement `ToSQL`."
+            "Return type T must conform to `ToSQL` trait. ", reflect[T].name(), " does not implement `ToSQL`."
         )
         var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags)
         self.raise_if_error(result)
@@ -998,7 +998,7 @@ struct Connection(Movable):
             Error: If the function could not be attached to the connection.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "Return type T must conform to `ToSQL` trait. ", reflect[T]().name(), " does not implement `ToSQL`."
+            "Return type T must conform to `ToSQL` trait. ", reflect[T].name(), " does not implement `ToSQL`."
         )
         var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
             fn_name, n_arg, flags, user_data,
@@ -1047,7 +1047,7 @@ struct Connection(Movable):
             Error: If the function could not be attached to the connection.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "Return type T must conform to `ToSQL` trait. ", reflect[T]().name(), " does not implement `ToSQL`."
+            "Return type T must conform to `ToSQL` trait. ", reflect[T].name(), " does not implement `ToSQL`."
         )
         var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
             fn_name, n_arg, flags

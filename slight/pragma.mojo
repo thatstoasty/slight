@@ -4,6 +4,7 @@ This module provides utilities for building and executing SQLite PRAGMA statemen
 as well as helper methods for common pragma operations.
 """
 
+from std.ffi import CStringSlice
 from slight.c.types import SQLITE_MISUSE
 from slight.types.to_sql import ToSQL
 from slight.types.value_ref import SQLite3Integer, SQLite3Real, SQLite3Text
@@ -103,7 +104,7 @@ struct Sql(Movable, Writable):
             Error: If the value type is unsupported.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "`value` must conform to `ToSQL` trait.", reflect[T]().name(), " does not implement `ToSQL`."
+            "`value` must conform to `ToSQL` trait.", reflect[T].name(), " does not implement `ToSQL`."
         )
         var sql = trait_downcast[ToSQL](value).to_sql()
 

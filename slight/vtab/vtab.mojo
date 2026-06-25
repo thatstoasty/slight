@@ -219,7 +219,7 @@ Parameters:
 comptime VTabFilterFn[C: MoveDestructible] = def(
     MutExternalPointer[C],
     c_int,
-    Optional[StringSlice[ImmutExternalOrigin]],
+    Optional[StringSlice[ImmutUntrackedOrigin]],
     MutExternalPointer[MutExternalPointer[sqlite3_value]],
     c_int,
 ) raises thin
@@ -419,7 +419,7 @@ def _vtab_xConnect[
         box_ptr.init_pointee_move(VTabBox[T](_base=vtab_base^, data=vtab_data^))
 
         # Write the vtab pointer back to SQLite.
-        ppVTab[] = box_ptr.bitcast[sqlite3_vtab]().unsafe_origin_cast[MutExternalOrigin]()
+        ppVTab[] = box_ptr.bitcast[sqlite3_vtab]().unsafe_origin_cast[MutUntrackedOrigin]()
         return SQLITE_OK
     except e:
         print("vtab xConnect error:", e)
@@ -444,7 +444,7 @@ def _vtab_xBestIndex[
     """
     var box_ptr = pVTab.bitcast[VTabBox[T]]()
     try:
-        var data_ptr = UnsafePointer(to=box_ptr[].data).unsafe_origin_cast[MutExternalOrigin]()
+        var data_ptr = UnsafePointer(to=box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]()
         _ = best_index_fn(data_ptr, pIdxInfo)
         return SQLITE_OK
     except:
@@ -490,7 +490,7 @@ def _vtab_xOpen[
     """
     var box_ptr = pVTab.bitcast[VTabBox[T]]()
     try:
-        var cursor_data = open_fn(UnsafePointer(to=box_ptr[].data).unsafe_origin_cast[MutExternalOrigin]())
+        var cursor_data = open_fn(UnsafePointer(to=box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]())
 
         # Allocate VTabCursorBox[C] on the heap.
         var cursor_base = sqlite3_vtab_cursor(pVtab=None)
@@ -501,7 +501,7 @@ def _vtab_xOpen[
 
         # Write the cursor pointer back to SQLite.
         ppCursor[] = cursor_box_ptr.bitcast[sqlite3_vtab_cursor]().unsafe_origin_cast[
-            MutExternalOrigin
+            MutUntrackedOrigin
         ]()
         return SQLITE_OK
     except:
@@ -548,15 +548,15 @@ def _vtab_xFilter[
     var cursor_box_ptr = pCursor.bitcast[VTabCursorBox[C]]()
 
     # Convert nullable idxStr C pointer to Optional[StringSlice].
-    var idx_str: Optional[StringSlice[ImmutExternalOrigin]] = None
+    var idx_str: Optional[StringSlice[ImmutUntrackedOrigin]] = None
     if idxStr:
-        idx_str = StringSlice[ImmutExternalOrigin](
+        idx_str = StringSlice[ImmutUntrackedOrigin](
             unsafe_from_utf8_ptr=idxStr.value()
         )
 
     try:
         filter_fn(
-            UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutExternalOrigin](),
+            UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin](),
             idxNum,
             idx_str,
             argv,
@@ -581,7 +581,7 @@ def _vtab_xNext[
     """
     var cursor_box_ptr = pCursor.bitcast[VTabCursorBox[C]]()
     try:
-        next_fn(UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutExternalOrigin]())
+        next_fn(UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]())
         return SQLITE_OK
     except:
         return SQLITE_ERROR
@@ -602,7 +602,7 @@ def _vtab_xEof[
         eof_fn: The user-provided xEof implementation.
     """
     var cursor_box_ptr = pCursor.bitcast[VTabCursorBox[C]]()
-    return c_int(1) if eof_fn(UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutExternalOrigin]()) else c_int(0)
+    return c_int(1) if eof_fn(UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]()) else c_int(0)
 
 
 def _vtab_xColumn[
@@ -622,7 +622,7 @@ def _vtab_xColumn[
     var cursor_box_ptr = pCursor.bitcast[VTabCursorBox[C]]()
     var context = Context(pCtx)
     try:
-        column_fn(UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutExternalOrigin](), context, iCol)
+        column_fn(UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin](), context, iCol)
         return SQLITE_OK
     except:
         return SQLITE_ERROR
@@ -643,7 +643,7 @@ def _vtab_xRowid[
     """
     var cursor_box_ptr = pCursor.bitcast[VTabCursorBox[C]]()
     try:
-        pRowid[] = rowid_fn(UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutExternalOrigin]())
+        pRowid[] = rowid_fn(UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]())
         return SQLITE_OK
     except:
         return SQLITE_ERROR

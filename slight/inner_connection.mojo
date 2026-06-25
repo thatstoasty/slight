@@ -1,4 +1,4 @@
-from std.ffi import c_char, c_int
+from std.ffi import c_char, c_int, CStringSlice
 from std.pathlib import Path
 from slight.c.types import (
     MutExternalPointer,
@@ -182,7 +182,7 @@ struct InnerConnection(Movable):
             raise e^
 
         var tail: UInt = 0
-        var tail_len = StringSlice(unsafe_from_utf8_ptr=c_tail[]).byte_length()
+        var tail_len = len(CStringSlice(unsafe_from_ptr=c_tail[]).as_bytes())
         if tail_len > 0:
             var n = sql.byte_length() - tail_len
 
@@ -291,7 +291,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(V, ToSQL), String(
-            t"Return type V must conform to `ToSQL` trait. {reflect[V]().name()} does not implement `ToSQL`."
+            t"Return type V must conform to `ToSQL` trait. {reflect[V].name()} does not implement `ToSQL`."
         )
 
         # Copy data to the heap and pass a pointer to it as pApp.
@@ -331,7 +331,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(V, ToSQL), String(
-            t"Return type V must conform to `ToSQL` trait. {reflect[V]().name()} does not implement `ToSQL`."
+            t"Return type V must conform to `ToSQL` trait. {reflect[V].name()} does not implement `ToSQL`."
         )
         return sqlite_ffi()[].create_scalar_function(
             self.db,
@@ -377,7 +377,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
 
         # Copy data to the heap and pass a pointer to it as pApp.
@@ -427,7 +427,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
         return sqlite_ffi()[].create_aggregate_function(
             self.db,
@@ -478,7 +478,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
 
         # Copy data to the heap and pass a pointer to it as pApp.
@@ -534,7 +534,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
         return sqlite_ffi()[].create_window_function(
             self.db,

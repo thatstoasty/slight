@@ -1,4 +1,5 @@
 from std.pathlib import Path
+from std.ffi import CStringSlice
 from slight.c.types import MutExternalPointer
 
 comptime CopyDestructible = Copyable & ImplicitlyDestructible
@@ -34,7 +35,7 @@ def ptr_copy[T: CopyDestructible](data: T) -> MutExternalPointer[T]:
     return ptr
 
 
-def str_slice_to_path(s: StringSlice[ImmutExternalOrigin]) -> Optional[Path]:
+def str_slice_to_path(s: CStringSlice[ImmutUntrackedOrigin]) -> Optional[Path]:
     """Convert a String to a Path.
 
     Args:
@@ -43,10 +44,10 @@ def str_slice_to_path(s: StringSlice[ImmutExternalOrigin]) -> Optional[Path]:
     Returns:
         A Path representing the input String.
     """
-    return Path(s)
+    return Path(StringSlice(unsafe_from_utf8=s))
 
 
-def str_slice_to_string(s: StringSlice[ImmutExternalOrigin]) -> Optional[String]:
+def str_slice_to_string(s: StringSlice[ImmutUntrackedOrigin]) -> Optional[String]:
     """Convert a StringSlice to a String.
 
     Args:
