@@ -4,7 +4,10 @@ from std.python import Python, PythonObject
 from std.sys import argv
 from std.pathlib import Path
 
-from functions.bench_csvtab import bench_csvtab_full_scan, bench_csvtab_count, bench_csvtab_filter, bench_csvtab_connect
+from slight import Connection
+from slight.vtab.csvtab import load_module
+
+from functions.bench_csvtab import CSVTabBenchContext, bench_csvtab_full_scan, bench_csvtab_count, bench_csvtab_filter, bench_csvtab_connect
 from functions.bench_execute import bench_connect_overhead, bench_execute_single_insert, bench_execute_batch
 from functions.bench_statement import bench_prepare, bench_bind_positional, bench_bind_named, bench_reset_and_rebind
 from functions.bench_query import bench_query_raw_rows, bench_query_mapped, bench_query_typed_reflection, bench_one_row
@@ -298,6 +301,25 @@ def run[
     m.bench_with_input[String, func](BenchId(name), csv_path, [_bytes_measure(file_bytes)])
 
 
+comptime CSVTabBenchFn[origin: ImmutOrigin] = def (mut Bencher, CSVTabBenchContext[origin]) raises capturing thin
+
+def run_with_context[
+    origin: ImmutOrigin, //,
+    func: CSVTabBenchFn[origin],
+    name: String,
+](mut m: Bench, ctx: CSVTabBenchContext[origin]) raises:
+    m.bench_with_input[T=CSVTabBenchContext[origin], bench_fn=func](BenchId(name), ctx, [_bytes_measure(ctx.file_bytes)])
+
+
+comptime ExecuteBenchFn = def (mut Bencher, Connection) raises capturing
+
+def run[
+    func: def (mut Bencher, Connection) raises capturing,
+    name: String,
+](mut m: Bench, conn: Connection) raises:
+    m.bench_with_input[T=Connection, bench_fn=func](BenchId(name), conn)
+
+
 def main() raises:
     var config = BenchConfig()
     config.verbose_timing = True
@@ -309,16 +331,26 @@ def main() raises:
     var file_bytes: Int
     with open(csv_path, "r") as f:
         file_bytes = f.read().byte_length()
+    
+    var connection = Connection.open_in_memory()
+    load_module(connection)
+    connection.execute_batch(
+        t"CREATE VIRTUAL TABLE t USING csv(filename='{csv_path}', header=yes)"
+    )
 
-    run[bench_csvtab_full_scan, "csvtab_full_scan"](bench, csv_path, file_bytes)
-    run[bench_csvtab_count, "csvtab_count"](bench, csv_path, file_bytes)
-    run[bench_csvtab_filter, "csvtab_filter"](bench, csv_path, file_bytes)
-    run[bench_csvtab_connect, "csvtab_connect"](bench, csv_path, file_bytes)
+    var csv_tab_context = CSVTabBenchContext(csv_path, file_bytes, Pointer(to=connection))
+    run_with_context[bench_csvtab_full_scan[origin_of(connection)], "csvtab_full_scan"](bench, csv_tab_context)
+    run_with_context[bench_csvtab_count[origin_of(connection)], "csvtab_count"](bench, csv_tab_context)
+    run_with_context[bench_csvtab_filter[origin_of(connection)], "csvtab_filter"](bench, csv_tab_context)
+    run_with_context[bench_csvtab_connect[origin_of(connection)], "csvtab_connect"](bench, csv_tab_context)
+    connection^.close()
 
     # execute / execute_batch
+    var conn = Connection.open_in_memory()
+    conn.execute_batch("CREATE TABLE t (id INTEGER, name TEXT, value REAL)")
     run[bench_connect_overhead, "connect_overhead"](bench)
-    run[bench_execute_single_insert, "execute_single_insert"](bench)
-    run[bench_execute_batch, "execute_batch"](bench)
+    run[bench_execute_single_insert, "execute_single_insert"](bench, conn)
+    run[bench_execute_batch, "execute_batch"](bench, conn)
 
     # prepare / bind / reset
     run[bench_prepare, "statement_prepare"](bench)

@@ -155,7 +155,7 @@ struct InnerConnection(Movable):
 
     def prepare(
         self, var sql: String, flags: PrepFlag = PrepFlag.PREPARE_PERSISTENT
-        ) raises -> Tuple[Optional[MutExternalPointer[sqlite3_stmt]], UInt]:
+    ) raises -> Tuple[Optional[MutExternalPointer[sqlite3_stmt]], UInt]:
         """Prepares an SQL statement for execution.
 
         Args:

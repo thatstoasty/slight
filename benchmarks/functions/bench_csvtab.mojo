@@ -16,13 +16,21 @@ from slight.connection import Connection
 from slight.flags import PrepFlag
 from slight.vtab.csvtab import load_module
 
+
+@fieldwise_init
+struct CSVTabBenchContext[origin: ImmutOrigin]:
+    var csv_path: String
+    var file_bytes: Int
+    var connection: Pointer[Connection, Self.origin]
+
+
 # ===----------------------------------------------------------------------=== #
 # Benchmark functions
 # ===----------------------------------------------------------------------=== #
 
 
 @parameter
-def bench_csvtab_full_scan(mut b: Bencher, csv_path: String) raises:
+def bench_csvtab_full_scan[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBenchContext[origin]) raises:
     """Full table scan: iterate every row from the CSV virtual table.
 
     Each iteration opens a fresh in-memory connection, loads the csvtab module,
@@ -30,15 +38,14 @@ def bench_csvtab_full_scan(mut b: Bencher, csv_path: String) raises:
     The measured time therefore includes connection + vtab + scan overhead.
     Subtract bench_csvtab_connect to isolate the scan cost.
     """
-
     @parameter
     def do() raises:
-        var conn = Connection.open_in_memory()
-        load_module(conn)
-        conn.execute_batch(
-            "CREATE VIRTUAL TABLE t USING csv(filename='" + csv_path + "', header=yes)"
-        )
-        var stmt = conn.prepare("SELECT id, name, value, category FROM t", PrepFlag(0))
+        # var conn = Connection.open_in_memory()
+        # load_module(conn)
+        # conn.execute_batch(
+        #     t"CREATE VIRTUAL TABLE t USING csv(filename='{context.csv_path}', header=yes)"
+        # )
+        var stmt = context.connection[].prepare("SELECT id, name, value, category FROM t", PrepFlag(0))
         for _ in stmt.query():
             pass
 
@@ -46,7 +53,7 @@ def bench_csvtab_full_scan(mut b: Bencher, csv_path: String) raises:
 
 
 @parameter
-def bench_csvtab_count(mut b: Bencher, csv_path: String) raises:
+def bench_csvtab_count[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBenchContext[origin]) raises:
     """COUNT(*) query: full scan aggregated through SQLite.
 
     Each iteration opens a fresh connection and measures connect + vtab +
@@ -55,12 +62,7 @@ def bench_csvtab_count(mut b: Bencher, csv_path: String) raises:
 
     @parameter
     def do() raises:
-        var conn = Connection.open_in_memory()
-        load_module(conn)
-        conn.execute_batch(
-            "CREATE VIRTUAL TABLE t USING csv(filename='" + csv_path + "', header=yes)"
-        )
-        var stmt = conn.prepare("SELECT COUNT(*) FROM t", PrepFlag(0))
+        var stmt = context.connection[].prepare("SELECT COUNT(*) FROM t", PrepFlag(0))
         for _ in stmt.query():
             pass
 
@@ -68,7 +70,7 @@ def bench_csvtab_count(mut b: Bencher, csv_path: String) raises:
 
 
 @parameter
-def bench_csvtab_filter(mut b: Bencher, csv_path: String) raises:
+def bench_csvtab_filter[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBenchContext[origin]) raises:
     """Filtered scan: WHERE clause that passes roughly half the rows.
 
     Each iteration opens a fresh connection and measures connect + vtab +
@@ -77,12 +79,7 @@ def bench_csvtab_filter(mut b: Bencher, csv_path: String) raises:
 
     @parameter
     def do() raises:
-        var conn = Connection.open_in_memory()
-        load_module(conn)
-        conn.execute_batch(
-            "CREATE VIRTUAL TABLE t USING csv(filename='" + csv_path + "', header=yes)"
-        )
-        var stmt = conn.prepare(
+        var stmt = context.connection[].prepare(
             "SELECT id, name FROM t WHERE CAST(value AS INTEGER) > 498", PrepFlag(0)
         )
         for _ in stmt.query():
@@ -92,7 +89,7 @@ def bench_csvtab_filter(mut b: Bencher, csv_path: String) raises:
 
 
 @parameter
-def bench_csvtab_connect(mut b: Bencher, csv_path: String) raises:
+def bench_csvtab_connect[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBenchContext[origin]) raises:
     """Connect overhead: open connection + load module + CREATE VIRTUAL TABLE."""
 
     @always_inline
@@ -101,7 +98,7 @@ def bench_csvtab_connect(mut b: Bencher, csv_path: String) raises:
         var conn = Connection.open_in_memory()
         load_module(conn)
         conn.execute_batch(
-            "CREATE VIRTUAL TABLE t USING csv(filename='" + csv_path + "', header=yes)"
+            t"CREATE VIRTUAL TABLE t USING csv(filename='{context.csv_path}', header=yes)"
         )
 
     b.iter[do]()

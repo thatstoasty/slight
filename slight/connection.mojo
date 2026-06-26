@@ -276,7 +276,7 @@ struct Connection(Movable):
             sql: The batch of SQL statements to execute.
 
         Raises:
-            Error: If the underlying SQLite call fails or if any of the statements in the batch return results, which is not supported.
+            Error: If the underlying SQLite call fails while preparing the statement.
         """
         var current_sql = String(sql)
         while current_sql.byte_length() > 0:
@@ -284,7 +284,6 @@ struct Connection(Movable):
             var stmt, tail = self.db.prepare(current_sql.copy(), PrepFlag.PREPARE_PERSISTENT)
             if stmt and Statement(Pointer(to=self), RawStatement(stmt.take())).step():
                 pass  # some pragmas return results
-                # raise Error("ExecuteReturnedResults: The executed batch returned results, which is not supported.")
 
             if tail == 0 or Int(tail) >= current_sql.byte_length():
                 break
@@ -547,6 +546,7 @@ struct Connection(Movable):
 
         ```mojo
         from slight import Connection
+
         def perform_queries(mut conn: Connection) raises:
             var sp = conn.savepoint()
 
@@ -591,8 +591,7 @@ struct Connection(Movable):
         #### Example:
 
         ```mojo
-        from slight import Connection
-        from slight.row import Row
+        from slight import Connection, Row
 
         def get_int(r: Row) raises -> Int:
             return r.get[Int](0)
@@ -609,7 +608,7 @@ struct Connection(Movable):
 
     def pragma_query[
         callback: def(Row) raises thin -> None
-    ](self, schema: Optional[String], pragma: String,) raises:
+    ](self, schema: Optional[String], pragma: String) raises:
         """Query the current rows/values of a pragma.
 
         Prefer [PRAGMA function](https://sqlite.org/pragma.html#pragfunc) introduced in SQLite 3.20:
@@ -628,8 +627,7 @@ struct Connection(Movable):
         #### Example:
 
         ```mojo
-        from slight import Connection
-        from slight.row import Row, String
+        from slight import Connection, Row
 
         def print_collation(r: Row) raises:
             var name = r.get[String](1)
@@ -672,8 +670,7 @@ struct Connection(Movable):
         #### Example:
 
         ```mojo
-        from slight import Connection
-        from slight.row import Row, String
+        from slight import Connection, Row
 
         def print_column(r: Row) raises:
             var col = r.get[String](1)
@@ -758,8 +755,7 @@ struct Connection(Movable):
                 #### Example:
 
         ```mojo
-        from slight import Connection
-        from slight.row import Row, String
+        from slight import Connection, Row
 
         def get_string(r: Row) raises -> String:
             return r.get[String](0)
@@ -947,7 +943,7 @@ struct Connection(Movable):
         # For aggregate functions, SQLite requires xFunc to be NULL and
         # xStep/xFinal to be non-NULL.
         comptime assert conforms_to(T, ToSQL), String(
-            "Return type T must conform to `ToSQL` trait. ", reflect[T].name(), " does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
         var result = self.db.create_aggregate_function[init_fn, step_fn, final_fn](fn_name, n_arg, flags)
         self.raise_if_error(result)
@@ -998,7 +994,7 @@ struct Connection(Movable):
             Error: If the function could not be attached to the connection.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "Return type T must conform to `ToSQL` trait. ", reflect[T].name(), " does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
         var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
             fn_name, n_arg, flags, user_data,
@@ -1047,7 +1043,7 @@ struct Connection(Movable):
             Error: If the function could not be attached to the connection.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "Return type T must conform to `ToSQL` trait. ", reflect[T].name(), " does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
         var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
             fn_name, n_arg, flags
@@ -1181,7 +1177,11 @@ struct Connection(Movable):
         self.raise_if_error(self.db.busy_handler[callback]())
     
     def clear_busy_handler(self) raises:
-        """Clear the busy handler, if any."""
+        """Clear the busy handler, if any.
+        
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
         self.raise_if_error(self.db.busy_handler[None]())
 
     def limit(self, limit: Limit) raises -> Int32:

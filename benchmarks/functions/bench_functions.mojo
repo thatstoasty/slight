@@ -24,13 +24,17 @@ from slight.functions import Context, FunctionFlags
 
 comptime ROW_COUNT = 200
 
+def _build_insert_sql[count: Int]() -> String:
+    var sql = ""
+    comptime for i in range(count):
+        sql.write(t"INSERT INTO t (value) VALUES ({i});")
+    return sql^
+
 
 def _make_populated_connection() raises -> Connection:
     var conn = Connection.open_in_memory()
+    comptime sql = _build_insert_sql[ROW_COUNT]()
     conn.execute_batch("CREATE TABLE t (value INTEGER)")
-    var sql = String("")
-    for i in range(ROW_COUNT):
-        sql += "INSERT INTO t (value) VALUES (" + String(i) + ");"
     conn.execute_batch(sql)
     return conn^
 

@@ -38,16 +38,16 @@ struct QueryRow(Copyable, Defaultable, Writable):
         self.name = ""
         self.value = 0.0
 
-    def write_to(self, mut writer: Some[Writer]):
-        writer.write("QueryRow(id=", self.id, ", name=", self.name, ", value=", self.value, ")")
-
+def _build_insert_sql[count: Int]() -> String:
+    var sql = ""
+    comptime for i in range(count):
+        sql.write(t"INSERT INTO t (id, name, value) VALUES ({i}, 'row', {i});")
+    return sql^
 
 def _make_populated_connection() raises -> Connection:
     var conn = Connection.open_in_memory()
     conn.execute_batch("CREATE TABLE t (id INTEGER, name TEXT, value REAL)")
-    var sql = String("")
-    for i in range(ROW_COUNT):
-        sql += "INSERT INTO t (id, name, value) VALUES (" + String(i) + ", 'row', " + String(Float64(i)) + ");"
+    comptime sql = _build_insert_sql[ROW_COUNT]()
     conn.execute_batch(sql)
     return conn^
 

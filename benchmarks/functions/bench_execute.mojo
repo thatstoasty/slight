@@ -41,13 +41,13 @@ def bench_connect_overhead(mut b: Bencher) raises:
 
 
 @parameter
-def bench_execute_single_insert(mut b: Bencher) raises:
+def bench_execute_single_insert(mut b: Bencher, conn: Connection) raises:
     """Connect + create table + one `INSERT`."""
 
     @parameter
     def do() raises:
-        var conn = Connection.open_in_memory()
-        conn.execute_batch("CREATE TABLE t (id INTEGER, name TEXT, value REAL)")
+        # var conn = Connection.open_in_memory()
+        # conn.execute_batch("CREATE TABLE t (id INTEGER, name TEXT, value REAL)")
         _ = conn.execute(
             "INSERT INTO t (id, name, value) VALUES (?1, ?2, ?3)",
             (1, "row", 1.5),
@@ -55,19 +55,21 @@ def bench_execute_single_insert(mut b: Bencher) raises:
 
     b.iter[do]()
 
+def _build_insert_sql[count: Int]() -> String:
+    var sql = ""
+    comptime for i in range(count):
+        sql.write(t"INSERT INTO t (id, name, value) VALUES ({i}, 'row', {i});")
+    return sql^
 
 @parameter
-def bench_execute_batch(mut b: Bencher) raises:
+def bench_execute_batch(mut b: Bencher, conn: Connection) raises:
     """Connect + create table + `execute_batch` with 100 INSERT statements."""
+    comptime sql = _build_insert_sql[100]()
 
     @parameter
     def do() raises:
-        var conn = Connection.open_in_memory()
-        conn.execute_batch("CREATE TABLE t (id INTEGER, name TEXT, value REAL)")
-
-        var sql = String("")
-        for i in range(100):
-            sql += "INSERT INTO t (id, name, value) VALUES (" + String(i) + ", 'row', " + String(Float64(i)) + ");"
+        # var conn = Connection.open_in_memory()
+        # conn.execute_batch("CREATE TABLE t (id INTEGER, name TEXT, value REAL)")
         conn.execute_batch(sql)
 
     b.iter[do]()
