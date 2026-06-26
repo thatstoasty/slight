@@ -29,13 +29,11 @@ comptime INSERT_COUNT = 50
 
 
 @parameter
-def bench_transaction_commit(mut b: Bencher) raises:
+def bench_transaction_commit(mut b: Bencher, conn: Connection) raises:
     """50 inserts wrapped in a transaction, committed at the end."""
 
     @parameter
     def do() raises:
-        var conn = Connection.open_in_memory()
-        conn.execute_batch("CREATE TABLE t (id INTEGER)")
         with conn.transaction() as tx:
             for i in range(INSERT_COUNT):
                 _ = tx.conn[].execute("INSERT INTO t (id) VALUES (?1)", (i,))
@@ -45,14 +43,12 @@ def bench_transaction_commit(mut b: Bencher) raises:
 
 
 @parameter
-def bench_transaction_rollback(mut b: Bencher) raises:
+def bench_transaction_rollback(mut b: Bencher, conn: Connection) raises:
     """50 inserts wrapped in a transaction, rolled back at the end (the
     default behavior on scope exit without an explicit commit)."""
 
     @parameter
     def do() raises:
-        var conn = Connection.open_in_memory()
-        conn.execute_batch("CREATE TABLE t (id INTEGER)")
         with conn.transaction() as tx:
             for i in range(INSERT_COUNT):
                 _ = tx.conn[].execute("INSERT INTO t (id) VALUES (?1)", (i,))
@@ -62,13 +58,11 @@ def bench_transaction_rollback(mut b: Bencher) raises:
 
 
 @parameter
-def bench_savepoint_nested(mut b: Bencher) raises:
+def bench_savepoint_nested(mut b: Bencher, conn: Connection) raises:
     """A single savepoint nested inside a transaction, with both committed."""
 
     @parameter
     def do() raises:
-        var conn = Connection.open_in_memory()
-        conn.execute_batch("CREATE TABLE t (id INTEGER)")
         with conn.transaction() as tx:
             with tx.savepoint() as sp:
                 _ = sp.conn[].execute("INSERT INTO t (id) VALUES (?1)", (1,))

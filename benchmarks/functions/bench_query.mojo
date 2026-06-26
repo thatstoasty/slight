@@ -65,13 +65,12 @@ def _to_query_row(row: Row) raises -> QueryRow:
 
 
 @parameter
-def bench_query_raw_rows(mut b: Bencher) raises:
+def bench_query_raw_rows(mut b: Bencher, conn: Connection) raises:
     """Build a 200-row table, then iterate all rows via `stmt.query()`,
     reading columns by index."""
 
     @parameter
     def do() raises:
-        var conn = _make_populated_connection()
         var stmt = conn.prepare("SELECT id, name, value FROM t", PrepFlag(0))
         for row in stmt.query():
             _ = row.get[Int](0)
@@ -82,13 +81,12 @@ def bench_query_raw_rows(mut b: Bencher) raises:
 
 
 @parameter
-def bench_query_mapped(mut b: Bencher) raises:
+def bench_query_mapped(mut b: Bencher, conn: Connection) raises:
     """Build a 200-row table, then map all rows into `QueryRow` via an
     explicit closure."""
 
     @parameter
     def do() raises:
-        var conn = _make_populated_connection()
         var stmt = conn.prepare("SELECT id, name, value FROM t", PrepFlag(0))
         for _ in stmt.query[_to_query_row]():
             pass
@@ -97,13 +95,12 @@ def bench_query_mapped(mut b: Bencher) raises:
 
 
 @parameter
-def bench_query_typed_reflection(mut b: Bencher) raises:
+def bench_query_typed_reflection(mut b: Bencher, conn: Connection) raises:
     """Build a 200-row table, then map all rows into `QueryRow` via struct
     reflection (`query[T]`)."""
 
     @parameter
     def do() raises:
-        var conn = _make_populated_connection()
         var stmt = conn.prepare("SELECT id, name, value FROM t", PrepFlag(0))
         for _ in stmt.query[QueryRow]():
             pass
@@ -112,12 +109,11 @@ def bench_query_typed_reflection(mut b: Bencher) raises:
 
 
 @parameter
-def bench_one_row(mut b: Bencher) raises:
+def bench_one_row(mut b: Bencher, conn: Connection) raises:
     """Build a 200-row table, then fetch one row via `Connection.one_row`."""
 
     @parameter
     def do() raises:
-        var conn = _make_populated_connection()
         _ = conn.one_row[_to_query_row]("SELECT id, name, value FROM t WHERE id = 100")
 
     b.iter[do]()

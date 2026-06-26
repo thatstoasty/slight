@@ -80,12 +80,11 @@ def bench_udf_registration(mut b: Bencher) raises:
 
 
 @parameter
-def bench_scalar_udf(mut b: Bencher) raises:
+def bench_scalar_udf(mut b: Bencher, conn: Connection) raises:
     """Register and call a scalar function over 200 rows."""
 
     @parameter
     def do() raises:
-        var conn = _make_populated_connection()
         conn.create_scalar_function[halve]("halve", n_arg=1)
         var stmt = conn.prepare("SELECT halve(value) FROM t", PrepFlag(0))
         for _ in stmt.query():
@@ -95,12 +94,11 @@ def bench_scalar_udf(mut b: Bencher) raises:
 
 
 @parameter
-def bench_aggregate_udf(mut b: Bencher) raises:
+def bench_aggregate_udf(mut b: Bencher, conn: Connection) raises:
     """Register `my_sum` and run `SELECT my_sum(value) FROM t` over 200 rows."""
 
     @parameter
     def do() raises:
-        var conn = _make_populated_connection()
         conn.create_aggregate_function[sum_init, sum_step, sum_finalize](
             "my_sum",
             n_arg=1,
@@ -114,13 +112,12 @@ def bench_aggregate_udf(mut b: Bencher) raises:
 
 
 @parameter
-def bench_window_udf(mut b: Bencher) raises:
+def bench_window_udf(mut b: Bencher, conn: Connection) raises:
     """Register `my_sum` as a window function and run a windowed `OVER (...)`
     query over 200 rows."""
 
     @parameter
     def do() raises:
-        var conn = _make_populated_connection()
         conn.create_window_function[sum_init, sum_step, sum_finalize, sum_value, sum_inverse](
             "my_sum",
             n_arg=1,

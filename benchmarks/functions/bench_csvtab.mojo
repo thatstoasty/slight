@@ -40,11 +40,6 @@ def bench_csvtab_full_scan[origin: ImmutOrigin](mut b: Bencher, context: CSVTabB
     """
     @parameter
     def do() raises:
-        # var conn = Connection.open_in_memory()
-        # load_module(conn)
-        # conn.execute_batch(
-        #     t"CREATE VIRTUAL TABLE t USING csv(filename='{context.csv_path}', header=yes)"
-        # )
         var stmt = context.connection[].prepare("SELECT id, name, value, category FROM t", PrepFlag(0))
         for _ in stmt.query():
             pass
@@ -89,16 +84,15 @@ def bench_csvtab_filter[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBenc
 
 
 @parameter
-def bench_csvtab_connect[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBenchContext[origin]) raises:
-    """Connect overhead: open connection + load module + CREATE VIRTUAL TABLE."""
+def bench_csvtab_create_and_drop[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBenchContext[origin]) raises:
+    """CREATE VIRTUAL TABLE and drop it."""
 
     @always_inline
     @parameter
     def do() raises:
-        var conn = Connection.open_in_memory()
-        load_module(conn)
-        conn.execute_batch(
-            t"CREATE VIRTUAL TABLE t USING csv(filename='{context.csv_path}', header=yes)"
+        context.connection[].execute_batch(
+            t"""CREATE VIRTUAL TABLE t2 USING csv(filename='{context.csv_path}', header=yes);
+            DROP TABLE IF EXISTS t2;"""
         )
 
     b.iter[do]()

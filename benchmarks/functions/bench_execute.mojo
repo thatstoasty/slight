@@ -35,7 +35,7 @@ def bench_connect_overhead(mut b: Bencher) raises:
     @parameter
     def do() raises:
         var conn = Connection.open_in_memory()
-        _ = conn
+        conn^.close()
 
     b.iter[do]()
 
@@ -46,8 +46,6 @@ def bench_execute_single_insert(mut b: Bencher, conn: Connection) raises:
 
     @parameter
     def do() raises:
-        # var conn = Connection.open_in_memory()
-        # conn.execute_batch("CREATE TABLE t (id INTEGER, name TEXT, value REAL)")
         _ = conn.execute(
             "INSERT INTO t (id, name, value) VALUES (?1, ?2, ?3)",
             (1, "row", 1.5),
@@ -68,8 +66,6 @@ def bench_execute_batch(mut b: Bencher, conn: Connection) raises:
 
     @parameter
     def do() raises:
-        # var conn = Connection.open_in_memory()
-        # conn.execute_batch("CREATE TABLE t (id INTEGER, name TEXT, value REAL)")
         conn.execute_batch(sql)
 
     b.iter[do]()

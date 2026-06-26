@@ -7,7 +7,7 @@ from std.pathlib import Path
 from slight import Connection
 from slight.vtab.csvtab import load_module
 
-from functions.bench_csvtab import CSVTabBenchContext, bench_csvtab_full_scan, bench_csvtab_count, bench_csvtab_filter, bench_csvtab_connect
+from functions.bench_csvtab import CSVTabBenchContext, bench_csvtab_full_scan, bench_csvtab_count, bench_csvtab_filter, bench_csvtab_create_and_drop
 from functions.bench_execute import bench_connect_overhead, bench_execute_single_insert, bench_execute_batch
 from functions.bench_statement import bench_prepare, bench_bind_positional, bench_bind_named, bench_reset_and_rebind
 from functions.bench_query import bench_query_raw_rows, bench_query_mapped, bench_query_typed_reflection, bench_one_row
@@ -282,6 +282,20 @@ def get_gbs_measure(input: String) raises -> ThroughputMeasure:
     return ThroughputMeasure(BenchMetric.bytes, input.byte_length())
 
 
+def _build_insert_function_bench_data_sql[count: Int]() -> String:
+    var sql = ""
+    comptime for i in range(count):
+        sql.write(t"INSERT INTO t (value) VALUES ({i});")
+    return sql^
+
+
+def _build_insert_iteration_bench_data_sql[count: Int]() -> String:
+    var sql = ""
+    comptime for i in range(count):
+        sql.write(t"INSERT INTO t (id, name, value) VALUES ({i}, 'row', {i});")
+    return sql^
+
+
 def run[func: def (mut Bencher, String) raises capturing, name: String](mut m: Bench, data: String) raises:
     m.bench_with_input[String, func](BenchId(name), data, [get_gbs_measure(data)])
 
@@ -332,47 +346,58 @@ def main() raises:
     with open(csv_path, "r") as f:
         file_bytes = f.read().byte_length()
     
-    var connection = Connection.open_in_memory()
-    load_module(connection)
-    connection.execute_batch(
-        t"CREATE VIRTUAL TABLE t USING csv(filename='{csv_path}', header=yes)"
-    )
+    with Connection.open_in_memory() as conn:
+        load_module(conn)
+        conn.execute_batch(
+            t"CREATE VIRTUAL TABLE t USING csv(filename='{csv_path}', header=yes)"
+        )
 
-    var csv_tab_context = CSVTabBenchContext(csv_path, file_bytes, Pointer(to=connection))
-    run_with_context[bench_csvtab_full_scan[origin_of(connection)], "csvtab_full_scan"](bench, csv_tab_context)
-    run_with_context[bench_csvtab_count[origin_of(connection)], "csvtab_count"](bench, csv_tab_context)
-    run_with_context[bench_csvtab_filter[origin_of(connection)], "csvtab_filter"](bench, csv_tab_context)
-    run_with_context[bench_csvtab_connect[origin_of(connection)], "csvtab_connect"](bench, csv_tab_context)
-    connection^.close()
+        var csv_tab_context = CSVTabBenchContext(csv_path, file_bytes, Pointer(to=conn))
+        run_with_context[bench_csvtab_full_scan[origin_of(conn)], "csvtab_full_scan"](bench, csv_tab_context)
+        run_with_context[bench_csvtab_count[origin_of(conn)], "csvtab_count"](bench, csv_tab_context)
+        run_with_context[bench_csvtab_filter[origin_of(conn)], "csvtab_filter"](bench, csv_tab_context)
+        run_with_context[bench_csvtab_create_and_drop[origin_of(conn)], "csvtab_connect"](bench, csv_tab_context)
 
     # execute / execute_batch
-    var conn = Connection.open_in_memory()
-    conn.execute_batch("CREATE TABLE t (id INTEGER, name TEXT, value REAL)")
-    run[bench_connect_overhead, "connect_overhead"](bench)
-    run[bench_execute_single_insert, "execute_single_insert"](bench, conn)
-    run[bench_execute_batch, "execute_batch"](bench, conn)
+    with Connection.open_in_memory() as conn:
+        conn.execute_batch("CREATE TABLE t (id INTEGER, name TEXT, value REAL)")
+        run[bench_connect_overhead, "connect_overhead"](bench)
+        run[bench_execute_single_insert, "execute_single_insert"](bench, conn)
+        run[bench_execute_batch, "execute_batch"](bench, conn)
 
     # prepare / bind / reset
-    run[bench_prepare, "statement_prepare"](bench)
-    run[bench_bind_positional, "statement_bind_positional"](bench)
-    run[bench_bind_named, "statement_bind_named"](bench)
-    run[bench_reset_and_rebind, "statement_reset_and_rebind"](bench)
+    with Connection.open_in_memory() as conn:
+        conn.execute_batch("CREATE TABLE t (id INTEGER, name TEXT, value REAL)")
+        run[bench_prepare, "statement_prepare"](bench, conn)
+        run[bench_bind_positional, "statement_bind_positional"](bench, conn)
+        run[bench_bind_named, "statement_bind_named"](bench, conn)
+        run[bench_reset_and_rebind, "statement_reset_and_rebind"](bench, conn)
 
     # row iteration / mapping
-    run[bench_query_raw_rows, "query_raw_rows"](bench)
-    run[bench_query_mapped, "query_mapped"](bench)
-    run[bench_query_typed_reflection, "query_typed_reflection"](bench)
-    run[bench_one_row, "query_one_row"](bench)
+    with Connection.open_in_memory() as conn:
+        conn.execute_batch("CREATE TABLE t (id INTEGER, name TEXT, value REAL)")
+        comptime sql = _build_insert_iteration_bench_data_sql[200]()
+        conn.execute_batch(sql)
+        run[bench_query_raw_rows, "query_raw_rows"](bench, conn)
+        run[bench_query_mapped, "query_mapped"](bench, conn)
+        run[bench_query_typed_reflection, "query_typed_reflection"](bench, conn)
+        run[bench_one_row, "query_one_row"](bench, conn)
 
     # transactions / savepoints
-    run[bench_transaction_commit, "transaction_commit"](bench)
-    run[bench_transaction_rollback, "transaction_rollback"](bench)
-    run[bench_savepoint_nested, "savepoint_nested"](bench)
+    with Connection.open_in_memory() as conn:
+        conn.execute_batch("CREATE TABLE t (id INTEGER)")
+        run[bench_transaction_commit, "transaction_commit"](bench, conn)
+        run[bench_transaction_rollback, "transaction_rollback"](bench, conn)
+        run[bench_savepoint_nested, "savepoint_nested"](bench, conn)
 
     # scalar / aggregate / window functions
-    run[bench_udf_registration, "udf_registration"](bench)
-    run[bench_scalar_udf, "scalar_udf"](bench)
-    run[bench_aggregate_udf, "aggregate_udf"](bench)
-    run[bench_window_udf, "window_udf"](bench)
+    with Connection.open_in_memory() as conn:
+        comptime sql = _build_insert_function_bench_data_sql[200]()
+        conn.execute_batch("CREATE TABLE t (value INTEGER)")
+        conn.execute_batch(sql)
+        run[bench_udf_registration, "udf_registration"](bench)
+        run[bench_scalar_udf, "scalar_udf"](bench, conn)
+        run[bench_aggregate_udf, "aggregate_udf"](bench, conn)
+        run[bench_window_udf, "window_udf"](bench, conn)
 
     run_benchmarks(bench)
