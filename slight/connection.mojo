@@ -1289,6 +1289,57 @@ struct Connection(Movable):
         """
         self.db.load_extension(dylib_path, entry_point)
 
+    def serialize(self, schema: String = "main") raises -> List[Byte]:
+        """Serializes a database into an in-memory byte buffer in the standard
+        SQLite file format.
+
+        This can be used to copy or back up an in-memory database (e.g. one
+        created with `Connection.open_in_memory()`), since otherwise there is
+        no file on disk to copy.
+
+        ```mojo
+        from slight import Connection
+
+        def main() raises:
+            var db = Connection.open_in_memory()
+            db.execute_batch("CREATE TABLE x AS SELECT 'data'")
+            var data = db.serialize()
+
+            var copy = Connection.open_in_memory()
+            copy.deserialize(data)
+        ```
+
+        Args:
+            schema: Name of the database schema to serialize (e.g. "main").
+
+        Returns:
+            A byte copy of the serialized database.
+
+        Raises:
+            Error: If serialization fails (e.g. out of memory).
+        """
+        return self.db.serialize(schema)
+
+    def deserialize(mut self, var data: List[Byte], schema: String = "main", read_only: Bool = False) raises:
+        """Deserializes a database from an in-memory byte buffer, replacing the
+        current contents of the given schema.
+
+        The buffer must be in the standard SQLite file format, such as one
+        produced by `serialize()`. Ownership of `data` is transferred to
+        SQLite, which frees it when the connection closes or when this schema
+        is deserialized into again.
+
+        Args:
+            data: The serialized database, in the standard SQLite file format.
+            schema: Name of the database schema to deserialize into (e.g. "main").
+            read_only: If True, the deserialized database is treated as read-only.
+                If False, SQLite is allowed to grow the buffer as the database expands.
+
+        Raises:
+            Error: If the buffer cannot be allocated, or if deserialization fails.
+        """
+        self.db.deserialize(data^, schema, read_only)
+
     def is_locked(self, rc: SQLite3Result) -> Bool:
         """Check whether a result code indicates shared-cache lock contention.
 

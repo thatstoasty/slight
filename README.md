@@ -25,6 +25,7 @@
 - **Tracing**: Monitor SQL execution, profiling, and connection events
 - **Extension Loading**: Load SQLite extensions with a Linear guard for safe enable/disable
 - **Unlock Notification**: Handle shared-cache lock contention with unlock-notify callbacks
+- **Serialization**: Copy a database to/from an in-memory byte buffer
 
 ## Adding the `slight` package to your project
 
@@ -603,6 +604,48 @@ def main() raises:
 
 > **Note:** `wait_for_unlock_notify` uses a `SpinWaiter` internally to block until the callback fires. If `sqlite3_unlock_notify` detects that blocking would cause a deadlock, it returns `SQLITE_LOCKED` immediately — in that case, the caller should roll back the current transaction.
 
+### Serialization
+
+SQLite can serialize a database into an in-memory byte buffer in the standard SQLite file format, and deserialize that buffer back into a connection. This is useful for snapshotting, copying, or transmitting an in-memory database (e.g. one created with `Connection.open_in_memory()`), since otherwise there is no file on disk to copy.
+
+```mojo
+from slight.connection import Connection
+
+def main() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""
+        CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
+        INSERT INTO users VALUES (1, 'Alice');
+        INSERT INTO users VALUES (2, 'Bob');
+    """)
+
+    # Serialize copies the database into an in-memory buffer.
+    var data = db.serialize()
+
+    # Deserialize loads that buffer into another connection, replacing its
+    # current contents.
+    var copy = Connection.open_in_memory()
+    copy.deserialize(data^)
+
+    var stmt = copy.prepare("SELECT id, name FROM users ORDER BY id")
+    for row in stmt.query():
+        print(row.get[Int](0), ":", row.get[String](1))
+```
+
+Pass `read_only=True` to `deserialize` to load the buffer as a read-only database, rejecting any writes:
+
+```mojo
+var snapshot = Connection.open_in_memory()
+snapshot.deserialize(data^, read_only=True)
+
+try:
+    _ = snapshot.execute("DELETE FROM users")
+except e:
+    print("Write rejected:", e)  # attempt to write a readonly database
+```
+
+> **Note:** `deserialize` transfers ownership of the buffer to SQLite, which frees it when the connection closes (or when that schema is deserialized into again). By default the deserialized database is writable and SQLite is allowed to grow the underlying buffer as it expands; with `read_only=True` it cannot be modified or resized.
+
 ## Supported Types
 
 ### Reading from SQL (FromSQL)
@@ -650,6 +693,7 @@ For more detailed examples, see the `examples/` directory:
 - `05_scalar_functions.mojo` - Custom scalar SQL functions
 - `06_aggregate_functions.mojo` - Custom aggregate SQL functions
 - `07_window_functions.mojo` - Custom window SQL functions
+- `08_serialize.mojo` - Serializing and deserializing databases
 
 ## Attributions
 

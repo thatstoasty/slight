@@ -3107,11 +3107,15 @@ struct sqlite3(Movable):
         mut zSchema: String,
         piSize: MutUnsafePointer[Int64, origin],
         mFlags: UInt32,
-    ) -> Optional[Span[Byte, ImmutUntrackedOrigin]]:
+    ) -> Optional[Span[Byte, MutUntrackedOrigin]]:
         """Serialize A Database.
 
         This routine serializes a database into a memory buffer that can be
         written to disk or transmitted over a network.
+
+        Unless `mFlags` includes `SQLITE_SERIALIZE_NOCOPY`, the returned buffer
+        is a fresh allocation owned by the caller, who is responsible for
+        freeing it with `sqlite3_free()` once done with it.
 
         Args:
             db: Database connection.
@@ -3120,13 +3124,14 @@ struct sqlite3(Movable):
             mFlags: Serialization flags.
 
         Returns:
-            Immutable serialized database buffer or None on error.
+            The serialized database buffer, or None on error. The buffer
+            remains mutable so the caller can free it after copying out of it.
         """
         var ptr = self.lib.sqlite3_serialize(db, zSchema.as_c_string_slice().unsafe_ptr(), piSize, mFlags)
         if not ptr:
             return None
 
-        return Span(ptr=ptr.take(), length=Int(piSize[])).get_immutable()
+        return Span(ptr=ptr.take(), length=Int(piSize[]))
 
     def deserialize[
         origin: MutOrigin, //
