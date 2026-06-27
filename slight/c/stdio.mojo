@@ -29,7 +29,7 @@ def fopen[
 ](
     path: ImmutUnsafePointer[c_char, path_origin],
     mode: ImmutUnsafePointer[c_char, mode_origin],
-) -> CPointer[NoneType, MutExternalOrigin]:
+) -> CPointer[NoneType, MutUntrackedOrigin]:
     """Open a file and return an opaque ``FILE *`` handle.
 
     Args:
@@ -39,10 +39,10 @@ def fopen[
     Returns:
         Opaque ``FILE *`` pointer on success, None on failure.
     """
-    return external_call["fopen", CPointer[NoneType, MutExternalOrigin]](path, mode)
+    return external_call["fopen", CPointer[NoneType, MutUntrackedOrigin]](path, mode)
 
 
-def fclose(fp: CPointer[NoneType, MutExternalOrigin]) -> c_int:
+def fclose(fp: CPointer[NoneType, MutUntrackedOrigin]) -> c_int:
     """Close a ``FILE *`` handle.
 
     Args:
@@ -54,7 +54,7 @@ def fclose(fp: CPointer[NoneType, MutExternalOrigin]) -> c_int:
     return external_call["fclose", c_int](fp)
 
 
-def fseek(fp: CPointer[NoneType, MutExternalOrigin], offset: Int, whence: c_int) -> c_int:
+def fseek(fp: CPointer[NoneType, MutUntrackedOrigin], offset: Int, whence: c_int) -> c_int:
     """Reposition the file-position indicator.
 
     Args:
@@ -68,7 +68,7 @@ def fseek(fp: CPointer[NoneType, MutExternalOrigin], offset: Int, whence: c_int)
     return external_call["fseek", c_int](fp, offset, whence)
 
 
-def ftell(fp: CPointer[NoneType, MutExternalOrigin]) -> Int:
+def ftell(fp: CPointer[NoneType, MutUntrackedOrigin]) -> Int:
     """Return the current file-position indicator.
 
     Args:
@@ -80,7 +80,7 @@ def ftell(fp: CPointer[NoneType, MutExternalOrigin]) -> Int:
     return external_call["ftell", Int](fp)
 
 
-def fread[origin: MutOrigin, //](buf: MutUnsafePointer[NoneType, origin], size: Int, count: Int, fp: CPointer[NoneType, MutExternalOrigin]) -> Int:
+def fread[origin: MutOrigin, //](buf: MutUnsafePointer[NoneType, origin], size: Int, count: Int, fp: CPointer[NoneType, MutUntrackedOrigin]) -> Int:
     """Read up to ``count`` elements of ``size`` bytes each from ``fp``.
 
     Args:
@@ -96,7 +96,7 @@ def fread[origin: MutOrigin, //](buf: MutUnsafePointer[NoneType, origin], size: 
     return external_call["fread", Int](buf, size, count, fp)
 
 
-def fgetc(fp: CPointer[NoneType, MutExternalOrigin]) -> Optional[Byte]:
+def fgetc(fp: CPointer[NoneType, MutUntrackedOrigin]) -> Optional[Byte]:
     """Read one byte from an open file handle.
 
     Args:
@@ -111,7 +111,7 @@ def fgetc(fp: CPointer[NoneType, MutExternalOrigin]) -> Optional[Byte]:
     return Byte(ret)
 
 
-def feof(fp: CPointer[NoneType, MutExternalOrigin]) -> c_int:
+def feof(fp: CPointer[NoneType, MutUntrackedOrigin]) -> c_int:
     """Test the end-of-file indicator.
 
     Args:

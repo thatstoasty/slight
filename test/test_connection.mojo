@@ -288,6 +288,52 @@ def test_query_map() raises:
     assert_equal(concat, "hello, world!")
 
 
+@fieldwise_init
+struct Pair(Copyable, Defaultable, Writable):
+    var x: Int
+    var y: String
+
+    def __init__(out self):
+        self.x = 0
+        self.y = ""
+
+    def write_to(self, mut writer: Some[Writer]):
+        writer.write("Pair(x=", self.x, ", y=", self.y, ")")
+
+
+def test_mapped_rows_collect() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""CREATE TABLE foo(x INTEGER, y TEXT);
+    INSERT INTO foo VALUES(1, 'a');
+    INSERT INTO foo VALUES(2, 'b');
+    INSERT INTO foo VALUES(3, 'c');""")
+
+    def get_string(r: Row) raises -> String:
+        return r.get[String](1)
+
+    var stmt = db.prepare("SELECT x, y FROM foo ORDER BY x")
+    var results = stmt.query[get_string]().collect()
+    assert_equal(len(results), 3)
+    assert_equal(results[0], "a")
+    assert_equal(results[1], "b")
+    assert_equal(results[2], "c")
+
+
+def test_typed_rows_collect() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""CREATE TABLE foo(x INTEGER, y TEXT);
+    INSERT INTO foo VALUES(1, 'a');
+    INSERT INTO foo VALUES(2, 'b');""")
+
+    var stmt = db.prepare("SELECT x, y FROM foo ORDER BY x")
+    var results = stmt.query[Pair]().collect()
+    assert_equal(len(results), 2)
+    assert_equal(results[0].x, 1)
+    assert_equal(results[0].y, "a")
+    assert_equal(results[1].x, 2)
+    assert_equal(results[1].y, "b")
+
+
 def test_query_row() raises:
     var db = Connection.open_in_memory()
     var sql = """CREATE TABLE foo(x INTEGER);

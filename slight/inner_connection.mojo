@@ -1,4 +1,4 @@
-from std.ffi import c_char, c_int
+from std.ffi import c_char, c_int, CStringSlice
 from std.pathlib import Path
 from slight.c.types import (
     MutExternalPointer,
@@ -9,7 +9,10 @@ from slight.c.types import (
     sqlite3_context,
     sqlite3_value,
     sqlite3_connection,
-    sqlite3_stmt
+    sqlite3_stmt,
+    SQLITE_DESERIALIZE_FREEONCLOSE,
+    SQLITE_DESERIALIZE_READONLY,
+    SQLITE_DESERIALIZE_RESIZEABLE,
 )
 from slight.busy import BusyHandlerFn, _busy_handler_callback
 from slight.api import sqlite_ffi
@@ -155,7 +158,7 @@ struct InnerConnection(Movable):
 
     def prepare(
         self, var sql: String, flags: PrepFlag = PrepFlag.PREPARE_PERSISTENT
-        ) raises -> Tuple[Optional[MutExternalPointer[sqlite3_stmt]], UInt]:
+    ) raises -> Tuple[Optional[MutExternalPointer[sqlite3_stmt]], UInt]:
         """Prepares an SQL statement for execution.
 
         Args:
@@ -182,7 +185,7 @@ struct InnerConnection(Movable):
             raise e^
 
         var tail: UInt = 0
-        var tail_len = StringSlice(unsafe_from_utf8_ptr=c_tail[]).byte_length()
+        var tail_len = len(CStringSlice(unsafe_from_ptr=c_tail[]).as_bytes())
         if tail_len > 0:
             var n = sql.byte_length() - tail_len
 
@@ -291,7 +294,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(V, ToSQL), String(
-            t"Return type V must conform to `ToSQL` trait. {reflect[V]().name()} does not implement `ToSQL`."
+            t"Return type V must conform to `ToSQL` trait. {reflect[V].name()} does not implement `ToSQL`."
         )
 
         # Copy data to the heap and pass a pointer to it as pApp.
@@ -331,7 +334,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(V, ToSQL), String(
-            t"Return type V must conform to `ToSQL` trait. {reflect[V]().name()} does not implement `ToSQL`."
+            t"Return type V must conform to `ToSQL` trait. {reflect[V].name()} does not implement `ToSQL`."
         )
         return sqlite_ffi()[].create_scalar_function(
             self.db,
@@ -377,7 +380,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
 
         # Copy data to the heap and pass a pointer to it as pApp.
@@ -427,7 +430,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
         return sqlite_ffi()[].create_aggregate_function(
             self.db,
@@ -478,7 +481,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
 
         # Copy data to the heap and pass a pointer to it as pApp.
@@ -534,7 +537,7 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the create function operation.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            t"Return type T must conform to `ToSQL` trait. {reflect[T]().name()} does not implement `ToSQL`."
+            t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
         return sqlite_ffi()[].create_window_function(
             self.db,
@@ -791,6 +794,67 @@ struct InnerConnection(Movable):
             sqlite_ffi()[].free(errmsg_ptr.bitcast[NoneType]())
 
         raise Error(error_from_sqlite_code(result, message))
+
+    def serialize(self, var schema: String = "main") raises -> List[Byte]:
+        """Serializes a database into an in-memory copy in the standard SQLite
+        file format.
+
+        Args:
+            schema: Name of the database schema to serialize (e.g. "main").
+
+        Returns:
+            A byte copy of the serialized database.
+
+        Raises:
+            Error: If serialization fails (e.g. out of memory).
+        """
+        var size: Int64 = 0
+        var maybe_buf = sqlite_ffi()[].serialize(self.db, schema, UnsafePointer(to=size), 0)
+        if not maybe_buf:
+            raise Error("sqlite3_serialize failed: out of memory")
+
+        var buf = maybe_buf.value()
+        var data = List[Byte](capacity=len(buf))
+        data.extend(buf)
+        sqlite_ffi()[].free(buf.unsafe_ptr().bitcast[NoneType]())
+        return data^
+
+    def deserialize(self, var data: List[Byte], var schema: String = "main", read_only: Bool = False) raises:
+        """Deserializes a database from an in-memory byte buffer, replacing the
+        current contents of the given schema.
+
+        The buffer is copied into memory allocated by SQLite, which takes
+        ownership of it and frees it when the connection closes (or is
+        deserialized into again).
+
+        Args:
+            data: The serialized database, in the standard SQLite file format.
+            schema: Name of the database schema to deserialize into (e.g. "main").
+            read_only: If True, the deserialized database is treated as read-only
+                and cannot be resized. If False, SQLite is allowed to grow the
+                buffer as the database expands.
+
+        Raises:
+            Error: If the buffer cannot be allocated, or if deserialization fails.
+        """
+        var size = UInt64(len(data))
+        var maybe_ptr = sqlite_ffi()[].malloc64(size)
+        if not maybe_ptr:
+            raise Error("sqlite3_malloc64 failed: out of memory")
+
+        var ptr = maybe_ptr.value().bitcast[Byte]()
+        for i in range(len(data)):
+            ptr[i] = data[i]
+
+        var flags = SQLITE_DESERIALIZE_FREEONCLOSE
+        if read_only:
+            flags |= SQLITE_DESERIALIZE_READONLY
+        else:
+            flags |= SQLITE_DESERIALIZE_RESIZEABLE
+
+        self.raise_if_error(
+            sqlite_ffi()[].deserialize(self.db, schema, ptr, Int64(size), Int64(size), flags),
+        )
 
     def is_locked(self, rc: SQLite3Result) -> Bool:
         """Check whether a result code indicates shared-cache lock contention.

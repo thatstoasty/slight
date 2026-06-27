@@ -182,3 +182,4 @@ kgen.*
 
 .github/copilot-instructions.md
 rusqlite/**
+rusqlite

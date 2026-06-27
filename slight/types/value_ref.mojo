@@ -1,5 +1,6 @@
 from std.os import abort
 from std.utils import Variant
+from std.ffi import CStringSlice
 from slight.c.types import sqlite3_value, MutExternalPointer
 from slight.api import sqlite_ffi
 from slight.enums import DataType
@@ -200,9 +201,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
             var text = sqlite_ffi()[].value_text(value)
             if not text:
                 return Self(SQLite3Null())
-            return Self(SQLite3Text(
-                text.value()
-            ))
+            return Self(SQLite3Text(text.value()))
         elif DataType.BLOB == value_type:
             var blob = sqlite_ffi()[].value_blob(value)
             if not blob:

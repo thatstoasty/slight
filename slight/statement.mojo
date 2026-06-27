@@ -2,6 +2,7 @@ from std.os import abort
 from std.sys import stderr
 from std.utils import Variant
 from std.memory import ImmutSpan
+from std.ffi import CStringSlice
 from slight.c.raw_bindings import sqlite3_stmt
 from slight.c.types import MutExternalPointer, ResultDestructorFn
 from slight.sqlite_string import SQLiteMallocString
@@ -178,9 +179,6 @@ struct Statement[conn: ImmutOrigin](Movable):
     def column_text(self, idx: UInt) raises -> StringSlice[origin_of(self)]:
         """Returns the value of the specified column as a text string.
 
-        The program will abort if the column contains NULL data, so this method
-        takes ownership of `self` to be able to finalize the statement in that case.
-
         Args:
             idx: The index of the column to retrieve.
 
@@ -341,7 +339,7 @@ struct Statement[conn: ImmutOrigin](Movable):
                    or if any other error occurs during execution.
         """
         comptime assert conforms_to(P, Params), String(
-            "`params` must conform to the `Params` trait. ", reflect[P]().name(), " does not implement `Params`."
+            "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         trait_downcast[Params](params).bind(self)
         return self._execute()
@@ -432,7 +430,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If the parameter type is unsupported or binding fails.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "`parameter` must conform to `ToSQL` trait. ", reflect[T]().name(), " does not implement `ToSQL`."
+            "`parameter` must conform to `ToSQL` trait. ", reflect[T].name(), " does not implement `ToSQL`."
         )
         var value = trait_downcast[ToSQL](parameter).to_sql()
         if value.isa[SQLite3Null]():
@@ -468,7 +466,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If parameter binding fails or the query execution fails.
         """
         comptime assert conforms_to(P, Params), String(
-            "`params` must conform to the `Params` trait. ", reflect[P]().name(), " does not implement `Params`."
+            "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         trait_downcast[Params](params).bind(self)
         return Rows(Pointer(to=self))
@@ -496,7 +494,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If parameter binding fails or the query execution fails.
         """
         comptime assert conforms_to(P, Params), String(
-            "`params` must conform to the `Params` trait. ", reflect[P]().name(), " does not implement `Params`."
+            "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         return MappedRows[transform[Self.conn, origin_of(self)]](self.query(params))
 
@@ -524,7 +522,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If parameter binding fails or the query execution fails.
         """
         comptime assert conforms_to(P, Params), String(
-            "`params` must conform to the `Params` trait. ", reflect[P]().name(), " does not implement `Params`."
+            "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         return TypedRows[Self.conn, origin_of(self), T](self.query(params))
 
@@ -548,7 +546,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If parameter binding fails or the query execution fails.
         """
         comptime assert conforms_to(P, Params), String(
-            "`params` must conform to the `Params` trait. ", reflect[P]().name(), " does not implement `Params`."
+            "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         var rows = self.query(params)
         try:
@@ -575,7 +573,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             Error: If the query fails or does not return exactly one row.
         """
         comptime assert conforms_to(P, Params), String(
-            "`params` must conform to the `Params` trait. ", reflect[P]().name(), " does not implement `Params`."
+            "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         var rows = self.query[transform](params)
         try:
@@ -676,7 +674,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             or if any error occurs during execution.
         """
         comptime assert conforms_to(P, Params), String(
-            "`params` must conform to the `Params` trait. ", reflect[P]().name(), " does not implement `Params`."
+            "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         var changes = self.execute(params)
         if changes == 1:

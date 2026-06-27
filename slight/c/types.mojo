@@ -3,7 +3,7 @@ from std.memory import OpaquePointer
 from std.utils import StaticTuple
 
 
-comptime ImmutExternalPointer = ImmutUnsafePointer[origin=ImmutExternalOrigin, address_space=AddressSpace.GENERIC, ...]
+comptime ImmutExternalPointer = ImmutUnsafePointer[origin=ImmutUntrackedOrigin, address_space=AddressSpace.GENERIC, ...]
 """Immutable External Pointer.
 
 Parameters:
@@ -15,7 +15,7 @@ comptime ImmutExternalOpaquePointer = ImmutExternalPointer[NoneType]
 Parameters:
     type: The type of the data the pointer points to.
 """
-comptime MutExternalPointer = MutUnsafePointer[origin=MutExternalOrigin, address_space=AddressSpace.GENERIC, ...]
+comptime MutExternalPointer = MutUnsafePointer[origin=MutUntrackedOrigin, address_space=AddressSpace.GENERIC, ...]
 """Mutable External Pointer.
 
 Parameters:
@@ -72,6 +72,20 @@ comptime SQLITE_OPEN_NOFOLLOW: c_int = 0x01000000  # Ok for sqlite3_open_v2()
 """SQLITE Open Flag: Do not follow symbolic links when opening the database file."""
 comptime SQLITE_OPEN_EXRESCODE: c_int = 0x02000000  # Extended result codes
 """SQLITE Open Flag: Return extended error codes from sqlite3_open_v2()."""
+
+comptime SQLITE_SERIALIZE_NOCOPY: c_uint = 0x0001
+"""SQLITE Serialize Flag: Return a pointer to the database's own in-memory buffer
+instead of a fresh copy. Only succeeds if the database is already entirely
+in-memory and contiguous; the caller must not free the returned pointer."""
+
+comptime SQLITE_DESERIALIZE_FREEONCLOSE: c_uint = 0x0001
+"""SQLITE Deserialize Flag: SQLite will call `sqlite3_free()` on the supplied
+buffer when the database connection closes."""
+comptime SQLITE_DESERIALIZE_RESIZEABLE: c_uint = 0x0002
+"""SQLITE Deserialize Flag: Allow SQLite to grow the buffer using
+`sqlite3_realloc64()` if the database needs to expand."""
+comptime SQLITE_DESERIALIZE_READONLY: c_uint = 0x0004
+"""SQLITE Deserialize Flag: Treat the deserialized database as read-only."""
 
 comptime SQLITE_OK: c_int = 0
 """SQLITE Result Code: Successful result."""
@@ -178,7 +192,7 @@ comptime ScalarFnCallback = def(
     MutExternalPointer[sqlite3_context],
     c_int,
     MutExternalPointer[MutExternalPointer[sqlite3_value]],
-) raises abi("C") thin
+) abi("C") thin
 """Callback type for scalar SQL functions.
 
 The callback receives:

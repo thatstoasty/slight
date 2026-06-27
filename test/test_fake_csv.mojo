@@ -1,7 +1,7 @@
 """Debug test to isolate crash."""
 from std.ffi import c_char, c_int
 from slight.c.types import (
-    ImmutExternalOrigin,
+    ImmutUntrackedOrigin,
     MutExternalPointer,
     sqlite3_connection,
     sqlite3_index_info,
@@ -82,7 +82,7 @@ def fake_open(vtab: MutExternalPointer[FakeState]) raises -> FakeCursor:
 def fake_filter(
     cursor: MutExternalPointer[FakeCursor],
     idx_num: c_int,
-    idx_str: Optional[StringSlice[ImmutExternalOrigin]],
+    idx_str: Optional[StringSlice[ImmutUntrackedOrigin]],
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
     argc: c_int,
 ) raises:

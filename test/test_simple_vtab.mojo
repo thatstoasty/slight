@@ -2,7 +2,7 @@
 from std.ffi import c_int, c_uchar
 from slight.connection import Connection
 from slight.c.types import (
-    ImmutExternalOrigin,
+    ImmutUntrackedOrigin,
     MutExternalPointer,
     _sqlite3_index_info_sqlite3_index_constraint_usage,
     sqlite3_connection,
@@ -80,7 +80,7 @@ def simple_open(vtab: MutExternalPointer[SimpleVTab]) raises -> SimpleCursor:
 def simple_filter(
     cursor: MutExternalPointer[SimpleCursor],
     idx_num: c_int,
-    idx_str: Optional[StringSlice[ImmutExternalOrigin]],
+    idx_str: Optional[StringSlice[ImmutUntrackedOrigin]],
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
     argc: c_int,
 ) raises:

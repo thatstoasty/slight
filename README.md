@@ -2,7 +2,7 @@
 
 `slight` is a Mojo wrapper around the SQLite3 C library, providing a safe and ergonomic interface for interacting with SQLite databases in Mojo applications.
 
-![Mojo Version](https://img.shields.io/badge/Mojo%F0%9F%94%A5-1.0.0b1-orange)
+![Mojo Version](https://img.shields.io/badge/Mojo%F0%9F%94%A5-1.0.0b2-orange)
 ![Build Status](https://github.com/thatstoasty/mojo-sqlite3/actions/workflows/build.yml/badge.svg)
 ![Test Status](https://github.com/thatstoasty/mojo-sqlite3/actions/workflows/test.yml/badge.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -25,6 +25,7 @@
 - **Tracing**: Monitor SQL execution, profiling, and connection events
 - **Extension Loading**: Load SQLite extensions with a Linear guard for safe enable/disable
 - **Unlock Notification**: Handle shared-cache lock contention with unlock-notify callbacks
+- **Serialization**: Copy a database to/from an in-memory byte buffer
 
 ## Adding the `slight` package to your project
 
@@ -45,7 +46,7 @@ There's two ways to build `slight` from source: directly from the Git repository
 Run the following commands in your terminal:
 
 ```bash
-pixi add -g "https://github.com/thatstoasty/slight.git" --tag v0.1.2 && pixi install
+pixi add -g "https://github.com/thatstoasty/slight.git" --tag v0.2.1 && pixi install
 ```
 
 #### Building from source: Local
@@ -603,6 +604,48 @@ def main() raises:
 
 > **Note:** `wait_for_unlock_notify` uses a `SpinWaiter` internally to block until the callback fires. If `sqlite3_unlock_notify` detects that blocking would cause a deadlock, it returns `SQLITE_LOCKED` immediately — in that case, the caller should roll back the current transaction.
 
+### Serialization
+
+SQLite can serialize a database into an in-memory byte buffer in the standard SQLite file format, and deserialize that buffer back into a connection. This is useful for snapshotting, copying, or transmitting an in-memory database (e.g. one created with `Connection.open_in_memory()`), since otherwise there is no file on disk to copy.
+
+```mojo
+from slight.connection import Connection
+
+def main() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""
+        CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
+        INSERT INTO users VALUES (1, 'Alice');
+        INSERT INTO users VALUES (2, 'Bob');
+    """)
+
+    # Serialize copies the database into an in-memory buffer.
+    var data = db.serialize()
+
+    # Deserialize loads that buffer into another connection, replacing its
+    # current contents.
+    var copy = Connection.open_in_memory()
+    copy.deserialize(data^)
+
+    var stmt = copy.prepare("SELECT id, name FROM users ORDER BY id")
+    for row in stmt.query():
+        print(row.get[Int](0), ":", row.get[String](1))
+```
+
+Pass `read_only=True` to `deserialize` to load the buffer as a read-only database, rejecting any writes:
+
+```mojo
+var snapshot = Connection.open_in_memory()
+snapshot.deserialize(data^, read_only=True)
+
+try:
+    _ = snapshot.execute("DELETE FROM users")
+except e:
+    print("Write rejected:", e)  # attempt to write a readonly database
+```
+
+> **Note:** `deserialize` transfers ownership of the buffer to SQLite, which frees it when the connection closes (or when that schema is deserialized into again). By default the deserialized database is writable and SQLite is allowed to grow the underlying buffer as it expands; with `read_only=True` it cannot be modified or resized.
+
 ## Supported Types
 
 ### Reading from SQL (FromSQL)
@@ -650,6 +693,7 @@ For more detailed examples, see the `examples/` directory:
 - `05_scalar_functions.mojo` - Custom scalar SQL functions
 - `06_aggregate_functions.mojo` - Custom aggregate SQL functions
 - `07_window_functions.mojo` - Custom window SQL functions
+- `08_serialize.mojo` - Serializing and deserializing databases
 
 ## Attributions
 
@@ -668,7 +712,6 @@ And took notes from:
 - Add subtype support for UDF results.
 - Made `Row.get` more flexible and ergonomic by allowing users to specify the column using any type that implements a `RowIndex` trait, which would include both `UInt/Int` for positional access and `String` for named access. But instead of checking for types that implement `RowIndex` and `FromSQL` at compilation time, I want to enforce these constraints via the type checker by using trait parameters. This would make the API safer and more user-friendly, as users would get immediate feedback if they try to use unsupported types for column access or retrieval. However, extensions are not fully baked yet and exposing them to users is a worse developer experience than just doing runtime checks and leaving the `get` function signature a bit more vague. I have left this as a TODO for now. Once the extension system is more ergonomic and less buggy, I can re-enable this feature and provide a much better API for column access in `Row.get`.
 - Same goes for parameter binding. Any type that implements a `Params` trait can be used as parameters for queries, but currently this is not enforced by the type checker. For now, functions accept `AnyType` for parameters and we perform a comptime assert to check if the provided type conforms to the `Params` trait, which is a bit clunky. Ideally, we would want to enforce this constraint directly in the function signature, but due to limitations in the current trait system and extension system, this is not possible without causing issues for users who just want to use simple tuples or lists for parameters. Once the trait and extension systems are more robust, I can re-enable this feature and provide a much cleaner API for parameter binding.
-- Add `collect` methods to the `MappedRows` and `TypedRows` iterators to allow users to easily collect query results into a list or other collection types. This would enhance the ergonomics of working with query results and make it easier for users to manipulate and work with their data after retrieval. This is dependent on conditional conformance, as we would need `T` to be `Copyable` to be added to a List. But I don't want to constrain `T` to be `Copyable` in the iterator itself.
 - Assess origins of `ValueRef` in general, because I'm pretty sure I have a few incorrect origins being used.
 - I would like `RowTransformFn` to be properly parametrized on the connection and statement origins for `Row`, but I can't get partial parameter binding working for `Connection` functions. Maybe I'll revisit that one day.
 - Improve CSV Reader logic.

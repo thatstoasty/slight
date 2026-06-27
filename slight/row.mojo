@@ -280,10 +280,10 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
             Error: If the column value cannot be converted to type `S`.
         """
         comptime assert conforms_to(S, FromSQL), String(
-            t"S must implement `FromSQL`. {reflect[S]().name()} does not implement `FromSQL`."
+            t"S must implement `FromSQL`. {reflect[S].name()} does not implement `FromSQL`."
         )
         comptime assert conforms_to(I, RowIndex), String(
-            t"I must implement `RowIndex`. {reflect[I]().name()} does not implement `RowIndex`."
+            t"I must implement `RowIndex`. {reflect[I].name()} does not implement `RowIndex`."
         )
 
         var i = trait_downcast[RowIndex](idx).idx(self.stmt[])
@@ -431,6 +431,17 @@ struct MappedRows[T: Movable, conn: ImmutOrigin, statement: ImmutOrigin, //, tra
         """
         self.rows.reset()
 
+    def collect(self) -> List[Self.T]:
+        """Collects the remaining transformed rows into a `List`.
+
+        Returns:
+            A `List` containing every remaining transformed row.
+        """
+        var result = List[Self.T]()
+        for var item in self:
+            result.append(item^)
+        return result^
+
 
 struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: ColumnType](Copyable, Iterator):
     """An iterator that transforms rows using a mapping function.
@@ -467,7 +478,7 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: ColumnType](Copya
         Raises:
             Error: If the transformation fails.
         """
-        comptime ReflectedT = reflect[Self.T]()
+        comptime ReflectedT = reflect[Self.T]
         comptime assert ReflectedT.is_struct(), "TypedRows can only transform to struct types."
 
         comptime field_count = ReflectedT.field_count()
@@ -489,10 +500,10 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: ColumnType](Copya
                     raise Error(
                         t"Field '{field_name}' of struct '{ReflectedT.name()}' does not implement FromSQL."
                     )
-                ref field = trait_downcast[ImplicitlyDestructible & Movable & Defaultable](
+                ref field = trait_downcast[ColumnType](
                     __struct_field_ref(i, result)
                 )
-                field = row.get[type_of(trait_downcast[FromSQL](field))](i)
+                field = row.get[type_of(field)](i)
         except e:
             # TODO: We capture and print the error here because an extension bug swallows errors.
             print(e)
@@ -528,3 +539,14 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: ColumnType](Copya
         can begin again from the first row.
         """
         self.rows.reset()
+
+    def collect(self) -> List[Self.T]:
+        """Collects the remaining transformed rows into a `List`.
+
+        Returns:
+            A `List` containing every remaining transformed row.
+        """
+        var result = List[Self.T]()
+        for var item in self:
+            result.append(item^)
+        return result^
