@@ -1,4 +1,4 @@
-from std.builtin.rebind import downcast, trait_downcast
+from std.builtin.rebind import downcast
 from slight.statement import Statement
 from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
 from slight.util import ColumnType
@@ -286,7 +286,7 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
             t"I must implement `RowIndex`. {reflect[I].name()} does not implement `RowIndex`."
         )
 
-        var i = trait_downcast[RowIndex](idx).idx(self.stmt[])
+        var i = idx.idx(self.stmt[])
         return downcast[S, FromSQL](self.stmt[].value_ref(i))
 
 

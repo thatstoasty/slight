@@ -98,6 +98,10 @@ def _call_scalar_callback[
         argc: The number of arguments passed to the function.
         argv: The arguments passed to the function.
     """
+    comptime assert conforms_to(V, ToSQL), String(
+        T"`func` must return a type that conforms to `ToSQL`. {reflect[V].name()} does not implement `ToSQL`."
+    )
+
     # Convert raw C callback to our Context wrapper and call the user-provided function
     var context = Context(ctx, argc, argv)
     
@@ -111,7 +115,7 @@ def _call_scalar_callback[
     
     var result: ValueRef[origin_of(fn_result)]
     try:
-        result = trait_downcast[ToSQL](fn_result).to_sql()
+        result = fn_result.to_sql()
     except e:
         context.result_error(t"Error converting result to SQL: {e}")
         return
@@ -207,6 +211,9 @@ def _call_final_callback[
     Args:
         ctx: The SQLite context for the aggregate function.
     """
+    comptime assert conforms_to(T, ToSQL), String(
+        t"`final_fn` must return a type that conforms to `ToSQL`. {reflect[T].name()} does not implement `ToSQL`."
+    )
     var context = Context(ctx)
     var agg_context = context.aggregate_context[A](0)
     if not agg_context:
@@ -223,7 +230,7 @@ def _call_final_callback[
 
     var result: ValueRef[origin_of(finalize_result)]
     try:
-        result = trait_downcast[ToSQL](finalize_result).to_sql()
+        result = finalize_result.to_sql()
     except e:
         context.result_error(t"Error converting final result to SQL: {e}")
         return
@@ -266,6 +273,9 @@ def _call_value_callback[
     Args:
         ctx: The SQLite context for the window function.
     """
+    comptime assert conforms_to(T, ToSQL), String(
+        t"`value_fn` must return a type that conforms to `ToSQL`. {reflect[T].name()} does not implement `ToSQL`."
+    )
     var context = Context(ctx)
     # Set n_bytes to 0 so no unneccessary allocations occur
     var agg_context = context.aggregate_context[A](0)
@@ -282,7 +292,7 @@ def _call_value_callback[
 
     var result: ValueRef[origin_of(value_result)]
     try:
-        result = trait_downcast[ToSQL](value_result).to_sql()
+        result = value_result.to_sql()
     except e:
         context.result_error(t"Error converting window function value result to SQL: {e}")
         return

@@ -104,9 +104,9 @@ struct Sql(Movable, Writable):
             Error: If the value type is unsupported.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "`value` must conform to `ToSQL` trait.", reflect[T].name(), " does not implement `ToSQL`."
+            t"`value` must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
-        var sql = trait_downcast[ToSQL](value).to_sql()
+        var sql = value.to_sql()
 
         if sql.isa[SQLite3Integer]():
             self.push_int(Int(sql[SQLite3Integer].value))

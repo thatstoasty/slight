@@ -341,7 +341,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         comptime assert conforms_to(P, Params), String(
             "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
-        trait_downcast[Params](params).bind(self)
+        params.bind(self)
         return self._execute()
 
     def bind_null(self, index: UInt) raises -> None:
@@ -432,7 +432,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         comptime assert conforms_to(T, ToSQL), String(
             "`parameter` must conform to `ToSQL` trait. ", reflect[T].name(), " does not implement `ToSQL`."
         )
-        var value = trait_downcast[ToSQL](parameter).to_sql()
+        var value = parameter.to_sql()
         if value.isa[SQLite3Null]():
             self.bind_null(index)
         elif value.isa[SQLite3Text[value.stmt]]():
@@ -468,7 +468,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         comptime assert conforms_to(P, Params), String(
             "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
-        trait_downcast[Params](params).bind(self)
+        params.bind(self)
         return Rows(Pointer(to=self))
 
     def query[

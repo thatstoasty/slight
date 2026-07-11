@@ -83,7 +83,7 @@ struct InnerConnection(Movable):
         var ptr = MutExternalPointer[sqlite3_connection].unsafe_dangling()
         var result = sqlite_ffi()[].open_v2(path, UnsafePointer(to=ptr), flags.value, None)
         if result != SQLite3Result.OK:
-            raise Error("Could not open database: ", String(result))
+            raise Error(t"Could not open database: {String(result)}")
         self.db = ptr
     
     def unsafe_ptr[
@@ -127,9 +127,6 @@ struct InnerConnection(Movable):
         Returns:
             The SQLite3Result code from the close operation.
         """
-        # if not self.db:
-        #     return SQLite3Result.OK
-
         return sqlite_ffi()[].close(self.db)
 
     def changes(self) -> Int64:

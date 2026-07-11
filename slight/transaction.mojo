@@ -32,7 +32,7 @@ struct TransactionBehavior(Equatable, ImplicitlyCopyable, TrivialRegisterPassabl
         """
         return self.value == other.value
 
-    def to_sql(self) -> String:
+    def to_sql(self) -> StaticString:
         """Convert the transaction behavior to its SQL representation.
 
         Returns:

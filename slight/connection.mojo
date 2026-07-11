@@ -112,10 +112,6 @@ struct Connection(Movable):
         """
         connection = Self(InnerConnection(":memory:", flags))
 
-    # def __init__(out self):
-    #     """Initialize a new connection with an empty inner connection."""
-    #     self.db = InnerConnection()
-
     def __init__(out self, var conn: InnerConnection):
         """Initialize a new connection with the given inner connection."""
         self.db = conn^
@@ -507,17 +503,15 @@ struct Connection(Movable):
         Raises:
             Error: If the underlying SQLite call fails.
 
-                #### Example:
-
+        #### Example:
+        
         ```mojo
         from slight import Connection
 
-        def perform_queries(mut conn: Connection) raises:
+        def perform_queries(conn: Connection) raises:
             var tx = conn.transaction()
-
             _ = tx.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
             _ = tx.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
-
             tx.commit()
         ```
         """
@@ -547,12 +541,10 @@ struct Connection(Movable):
         ```mojo
         from slight import Connection
 
-        def perform_queries(mut conn: Connection) raises:
+        def perform_queries(conn: Connection) raises:
             var sp = conn.savepoint()
-
             _ = sp.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
             _ = sp.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
-
             sp.commit()
         ```
         """
@@ -565,7 +557,7 @@ struct Connection(Movable):
         T: Movable,
         //,
         transform: def(Row) raises thin -> T,
-    ](self, pragma: String, schema: Optional[String] = None,) raises -> T:
+    ](self, pragma: String, schema: Optional[String] = None) raises -> T:
         """Query the current value of a pragma.
 
         Some pragmas will return multiple rows/values which cannot be retrieved
@@ -1306,7 +1298,7 @@ struct Connection(Movable):
             var data = db.serialize()
 
             var copy = Connection.open_in_memory()
-            copy.deserialize(data)
+            copy.deserialize(data^)
         ```
 
         Args:

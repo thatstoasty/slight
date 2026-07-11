@@ -88,7 +88,7 @@ __extension Optional(ToSQL):
         if not self:
             return ValueRef[origin_of(self)](SQLite3Null())
 
-        var sql_value = trait_downcast[ToSQL](self.value()).to_sql()
+        var sql_value = self.value().to_sql()
         if sql_value.isa[SQLite3Integer]():
             return ValueRef[origin_of(self)](sql_value[SQLite3Integer].copy())
         elif sql_value.isa[SQLite3Real]():
@@ -99,7 +99,6 @@ __extension Optional(ToSQL):
             return ValueRef[origin_of(self)](sql_value[SQLite3Blob[sql_value.stmt]].copy())
         else:
             raise Error("Unsupported type in Optional for ToSQL conversion")
-        # return ValueRef[origin_of(self)](trait_downcast[ToSQL](self.value()).to_sql().value)
 
 
 __extension Bool(ToSQL):
