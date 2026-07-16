@@ -295,5 +295,47 @@ def test_nested_savepoint_rollback() raises:
     assert_current_sum(3, db)
 
 
+def test_transaction_and_savepoint_forwarding() raises:
+    """Test that Transaction and Savepoint forward Connection-level methods directly."""
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE foo (x INTEGER)")
+
+    def get_int(r: Row) raises -> Int:
+        return r.get[Int](0)
+
+    with db.transaction() as tx:
+        # execute forwards directly, without needing tx.conn[].
+        _ = tx.execute("INSERT INTO foo VALUES(?1)", [1])
+        tx.execute_batch("INSERT INTO foo VALUES(2)")
+
+        assert_equal(tx.one_row[get_int]("SELECT SUM(x) FROM foo"), 3)
+        assert_equal(tx.one_column[Int]("SELECT SUM(x) FROM foo"), 3)
+
+        var hit = tx.maybe_one_row[get_int]("SELECT x FROM foo WHERE x = ?1", [1])
+        assert_true(hit)
+        assert_equal(hit.value(), 1)
+
+        var miss = tx.maybe_one_row[get_int]("SELECT x FROM foo WHERE x > 100")
+        assert_false(Bool(miss))
+
+        # NOTE: `prepare` is not forwarded (see slight/transaction.mojo for why);
+        # use `tx.conn[].prepare(...)` directly.
+        var stmt = tx.conn[].prepare("SELECT x FROM foo WHERE x = ?1")
+        assert_equal(stmt.one_column[Int]([2]), 2)
+
+        assert_equal(tx.changes(), 1)
+
+        with tx.savepoint() as sp:
+            _ = sp.execute("INSERT INTO foo VALUES(?1)", [4])
+            assert_equal(sp.one_column[Int]("SELECT SUM(x) FROM foo"), 7)
+            assert_equal(sp.last_insert_row_id(), sp.conn[].last_insert_row_id())
+            sp.commit()
+
+        assert_equal(tx.one_column[Int]("SELECT SUM(x) FROM foo"), 7)
+        tx.commit()
+
+    assert_equal(db.one_column[Int]("SELECT SUM(x) FROM foo"), 7)
+
+
 def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()

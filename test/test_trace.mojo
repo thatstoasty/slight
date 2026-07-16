@@ -106,7 +106,7 @@ def _trace_stmt_callback(event: TraceEvent) -> NoneType:
 
 def test_trace_v2_stmt() raises:
     var db = Connection.open_in_memory()
-    db.register_trace_function[_trace_stmt_callback](TraceEventCodes.STMT | TraceEventCodes.PROFILE)
+    db.register_trace_function(TraceEventCodes.STMT | TraceEventCodes.PROFILE, _trace_stmt_callback)
 
     # Execute some SQL to trigger STMT and PROFILE events
     db.execute_batch("CREATE TABLE t1 (id INTEGER PRIMARY KEY, name TEXT)")
@@ -145,7 +145,7 @@ def _trace_all_callback(event: TraceEvent) -> NoneType:
 def test_trace_v2_all_events() raises:
     # Open in a block so we see the CLOSE event.
     var db = Connection.open_in_memory()
-    db.register_trace_function[_trace_all_callback](TraceEventCodes.all())
+    db.register_trace_function(TraceEventCodes.all(), _trace_all_callback)
 
     db.execute_batch("CREATE TABLE t3 (x INTEGER); INSERT INTO t3 VALUES (1)")
 
@@ -165,7 +165,7 @@ def test_trace_v2_disable() raises:
     var db = Connection.open_in_memory()
 
     # Set and immediately clear
-    db.register_trace_function[_trace_should_not_fire](TraceEventCodes.all())
+    db.register_trace_function(TraceEventCodes.all(), _trace_should_not_fire)
     db.clear_trace_function()
 
     # Execute SQL — should not trigger the cleared callback

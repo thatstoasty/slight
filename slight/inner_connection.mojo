@@ -6,17 +6,39 @@ from slight.c.types import (
     AggStepCallback,
     WindowInverseCallback,
     WindowValueCallback,
+    CollationCompareCallbackFn,
+    CommitHookCallbackFn,
+    RollbackHookCallbackFn,
+    UpdateHookCallbackFn,
     sqlite3_context,
     sqlite3_value,
     sqlite3_connection,
     sqlite3_stmt,
+    sqlite3_backup,
+    sqlite3_blob,
     SQLITE_DESERIALIZE_FREEONCLOSE,
     SQLITE_DESERIALIZE_READONLY,
     SQLITE_DESERIALIZE_RESIZEABLE,
 )
+from slight.checkpoint import CheckpointMode
 from slight.busy import BusyHandlerFn, _busy_handler_callback
 from slight.api import sqlite_ffi
 from slight.trace import TraceFn, TraceEventCodes, _trace_v2_callback
+from slight.hooks import (
+    CommitHookFn,
+    RollbackHookFn,
+    UpdateHookFn,
+    _commit_hook_trampoline_ptr,
+    _rollback_hook_trampoline_ptr,
+    _update_hook_trampoline_ptr,
+)
+from slight.collation import (
+    CollationCompareFn,
+    _collation_compare_callback,
+    _no_op_collation_destructor,
+)
+from slight.progress import ProgressHandlerFn, _progress_handler_callback
+from slight.authorizer import AuthorizerFn, _authorizer_callback
 from slight.unlock_notify import (
     is_locked,
     wait_for_unlock_notify,
@@ -85,7 +107,7 @@ struct InnerConnection(Movable):
         if result != SQLite3Result.OK:
             raise Error(t"Could not open database: {String(result)}")
         self.db = ptr
-    
+
     def unsafe_ptr[
         origin: Origin, address_space: AddressSpace, //
     ](ref[origin, address_space] self) -> UnsafePointer[sqlite3_connection, origin, address_space=address_space]:
@@ -128,6 +150,21 @@ struct InnerConnection(Movable):
             The SQLite3Result code from the close operation.
         """
         return sqlite_ffi()[].close(self.db)
+
+    def interrupt(self) -> None:
+        """Interrupts the longest-running query currently executing on this
+        connection, causing it to abort at its earliest opportunity.
+        """
+        sqlite_ffi()[].interrupt(self.db)
+
+    def is_interrupted(self) -> Bool:
+        """Returns whether an interrupt is currently pending on this connection.
+
+        Returns:
+            True if `interrupt()` has been called and the interrupt is still
+            pending, False otherwise.
+        """
+        return sqlite_ffi()[].is_interrupted(self.db)
 
     def changes(self) -> Int64:
         """Returns the number of rows changed by the last INSERT, UPDATE, or DELETE statement.
@@ -202,7 +239,6 @@ struct InnerConnection(Movable):
         var db_name = "main"
         return sqlite_ffi()[].db_filename(self.db, db_name).and_then[To=Path](str_slice_to_path)
 
-
     def is_database_read_only(self, var database: String) raises -> Bool:
         """Checks if the specified database is opened in read-only mode.
 
@@ -261,9 +297,10 @@ struct InnerConnection(Movable):
     # TODO: V should be constrained to ToSQL, but I want to keep extensions private from users for now.
     def create_scalar_function[
         T: CopyDestructible,
-        V: MoveDestructible, //,
+        V: MoveDestructible,
+        //,
         x_func: ScalarUDF[V],
-    ](self, fn_name: String, n_arg: Int, flags: FunctionFlags, pApp: T) -> SQLite3Result:
+    ](self, fn_name: StringSlice, n_arg: Int, flags: FunctionFlags, pApp: T) -> SQLite3Result:
         """Attach a user-defined scalar function to a database connection.
 
         The function will remain available until the connection is closed or
@@ -309,7 +346,7 @@ struct InnerConnection(Movable):
 
     def create_scalar_function[
         V: MoveDestructible, //, x_func: ScalarUDF[V]
-    ](self, fn_name: String, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
+    ](self, fn_name: StringSlice, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
         """Attach a user-defined scalar function to a database connection.
 
         The function will remain available until the connection is closed or
@@ -349,7 +386,7 @@ struct InnerConnection(Movable):
         init_fn: AggregateInitUDF[A],
         step_fn: AggregateStepUDF[A],
         final_fn: AggregateFinalUDF[A, T],
-    ](self, fn_name: String, n_arg: Int, flags: FunctionFlags, pApp: P) -> SQLite3Result:
+    ](self, fn_name: StringSlice, n_arg: Int, flags: FunctionFlags, pApp: P) -> SQLite3Result:
         """Attach a user-defined aggregate function to a database connection.
 
         Aggregate functions process multiple rows and produce a single result.
@@ -401,7 +438,7 @@ struct InnerConnection(Movable):
         init_fn: AggregateInitUDF[A],
         step_fn: AggregateStepUDF[A],
         final_fn: AggregateFinalUDF[A, T],
-    ](self, fn_name: String, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
+    ](self, fn_name: StringSlice, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
         """Attach a user-defined aggregate function to a database connection.
 
         Aggregate functions process multiple rows and produce a single result.
@@ -448,7 +485,7 @@ struct InnerConnection(Movable):
         final_fn: AggregateFinalUDF[A, T],
         value_fn: WindowAggregateValueUDF[A, T],
         inverse_fn: WindowAggregateInverseUDF[A],
-    ](self, fn_name: String, n_arg: Int, flags: FunctionFlags, pApp: P) -> SQLite3Result:
+    ](self, fn_name: StringSlice, n_arg: Int, flags: FunctionFlags, pApp: P) -> SQLite3Result:
         """Attach a user-defined aggregate function to a database connection.
 
         Aggregate functions process multiple rows and produce a single result.
@@ -506,7 +543,7 @@ struct InnerConnection(Movable):
         final_fn: AggregateFinalUDF[A, T],
         value_fn: WindowAggregateValueUDF[A, T],
         inverse_fn: WindowAggregateInverseUDF[A],
-    ](self, fn_name: String, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
+    ](self, fn_name: StringSlice, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
         """Attach a user-defined aggregate function to a database connection.
 
         Aggregate functions process multiple rows and produce a single result.
@@ -558,7 +595,7 @@ struct InnerConnection(Movable):
         eof_fn: VTabEofFn[C],
         column_fn: VTabColumnFn[C],
         rowid_fn: VTabRowidFn[C],
-    ](self, module_name: String) -> SQLite3Result:
+    ](self, module_name: StringSlice) -> SQLite3Result:
         """Register a read-only virtual table module with this connection.
 
         Allocates a `sqlite3_module` on the heap, fills in all required and
@@ -636,35 +673,38 @@ struct InnerConnection(Movable):
         """
         return sqlite_ffi()[].busy_timeout(self.db, ms)
 
-    def busy_handler[callback: Optional[BusyHandlerFn]](
-        self,
-    ) -> SQLite3Result:
+    def busy_handler(self, callback: BusyHandlerFn) -> SQLite3Result:
         """Register a callback to handle `SQLITE_BUSY` errors.
 
-        If `callback` is `None`, then the busy handler is cleared and
-        `SQLITE_BUSY` is returned immediately upon encountering a lock.
-        Otherwise, the callback is invoked with the number of prior retries.
+        The callback is invoked with the number of prior retries.
         Return `True` from the callback to retry, `False` to stop.
 
         There can only be a single busy handler per database connection.
         Setting a new busy handler clears any previously set handler.
         Calling `busy_timeout()` also clears any custom busy handler.
 
-        Parameters:
-            callback: A function `def(Int32) -> Bool`, or `None` to clear.
+        Args:
+            callback: A busy handler callback function.
 
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        comptime if callback:
-            var fn_val = callback.value()
-            var fn_ptr = UnsafePointer(to=fn_val).bitcast[NoneType]()
-            return sqlite_ffi()[].busy_handler(
-                self.db,
-                _busy_handler_callback,
-                fn_ptr,
-            )
-        else:
+        var fn_val = callback
+        var fn_ptr = UnsafePointer(to=fn_val).bitcast[NoneType]()
+        return sqlite_ffi()[].busy_handler(
+            self.db,
+            _busy_handler_callback,
+            fn_ptr,
+        )
+            
+    def clear_busy_handler(self) -> SQLite3Result:
+        """Clears the set busy handler callback.
+
+        The busy handler is cleared and `SQLITE_BUSY` is returned immediately upon encountering a lock.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
             # Passing timeout=0 clears all busy handlers (per SQLite docs).
             return sqlite_ffi()[].busy_timeout(self.db, 0)
 
@@ -696,19 +736,14 @@ struct InnerConnection(Movable):
         """
         return sqlite_ffi()[].limit(self.db, c_int(limit.value), c_int(new_val))
 
-    def trace_v2[callback: TraceFn](
-        self,
-        mask: TraceEventCodes,
-    ) -> SQLite3Result:
+    def trace_v2(self, mask: TraceEventCodes, callback: TraceFn) -> SQLite3Result:
         """Register a trace callback (version 2).
 
         The callback is invoked for each event type selected by `mask`.
 
-        Parameters:
-            callback: A trace callback function.
-
         Args:
             mask: Bitmask of `TraceEventCodes` to monitor.
+            callback: A trace callback function.
 
         Returns:
             SQLITE_OK on success, or an error code on failure.
@@ -738,6 +773,154 @@ struct InnerConnection(Movable):
             _trace_v2_callback,
             None,
         )
+
+    def register_commit_hook(self, callback: CommitHookFn) -> None:
+        """Register a callback invoked whenever a transaction is committed.
+
+        Args:
+            callback: A `CommitHookFn` callback. Returning `True` converts the commit into a rollback.
+        """
+        var fn_val = callback
+        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
+        _ = sqlite_ffi()[].commit_hook(self.db, _commit_hook_trampoline_ptr(), ctx)
+
+    def clear_commit_hook(self) -> None:
+        """Unregister the commit hook, if any.
+
+        Passes a NULL `xCallback` so SQLite fully unregisters the hook rather
+        than leaving an inert trampoline registered.
+        """
+        _ = sqlite_ffi()[].commit_hook(self.db, None, None)
+
+    def register_rollback_hook(self, callback: RollbackHookFn) -> None:
+        """Register a callback invoked whenever a transaction is rolled back.
+
+        Args:
+            callback: A `RollbackHookFn` callback.
+        """
+        var fn_val = callback
+        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
+        _ = sqlite_ffi()[].rollback_hook(self.db, _rollback_hook_trampoline_ptr(), ctx)
+
+    def clear_rollback_hook(self) -> None:
+        """Unregister the rollback hook, if any.
+
+        Passes a NULL `xCallback` so SQLite fully unregisters the hook rather
+        than leaving an inert trampoline registered.
+        """
+        _ = sqlite_ffi()[].rollback_hook(self.db, None, None)
+
+    def register_update_hook(self, callback: UpdateHookFn) -> None:
+        """Register a callback invoked whenever a row is inserted, updated,
+        or deleted in a rowid table.
+
+        Args:
+            callback: An `UpdateHookFn` callback.
+        """
+        var fn_val = callback
+        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
+        sqlite_ffi()[].update_hook(self.db, _update_hook_trampoline_ptr(), ctx)
+
+    def clear_update_hook(self) -> None:
+        """Unregister the update hook, if any.
+
+        Passes a NULL `xCallback` so SQLite fully unregisters the hook rather
+        than leaving an inert trampoline registered.
+        """
+        sqlite_ffi()[].update_hook(self.db, None, None)
+
+    def create_collation(self, mut name: String, flags: c_int, compare: CollationCompareFn) -> SQLite3Result:
+        """Define a new collating sequence.
+
+        Args:
+            name: Name of the collating sequence.
+            flags: Text encoding flags (e.g. SQLITE_UTF8).
+            compare: A `CollationCompareFn` comparator.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        var fn_val = compare
+        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
+        return sqlite_ffi()[].create_collation_v2(
+            self.db,
+            name,
+            flags,
+            ctx,
+            _collation_compare_callback,
+            _no_op_collation_destructor,
+        )
+
+    def remove_collation(self, mut name: String, flags: c_int) -> SQLite3Result:
+        """Remove a previously registered collating sequence.
+
+        Passing a NULL comparator to `sqlite3_create_collation_v2` removes
+        the named collating sequence.
+
+        Args:
+            name: Name of the collating sequence to remove.
+            flags: Text encoding flags that were used to register it.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        var null_compare = UnsafePointer(to=Int(0)).bitcast[CollationCompareCallbackFn]()[]
+        return sqlite_ffi()[].create_collation_v2(
+            self.db,
+            name,
+            flags,
+            MutExternalPointer[NoneType](unsafe_from_address=1),
+            null_compare,
+            _no_op_collation_destructor,
+        )
+
+    def register_progress_handler(self, n_ops: Int, callback: ProgressHandlerFn) -> None:
+        """Register a callback invoked approximately every `n_ops` virtual
+        machine instructions during query execution.
+
+        Args:
+            n_ops: Approximate number of VM instructions between invocations.
+            callback: A `ProgressHandlerFn` callback. Returning `True`
+                interrupts the running query.
+        """
+        var fn_val = callback
+        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
+        sqlite_ffi()[].progress_handler(self.db, c_int(n_ops), _progress_handler_callback, ctx)
+
+    def clear_progress_handler(self) -> None:
+        """Unregister the progress handler, if any."""
+        # Passing 0 for nOps disables the progress handler.
+        sqlite_ffi()[].progress_handler(
+            self.db, c_int(0), _progress_handler_callback, MutExternalPointer[NoneType](unsafe_from_address=1)
+        )
+
+    def register_authorizer(self, callback: AuthorizerFn) -> SQLite3Result:
+        """Register an authorizer callback invoked during statement
+        preparation for actions requiring authorization.
+
+        Args:
+            callback: An `AuthorizerFn` callback.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        var fn_val = callback
+        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
+        return sqlite_ffi()[].set_authorizer[_authorizer_callback](self.db, ctx)
+
+    def clear_authorizer(self) -> SQLite3Result:
+        """Unregister the authorizer callback, if any.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        return sqlite_ffi()[].remove_authorizer(self.db)
 
     def log(self, err_code: Int32, mut msg: String):
         """Write a message to the SQLite error log.
@@ -778,7 +961,10 @@ struct InnerConnection(Movable):
         var errmsg: Optional[MutExternalPointer[c_char]] = None
         var ep = entry_point.copy()
         var result = sqlite_ffi()[].load_extension(
-            self.db, path, ep, errmsg,
+            self.db,
+            path,
+            ep,
+            errmsg,
         )
         if result == SQLite3Result.OK:
             return
@@ -853,6 +1039,235 @@ struct InnerConnection(Movable):
             sqlite_ffi()[].deserialize(self.db, schema, ptr, Int64(size), Int64(size), flags),
         )
 
+    def wal_checkpoint(self, var schema: Optional[String] = None) raises:
+        """Checkpoints the write-ahead log using the default (passive) mode.
+
+        Args:
+            schema: Name of the database schema to checkpoint (e.g. "main").
+                If None, all attached databases are checkpointed.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        self.raise_if_error(sqlite_ffi()[].wal_checkpoint(self.db, schema^))
+
+    def wal_checkpoint_v2(self, mode: CheckpointMode, var schema: Optional[String] = None) raises -> Tuple[Int, Int]:
+        """Checkpoints the write-ahead log with additional control over the
+        checkpoint operation.
+
+        Args:
+            mode: The checkpoint mode (PASSIVE, FULL, RESTART, or TRUNCATE).
+            schema: Name of the database schema to checkpoint (e.g. "main").
+                If None, all attached databases are checkpointed.
+
+        Returns:
+            A tuple `(log_frames, checkpointed_frames)` containing the total
+            number of frames in the WAL log, and the number of frames that
+            were checkpointed.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        var log_frames: c_int = 0
+        var checkpointed_frames: c_int = 0
+        self.raise_if_error(
+            sqlite_ffi()[].wal_checkpoint_v2(
+                self.db,
+                schema^,
+                c_int(mode.value),
+                UnsafePointer(to=log_frames),
+                UnsafePointer(to=checkpointed_frames),
+            )
+        )
+        return (Int(log_frames), Int(checkpointed_frames))
+
+    def backup_init(
+        self,
+        mut dest: InnerConnection,
+        var dest_schema: String,
+        var source_schema: String,
+    ) raises -> MutExternalPointer[sqlite3_backup]:
+        """Initializes a backup operation copying this connection's database
+        into `dest`.
+
+        Args:
+            dest: The destination connection.
+            dest_schema: Name of the destination database schema (e.g. "main").
+            source_schema: Name of the source database schema (e.g. "main").
+
+        Returns:
+            A handle to the backup operation.
+
+        Raises:
+            Error: If the backup could not be initialized.
+        """
+        var maybe_backup = sqlite_ffi()[].backup_init(dest.db, dest_schema, self.db, source_schema)
+        if not maybe_backup:
+            raise self.decode_error(self.errcode_result())
+        return maybe_backup.value()
+
+    def errcode_result(self) -> SQLite3Result:
+        """Returns the most recent result code produced by this connection.
+
+        Returns:
+            The most recent SQLite result code.
+        """
+        return sqlite_ffi()[].errcode(self.db)
+
+    def backup_step(self, p: MutExternalPointer[sqlite3_backup], n_pages: Int) -> SQLite3Result:
+        """Copies up to `n_pages` pages from the source database to the
+        destination database of a backup operation.
+
+        Args:
+            p: The backup handle.
+            n_pages: Number of pages to copy, or -1 to copy all remaining pages.
+
+        Returns:
+            SQLITE_DONE if the backup is complete, SQLITE_OK if more pages
+            remain, or another SQLite result code on error.
+        """
+        return sqlite_ffi()[].backup_step(p, c_int(n_pages))
+
+    def backup_finish(self, p: MutExternalPointer[sqlite3_backup]) -> SQLite3Result:
+        """Finishes a backup operation and releases the backup handle.
+
+        Args:
+            p: The backup handle.
+
+        Returns:
+            The SQLite result code from finishing the backup.
+        """
+        return sqlite_ffi()[].backup_finish(p)
+
+    def backup_remaining(self, p: MutExternalPointer[sqlite3_backup]) -> Int:
+        """Returns the number of pages still to be backed up.
+
+        Args:
+            p: The backup handle.
+
+        Returns:
+            The number of pages remaining to be copied.
+        """
+        return Int(sqlite_ffi()[].backup_remaining(p).value)
+
+    def backup_page_count(self, p: MutExternalPointer[sqlite3_backup]) -> Int:
+        """Returns the total number of pages in the source database.
+
+        Args:
+            p: The backup handle.
+
+        Returns:
+            The total number of pages in the source database.
+        """
+        return Int(sqlite_ffi()[].backup_page_count(p).value)
+
+    def blob_open(
+        self,
+        var table: String,
+        var column: String,
+        row_id: Int64,
+        *,
+        read_only: Bool = False,
+        var schema: String = "main",
+    ) raises -> MutExternalPointer[sqlite3_blob]:
+        """Opens a handle for incremental BLOB I/O.
+
+        Args:
+            table: Name of the table containing the BLOB.
+            column: Name of the column containing the BLOB.
+            row_id: Row ID of the row containing the BLOB.
+            read_only: If True, opens the BLOB for reading only. If False,
+                opens the BLOB for reading and writing.
+            schema: Name of the database schema containing the table
+                (e.g. "main").
+
+        Returns:
+            A handle to the opened BLOB.
+
+        Raises:
+            Error: If the BLOB could not be opened.
+        """
+        var ppBlob = MutExternalPointer[sqlite3_blob].unsafe_dangling()
+        var flags: c_int = 0 if read_only else 1
+        var ppBlob_ptr = UnsafePointer(to=ppBlob)
+        self.raise_if_error(
+            sqlite_ffi()[].blob_open[origin_of(schema), origin_of(table), origin_of(column), origin_of(ppBlob_ptr[])](
+                self.db, schema, table, column, row_id, flags, ppBlob_ptr
+            )
+        )
+        return ppBlob
+
+    def blob_reopen(self, pBlob: MutExternalPointer[sqlite3_blob], row_id: Int64) raises:
+        """Moves an existing BLOB handle to point to a different row of the
+        same database table.
+
+        Args:
+            pBlob: The BLOB handle.
+            row_id: The row ID of the new row.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        self.raise_if_error(sqlite_ffi()[].blob_reopen(pBlob, row_id))
+
+    def blob_close(self, pBlob: MutExternalPointer[sqlite3_blob]) -> SQLite3Result:
+        """Closes a BLOB handle, committing any changes made via `blob_write`.
+
+        Args:
+            pBlob: The BLOB handle.
+
+        Returns:
+            The SQLite result code from closing the BLOB.
+        """
+        return sqlite_ffi()[].blob_close(pBlob)
+
+    def blob_bytes(self, pBlob: MutExternalPointer[sqlite3_blob]) -> Int:
+        """Returns the size in bytes of an open BLOB.
+
+        Args:
+            pBlob: The BLOB handle.
+
+        Returns:
+            The size of the BLOB in bytes.
+        """
+        return Int(sqlite_ffi()[].blob_bytes(pBlob).value)
+
+    def blob_read(self, pBlob: MutExternalPointer[sqlite3_blob], mut buffer: List[Byte], offset: Int) raises:
+        """Reads data from a BLOB incrementally into `buffer`.
+
+        Args:
+            pBlob: The BLOB handle.
+            buffer: The buffer to read data into. Its length determines how
+                many bytes are read.
+            offset: The offset within the BLOB to start reading from.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        self.raise_if_error(
+            sqlite_ffi()[].blob_read(pBlob, buffer.unsafe_ptr().bitcast[NoneType](), c_int(len(buffer)), c_int(offset))
+        )
+
+    def blob_write(self, pBlob: MutExternalPointer[sqlite3_blob], data: Span[Byte, ...], offset: Int) raises:
+        """Writes data into a BLOB incrementally.
+
+        Args:
+            pBlob: The BLOB handle.
+            data: The bytes to write into the BLOB.
+            offset: The offset within the BLOB to start writing at.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        self.raise_if_error(
+            sqlite_ffi()[].blob_write(
+                pBlob,
+                data.unsafe_ptr().bitcast[NoneType]().unsafe_mut_cast[True](),
+                c_int(len(data)),
+                c_int(offset),
+            )
+        )
+
     def is_locked(self, rc: SQLite3Result) -> Bool:
         """Check whether a result code indicates shared-cache lock contention.
 
@@ -875,4 +1290,3 @@ struct InnerConnection(Movable):
             SQLITE_OK when the lock is released, or an error code.
         """
         return wait_for_unlock_notify(self.db)
-

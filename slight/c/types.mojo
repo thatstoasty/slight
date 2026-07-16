@@ -3,30 +3,34 @@ from std.memory import OpaquePointer
 from std.utils import StaticTuple
 
 
-comptime ImmutExternalPointer = ImmutUnsafePointer[origin=ImmutUntrackedOrigin, address_space=AddressSpace.GENERIC, ...]
-"""Immutable External Pointer.
+comptime ImmutExternalPointer[type: AnyType] = ImmutUnsafePointer[type, origin=ImmutUntrackedOrigin, address_space=AddressSpace.GENERIC, ...]
+"""Immutable External Pointer. This points to data owned by SQLite and should not be modified by Mojo code.
 
 Parameters:
     type: The type of the data the pointer points to.
 """
-comptime ImmutExternalOpaquePointer = ImmutExternalPointer[NoneType]
-"""Immutable External Opaque Pointer.
+comptime MutExternalPointer[type: AnyType] = MutUnsafePointer[type, origin=MutUntrackedOrigin, address_space=AddressSpace.GENERIC, ...]
+"""Mutable External Pointer. This points to data owned by SQLite and may be modified by Mojo code.
 
 Parameters:
     type: The type of the data the pointer points to.
 """
-comptime MutExternalPointer = MutUnsafePointer[origin=MutUntrackedOrigin, address_space=AddressSpace.GENERIC, ...]
-"""Mutable External Pointer.
+comptime ImmutExternalSpan[type: AnyType] = Span[type, origin=ImmutUntrackedOrigin, ...]
+"""Immutable External Span. This points to data owned by SQLite and should not be modified by Mojo code.
 
 Parameters:
-    type: The type of the data the pointer points to.
+    type: The type of the data the span points to.
 """
-comptime MutExternalOpaquePointer = MutExternalPointer[NoneType]
-"""Mutable External Opaque Pointer.
+comptime MutExternalSpan[type: AnyType] = Span[type, origin=MutUntrackedOrigin, ...]
+"""Mutable External Span. This points to data owned by SQLite and may be modified by Mojo code.
 
 Parameters:
-    type: The type of the data the pointer points to.
+    type: The type of the data the span points to.
 """
+comptime ImmutExternalStringSlice = StringSlice[origin=ImmutUntrackedOrigin]
+"""Immutable External StringSlice. This points to data owned by SQLite and should not be modified by Mojo code."""
+comptime MutExternalStringSlice = StringSlice[origin=MutUntrackedOrigin]
+"""Mutable External StringSlice. This points to data owned by SQLite and may be modified by Mojo code."""
 
 comptime SQLITE_OPEN_READONLY: c_int = 0x00000001  # Ok for sqlite3_open_v2()
 """SQLITE Open Flag: Read Only."""
@@ -322,12 +326,17 @@ comptime ExecCallbackFn = def(
 comptime AuthCallbackFn = def(
     MutExternalPointer[NoneType],
     c_int,
-    ImmutExternalPointer[c_char],
-    ImmutExternalPointer[c_char],
-    ImmutExternalPointer[c_char],
-    ImmutExternalPointer[c_char],
+    Optional[ImmutExternalPointer[c_char]],
+    Optional[ImmutExternalPointer[c_char]],
+    Optional[ImmutExternalPointer[c_char]],
+    Optional[ImmutExternalPointer[c_char]],
 ) abi("C") thin -> c_int
-"""Callback Function Type for `sqlite3_set_authorizer()`."""
+"""Callback Function Type for `sqlite3_set_authorizer()`.
+
+The four `const char*` arguments may be NULL depending on the action code and
+are modeled as `Optional[ImmutExternalPointer[c_char]]`; the null-pointer niche
+lets a NULL argument arrive as `None`.
+"""
 
 comptime BusyHandlerCallbackFn = def (MutExternalPointer[NoneType], c_int) abi("C") thin -> c_int
 """A busy handler callback function.

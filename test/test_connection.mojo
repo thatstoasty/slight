@@ -359,6 +359,54 @@ def test_query_row() raises:
         _ = db.one_row[get_int64]("SELECT 1; SELECT 2;")
 
 
+def test_one_column() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""CREATE TABLE foo(x INTEGER);
+    INSERT INTO foo VALUES(1);
+    INSERT INTO foo VALUES(2);
+    INSERT INTO foo VALUES(3);""")
+
+    assert_equal(db.one_column[Int]("SELECT count(*) FROM foo"), 3)
+    assert_equal(db.one_column[Int]("SELECT SUM(x) FROM foo"), 6)
+    assert_equal(db.one_column[Int]("SELECT x FROM foo WHERE x = ?1", [2]), 2)
+
+    with assert_raises(contains="No rows returned by query"):
+        _ = db.one_column[Int]("SELECT x FROM foo WHERE x > 100")
+
+    # Statement.one_column should work the same way.
+    var stmt = db.prepare("SELECT count(*) FROM foo")
+    assert_equal(stmt.one_column[Int](), 3)
+
+
+def test_maybe_one_row() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""CREATE TABLE foo(x INTEGER);
+    INSERT INTO foo VALUES(1);
+    INSERT INTO foo VALUES(2);""")
+
+    def get_int(r: Row) raises -> Int:
+        return r.get[Int](0)
+
+    # Hit case.
+    var hit = db.maybe_one_row[get_int]("SELECT x FROM foo WHERE x = ?1", [1])
+    assert_true(hit)
+    assert_equal(hit.value(), 1)
+
+    # Miss case: returns None instead of raising.
+    var miss = db.maybe_one_row[get_int]("SELECT x FROM foo WHERE x > 100")
+    assert_false(Bool(miss))
+
+    # Statement.maybe_one_row should behave the same.
+    var stmt = db.prepare("SELECT x FROM foo WHERE x = ?1")
+    var stmt_hit = stmt.maybe_one_row[get_int]([2])
+    assert_true(stmt_hit)
+    assert_equal(stmt_hit.value(), 2)
+
+    var stmt2 = db.prepare("SELECT x FROM foo WHERE x > ?1")
+    var stmt_miss = stmt2.maybe_one_row[get_int]([100])
+    assert_false(Bool(stmt_miss))
+
+
 def test_pragma_query_row() raises:
     var db = Connection.open_in_memory()
     def get_string(r: Row) raises -> String:

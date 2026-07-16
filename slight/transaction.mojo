@@ -1,5 +1,8 @@
 from std.os import abort
 from slight.connection import Connection
+from slight.params import Params
+from slight.row import RowTransformFn
+from slight.types.from_sql import FromSQL
 
 
 @fieldwise_init
@@ -193,6 +196,144 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
         else:
             return Savepoint[Self.conn_origin](self.conn)
 
+    def execute[P: AnyType](self, var sql: String, params: P = ()) raises -> Int64:
+        """Executes a SQL statement with the given parameters on the underlying connection.
+
+        Thin forwarding method to `Connection.execute`.
+
+        Parameters:
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Args:
+            sql: The SQL statement to execute.
+            params: The parameters to bind to the SQL statement. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Returns:
+            The number of rows affected by the statement.
+
+        Raises:
+            Error: If parameter binding fails or the underlying SQLite call fails.
+        """
+        return self.conn[].execute(sql^, params)
+
+    def execute_batch(self, sql: Some[Writable]) raises:
+        """Executes a batch of SQL statements on the underlying connection.
+
+        Thin forwarding method to `Connection.execute_batch`.
+
+        Args:
+            sql: The batch of SQL statements to execute.
+
+        Raises:
+            Error: If the underlying SQLite call fails while preparing the statement.
+        """
+        self.conn[].execute_batch(sql)
+
+    # NOTE: `prepare` is intentionally NOT forwarded here. `Connection.prepare`
+    # computes its return origin from an implicit `self` borrow, which the
+    # compiler treats as a distinct derived origin (`origin_of(conn_origin)`)
+    # from `Self.conn_origin` itself. Every attempted signature for a thin
+    # forwarding wrapper hit:
+    #   "cannot implicitly convert 'Statement[origin_of(conn_origin)]' value
+    #    to 'Statement[conn_origin]'"
+    # Use `tx.conn[].prepare(...)` / `sp.conn[].prepare(...)` directly instead.
+
+    def one_row[
+        T: Movable,
+        P: AnyType,
+        //,
+        transform: RowTransformFn[T],
+    ](self, var sql: String, params: P = ()) raises -> T:
+        """Executes a SQL query and returns a single row, using the underlying connection.
+
+        Thin forwarding method to `Connection.one_row`.
+
+        Parameters:
+            T: The type to transform the row into.
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+            transform: A function to transform the row into the desired type.
+
+        Args:
+            sql: The SQL query to execute.
+            params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Returns:
+            The single row returned by the query.
+
+        Raises:
+            Error: If the query fails or does not return exactly one row.
+        """
+        return self.conn[].one_row[transform](sql^, params)
+
+    def maybe_one_row[
+        T: Movable,
+        P: AnyType,
+        //,
+        transform: RowTransformFn[T],
+    ](self, var sql: String, params: P = ()) raises -> Optional[T]:
+        """Executes a SQL query and returns a single row, or None if no rows are returned.
+
+        Thin forwarding method to `Connection.maybe_one_row`.
+
+        Parameters:
+            T: The type to transform the row into.
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+            transform: A function to transform the row into the desired type.
+
+        Args:
+            sql: The SQL query to execute.
+            params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Returns:
+            The single row returned by the query, or None if the query returned no rows.
+
+        Raises:
+            Error: If the query fails.
+        """
+        return self.conn[].maybe_one_row[transform](sql^, params)
+
+    def one_column[T: Movable, P: AnyType](self, var sql: String, params: P = ()) raises -> T:
+        """Fetches a single column from the first row of the result set, using the underlying connection.
+
+        Thin forwarding method to `Connection.one_column`.
+
+        Parameters:
+            T: The type to retrieve the value as. Must conform to `FromSQL`.
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Args:
+            sql: The SQL query to execute.
+            params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Returns:
+            The value of the first column in the first row of the result set.
+
+        Raises:
+            Error: If the query fails or no rows are returned.
+        """
+        return self.conn[].one_column[T](sql^, params)
+
+    def last_insert_row_id(self) -> Int64:
+        """Returns the row ID of the last inserted row, using the underlying connection.
+
+        Thin forwarding method to `Connection.last_insert_row_id`.
+
+        Returns:
+            The row ID of the last inserted row.
+        """
+        return self.conn[].last_insert_row_id()
+
+    def changes(self) -> Int64:
+        """Returns the number of rows changed, inserted, or deleted by the most
+        recent SQL statement on the underlying connection.
+
+        Thin forwarding method to `Connection.changes`.
+
+        Returns:
+            The number of rows changed by the last operation.
+        """
+        return self.conn[].changes()
+
     def commit(mut self) raises:
         """A convenience method which consumes and commits a transaction.
 
@@ -300,7 +441,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
         except e:
             self^.finish()
             raise e^
-    
+
     def __del__(deinit self):
         """Destructor for the Savepoint.
 
@@ -337,6 +478,144 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
             return Self(self.conn, name.value())
         else:
             return Self(self.conn)
+
+    def execute[P: AnyType](self, var sql: String, params: P = ()) raises -> Int64:
+        """Executes a SQL statement with the given parameters on the underlying connection.
+
+        Thin forwarding method to `Connection.execute`.
+
+        Parameters:
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Args:
+            sql: The SQL statement to execute.
+            params: The parameters to bind to the SQL statement. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Returns:
+            The number of rows affected by the statement.
+
+        Raises:
+            Error: If parameter binding fails or the underlying SQLite call fails.
+        """
+        return self.conn[].execute(sql^, params)
+
+    def execute_batch(self, sql: Some[Writable]) raises:
+        """Executes a batch of SQL statements on the underlying connection.
+
+        Thin forwarding method to `Connection.execute_batch`.
+
+        Args:
+            sql: The batch of SQL statements to execute.
+
+        Raises:
+            Error: If the underlying SQLite call fails while preparing the statement.
+        """
+        self.conn[].execute_batch(sql)
+
+    # NOTE: `prepare` is intentionally NOT forwarded here. `Connection.prepare`
+    # computes its return origin from an implicit `self` borrow, which the
+    # compiler treats as a distinct derived origin (`origin_of(conn_origin)`)
+    # from `Self.conn_origin` itself. Every attempted signature for a thin
+    # forwarding wrapper hit:
+    #   "cannot implicitly convert 'Statement[origin_of(conn_origin)]' value
+    #    to 'Statement[conn_origin]'"
+    # Use `tx.conn[].prepare(...)` / `sp.conn[].prepare(...)` directly instead.
+
+    def one_row[
+        T: Movable,
+        P: AnyType,
+        //,
+        transform: RowTransformFn[T],
+    ](self, var sql: String, params: P = ()) raises -> T:
+        """Executes a SQL query and returns a single row, using the underlying connection.
+
+        Thin forwarding method to `Connection.one_row`.
+
+        Parameters:
+            T: The type to transform the row into.
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+            transform: A function to transform the row into the desired type.
+
+        Args:
+            sql: The SQL query to execute.
+            params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Returns:
+            The single row returned by the query.
+
+        Raises:
+            Error: If the query fails or does not return exactly one row.
+        """
+        return self.conn[].one_row[transform](sql^, params)
+
+    def maybe_one_row[
+        T: Movable,
+        P: AnyType,
+        //,
+        transform: RowTransformFn[T],
+    ](self, var sql: String, params: P = ()) raises -> Optional[T]:
+        """Executes a SQL query and returns a single row, or None if no rows are returned.
+
+        Thin forwarding method to `Connection.maybe_one_row`.
+
+        Parameters:
+            T: The type to transform the row into.
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+            transform: A function to transform the row into the desired type.
+
+        Args:
+            sql: The SQL query to execute.
+            params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Returns:
+            The single row returned by the query, or None if the query returned no rows.
+
+        Raises:
+            Error: If the query fails.
+        """
+        return self.conn[].maybe_one_row[transform](sql^, params)
+
+    def one_column[T: Movable, P: AnyType](self, var sql: String, params: P = ()) raises -> T:
+        """Fetches a single column from the first row of the result set, using the underlying connection.
+
+        Thin forwarding method to `Connection.one_column`.
+
+        Parameters:
+            T: The type to retrieve the value as. Must conform to `FromSQL`.
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Args:
+            sql: The SQL query to execute.
+            params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Returns:
+            The value of the first column in the first row of the result set.
+
+        Raises:
+            Error: If the query fails or no rows are returned.
+        """
+        return self.conn[].one_column[T](sql^, params)
+
+    def last_insert_row_id(self) -> Int64:
+        """Returns the row ID of the last inserted row, using the underlying connection.
+
+        Thin forwarding method to `Connection.last_insert_row_id`.
+
+        Returns:
+            The row ID of the last inserted row.
+        """
+        return self.conn[].last_insert_row_id()
+
+    def changes(self) -> Int64:
+        """Returns the number of rows changed, inserted, or deleted by the most
+        recent SQL statement on the underlying connection.
+
+        Thin forwarding method to `Connection.changes`.
+
+        Returns:
+            The number of rows changed by the last operation.
+        """
+        return self.conn[].changes()
 
     def commit(mut self) raises:
         """A convenience method which consumes and commits a savepoint.

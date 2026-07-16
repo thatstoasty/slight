@@ -164,7 +164,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             The number of columns that will be returned by this statement.
         """
         return UInt(self.stmt.column_count())
-    
+
     def column_type(self, col: UInt) -> DataType:
         """Returns the data type of the specified column.
 
@@ -175,7 +175,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             The data type of the column as a DataType enum.
         """
         return DataType(self.stmt.column_type(col))
-    
+
     def column_text(self, idx: UInt) raises -> StringSlice[origin_of(self)]:
         """Returns the value of the specified column as a text string.
 
@@ -191,9 +191,8 @@ struct Statement[conn: ImmutOrigin](Movable):
         var text = self.stmt.column_text(idx)
 
         # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
-        return StringSlice(
-            unsafe_from_utf8_ptr=text.unsafe_ptr().unsafe_origin_cast[origin_of(self)]()
-        )
+        var c_str_slice = CStringSlice(unsafe_from_ptr=text.unsafe_ptr().bitcast[Int8]().unsafe_origin_cast[origin_of(self)]())
+        return StringSlice(unsafe_from_utf8=c_str_slice)
 
     def column_blob(self, idx: UInt) raises -> Span[Byte, origin_of(self)]:
         """Returns the value of the specified column as binary data.
@@ -392,7 +391,9 @@ struct Statement[conn: ImmutOrigin](Movable):
         """
         self.connection[].raise_if_error(self.stmt.bind_text(index, value, destructor_callback))
 
-    def bind_blob(self, index: UInt, value: ImmutSpan[Byte, ...], destructor_callback: ResultDestructorFn) raises -> None:
+    def bind_blob(
+        self, index: UInt, value: ImmutSpan[Byte, ...], destructor_callback: ResultDestructorFn
+    ) raises -> None:
         """Binds a blob value to the specified parameter.
 
         Args:
@@ -472,7 +473,10 @@ struct Statement[conn: ImmutOrigin](Movable):
         return Rows(Pointer(to=self))
 
     def query[
-        T: Movable, P: AnyType, //, transform: RowTransformFn[T],
+        T: Movable,
+        P: AnyType,
+        //,
+        transform: RowTransformFn[T],
     ](self, params: P = ()) raises -> MappedRows[transform[Self.conn, origin_of(self)]]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
@@ -581,6 +585,68 @@ struct Statement[conn: ImmutOrigin](Movable):
         except StopIteration:
             raise Error("No rows returned by query.")
 
+    def maybe_one_row[
+        T: Movable, P: AnyType, //, transform: RowTransformFn[T]
+    ](self, params: P = ()) raises -> Optional[T]:
+        """Executes a SQL query and returns a single row, or None if no rows are returned.
+
+        Parameters:
+            T: The type that the single row will be transformed into.
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+            transform: A function that takes a Row and returns a value of type T.
+
+        Args:
+            params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Returns:
+            The single row returned by the query, or None if the query returned no rows.
+
+        Raises:
+            Error: If the query fails.
+        """
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
+        )
+        var rows = self.query[transform](params)
+        try:
+            return next(rows)
+        except StopIteration:
+            return None
+
+    def one_column[T: Movable, P: AnyType](self, params: P = ()) raises -> T:
+        """Fetches a single column from the first row of the result set.
+
+        This is a convenience method for queries that return a single scalar
+        value (e.g., `SELECT count(*) FROM users`), avoiding the need to
+        define a transform function.
+
+        Parameters:
+            T: The type to retrieve the value as. Must conform to `FromSQL`.
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Args:
+            params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Returns:
+            The value of the first column in the first row of the result set.
+
+        Raises:
+            Error: If the query fails or no rows are returned.
+        """
+        comptime assert conforms_to(T, FromSQL), String(
+            "`T` must conform to the `FromSQL` trait. ", reflect[T].name(), " does not implement `FromSQL`."
+        )
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
+        )
+        var rows = self.query(params)
+        var row: Row[Self.conn, origin_of(self)]
+        try:
+            row = next(rows)
+        except StopIteration:
+            raise Error("No rows returned by query.")
+        return row.get[T](0)
+
     def clear_bindings(self) raises -> None:
         """Clears all bound parameters from the statement.
 
@@ -631,7 +697,8 @@ struct Statement[conn: ImmutOrigin](Movable):
         if not name:
             raise Error("InvalidColumnIndexError: column index is out of bounds.")
 
-        return StringSlice(unsafe_from_utf8_ptr=name.value().unsafe_origin_cast[origin_of(self)]())
+        var c_str_slice = CStringSlice(unsafe_from_ptr=name.value().bitcast[Int8]().unsafe_origin_cast[origin_of(self)]())
+        return StringSlice(unsafe_from_utf8=c_str_slice)
 
     def column_index(self, name: StringSlice) raises -> UInt:
         """Returns the index of the column with the specified name.

@@ -3,7 +3,14 @@ from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
 from std.pathlib import Path
 from slight.busy import BusyHandlerFn
 from slight.api import sqlite_ffi
+from slight.backup import Backup
+from slight.blob import Blob
+from slight.checkpoint import CheckpointMode
 from slight.trace import TraceFn, TraceEventCodes
+from slight.hooks import CommitHookFn, RollbackHookFn, UpdateHookFn
+from slight.collation import CollationCompareFn
+from slight.progress import ProgressHandlerFn
+from slight.authorizer import AuthorizerFn
 from slight.column import ColumnMetadata
 from slight.context import Context
 from slight.flags import OpenFlag, PrepFlag
@@ -14,7 +21,7 @@ from slight.params import Params
 from slight.pragma import Sql
 from slight.raw_statement import RawStatement
 from slight.result import SQLite3Result
-from slight.row import Int, Row, RowTransformFn # RowIndex extension for Int
+from slight.row import Int, Row, RowTransformFn  # RowIndex extension for Int
 from slight.statement import Statement
 from slight.transaction import Savepoint, Transaction, TransactionBehavior
 from slight.types.from_sql import FromSQL
@@ -194,6 +201,25 @@ struct Connection(Movable):
         """
         return self.db.is_busy()
 
+    def interrupt(self) -> None:
+        """Interrupts the longest-running query currently executing on this
+        connection, causing it to abort at its earliest opportunity.
+
+        It is safe to call this from a different thread than the one running
+        the query. Do not call it on a connection that is or might be closed
+        before this call returns.
+        """
+        self.db.interrupt()
+
+    def is_interrupted(self) -> Bool:
+        """Returns whether an interrupt is currently pending on this connection.
+
+        Returns:
+            True if `interrupt()` has been called and the interrupt is still
+            pending, False otherwise.
+        """
+        return self.db.is_interrupted()
+
     def changes(self) -> Int64:
         """Returns the number of rows that were changed, inserted, or deleted
         by the most recent SQL statement.
@@ -230,7 +256,7 @@ struct Connection(Movable):
         # If there is trailing SQL after the first statement that contains a valid SQL statement, raise an error.
         if tail > 0:
             # TODO: Switch to grapheme slicing on next Mojo release.
-            var tail_stmt, _ = self.db.prepare(String(sql[byte=Int(tail) :]))
+            var tail_stmt, _ = self.db.prepare(String(sql[byte = Int(tail) :]))
             if tail_stmt:
                 raise Error(
                     "MultipleStatementsError: Prepared statement contains multiple SQL statements. Should be one."
@@ -284,7 +310,7 @@ struct Connection(Movable):
             if tail == 0 or Int(tail) >= current_sql.byte_length():
                 break
 
-            current_sql = String(current_sql[byte=Int(tail) :])
+            current_sql = String(current_sql[byte = Int(tail) :])
 
     def path(self) -> Optional[Path]:
         """Returns the file path of the database.
@@ -302,31 +328,51 @@ struct Connection(Movable):
         """
         return self.db.last_insert_row_id()
 
-    # def one_column[P: AnyType, //, T: FromSQL](self, var sql: String, params: P = ()) raises -> T:
-    #     """Fetches a single column from the first row of the result set.
+    def one_column[T: Movable, P: AnyType](self, var sql: String, params: P = ()) raises -> T:
+        """Fetches a single column from the first row of the result set.
 
-    #     Parameters:
-    #         P: The type of the parameters to bind.
-    #         T: The type to retrieve the value as. Must be Copyable, Movable, and FromSQL.
+        This is a convenience method for queries that return a single scalar
+        value (e.g., `SELECT count(*) FROM users`), avoiding the need to
+        define a transform function.
 
-    #     Args:
-    #         sql: The SQL query to execute.
-    #         params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+        Parameters:
+            T: The type to retrieve the value as. Must conform to `FromSQL`.
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
 
-    #     Returns:
-    #         The value of the first column in the first row of the result set.
+        Args:
+            sql: The SQL query to execute.
+            params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
 
-    #     Raises:
-    #         Error: If the query fails or no rows are returned.
-    #     """
-    #     comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
-    #     def get_item(row: Row) raises -> T:
-    #         return row.get[T](0)
+        Returns:
+            The value of the first column in the first row of the result set.
 
-    #     return self.prepare(sql^).query[get_item](params)
+        Raises:
+            Error: If the query fails or no rows are returned.
+        """
+        comptime assert conforms_to(T, FromSQL), String(
+            "`T` must conform to the `FromSQL` trait. ",
+            reflect[T].name(),
+            " does not implement `FromSQL`.",
+        )
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ",
+            reflect[P].name(),
+            " does not implement `Params`. Try a tuple or a list of parameters.",
+        )
+        var stmt = self.prepare(sql^)
+        var rows = stmt.query(params)
+        var row: Row[origin_of(self), origin_of(stmt)]
+        try:
+            row = next(rows)
+        except StopIteration:
+            raise Error("No rows returned by query.")
+        return row.get[T](0)
 
     def one_row[
-        T: Movable, P: AnyType, //, transform: RowTransformFn[T],
+        T: Movable,
+        P: AnyType,
+        //,
+        transform: RowTransformFn[T],
     ](self, var sql: String, params: P = ()) raises -> T:
         """Executes a SQL query and returns a single row.
 
@@ -356,6 +402,41 @@ struct Connection(Movable):
             return next(rows)
         except StopIteration:
             raise Error("No rows returned by query.")
+
+    def maybe_one_row[
+        T: Movable,
+        P: AnyType,
+        //,
+        transform: RowTransformFn[T],
+    ](self, var sql: String, params: P = ()) raises -> Optional[T]:
+        """Executes a SQL query and returns a single row, or None if no rows are returned.
+
+        Parameters:
+            T: The type to transform the row into.
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+            transform: A function to transform the row into the desired type.
+
+        Args:
+            sql: The SQL query to execute.
+            params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Returns:
+            The single row returned by the query, or None if the query returned no rows.
+
+        Raises:
+            Error: If the query fails.
+        """
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ",
+            reflect[P].name(),
+            " does not implement `Params`. Try a tuple or a list of parameters.",
+        )
+        var stmt = self.prepare(sql^)
+        var rows = stmt.query[transform](params)
+        try:
+            return next(rows)
+        except StopIteration:
+            return None
 
     def column_exists(
         self,
@@ -504,7 +585,7 @@ struct Connection(Movable):
             Error: If the underlying SQLite call fails.
 
         #### Example:
-        
+
         ```mojo
         from slight import Connection
 
@@ -598,9 +679,7 @@ struct Connection(Movable):
         query.push_pragma(pragma, schema)
         return self.one_row[transform](String(query))
 
-    def pragma_query[
-        callback: def(Row) raises thin -> None
-    ](self, schema: Optional[String], pragma: String) raises:
+    def pragma_query[callback: def(Row) raises thin -> None](self, schema: Optional[String], pragma: String) raises:
         """Query the current rows/values of a pragma.
 
         Prefer [PRAGMA function](https://sqlite.org/pragma.html#pragfunc) introduced in SQLite 3.20:
@@ -989,7 +1068,10 @@ struct Connection(Movable):
             t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
         var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
-            fn_name, n_arg, flags, user_data,
+            fn_name,
+            n_arg,
+            flags,
+            user_data,
         )
         self.raise_if_error(result)
 
@@ -1139,7 +1221,7 @@ struct Connection(Movable):
         """
         self.raise_if_error(self.db.busy_timeout(c_int(ms)))
 
-    def register_busy_handler[callback: Optional[BusyHandlerFn]](self) raises:
+    def register_busy_handler(self, callback: BusyHandlerFn) raises:
         """Register a callback to handle `SQLITE_BUSY` errors.
 
         If `callback` is `None`, then `SQLITE_BUSY` is returned immediately
@@ -1160,21 +1242,21 @@ struct Connection(Movable):
         Newly created connections default to a `busy_timeout()` handler with a
         timeout of 5000ms, although this is subject to change.
 
-        Parameters:
+        Args:
             callback: Busy handler callback function.
 
         Raises:
             Error: If the underlying SQLite call fails.
         """
-        self.raise_if_error(self.db.busy_handler[callback]())
-    
+        self.raise_if_error(self.db.busy_handler(callback))
+
     def clear_busy_handler(self) raises:
         """Clear the busy handler, if any.
-        
+
         Raises:
             Error: If the underlying SQLite call fails.
         """
-        self.raise_if_error(self.db.busy_handler[None]())
+        self.raise_if_error(self.db.clear_busy_handler())
 
     def limit(self, limit: Limit) raises -> Int32:
         """Returns the current value of a run-time `Limit`.
@@ -1213,7 +1295,7 @@ struct Connection(Movable):
             raise Error(t"{limit} is invalid")
         return rc
 
-    def register_trace_function[trace_fn: TraceFn](self, mask: TraceEventCodes) raises:
+    def register_trace_function(self, mask: TraceEventCodes, trace_fn: TraceFn) raises:
         """Register a trace callback.
 
         The callback will be invoked for each trace event whose type is
@@ -1222,20 +1304,149 @@ struct Connection(Movable):
         There can only be a single tracer per connection. Setting a new tracer
         replaces the previous one.
 
-        Parameters:
-            trace_fn: A `TraceFn` callback.
-
         Args:
             mask: Bitmask of `TraceEventCodes` to monitor.
+            trace_fn: A `TraceFn` callback.
 
         Raises:
             Error: If the underlying SQLite call fails.
         """
-        self.raise_if_error(self.db.trace_v2[trace_fn](mask))
-    
+        self.raise_if_error(self.db.trace_v2(mask, trace_fn))
+
     def clear_trace_function(self) raises:
         """Clear the trace callback, if any."""
         self.raise_if_error(self.db.clear_trace_v2())
+
+    def register_commit_hook(self, callback: CommitHookFn):
+        """Register a callback invoked whenever a transaction is committed.
+
+        There can only be a single commit hook per connection. Registering a
+        new one replaces the previous one. Use `clear_commit_hook` to
+        unregister it.
+
+        Note: Returning `True` from `callback` converts the commit into a
+        rollback (SQLite semantics: a non-zero return aborts the commit).
+
+        Args:
+            callback: A `def() -> Bool` callback. `True` vetoes the commit.
+        """
+        self.db.register_commit_hook(callback)
+
+    def clear_commit_hook(self):
+        """Unregister the commit hook, if any."""
+        self.db.clear_commit_hook()
+
+    def register_rollback_hook(self, callback: RollbackHookFn):
+        """Register a callback invoked whenever a transaction is rolled back.
+
+        There can only be a single rollback hook per connection. Registering
+        a new one replaces the previous one. Use `clear_rollback_hook` to
+        unregister it.
+
+        Args:
+            callback: A `def() -> None` callback.
+        """
+        self.db.register_rollback_hook(callback)
+
+    def clear_rollback_hook(self):
+        """Unregister the rollback hook, if any."""
+        self.db.clear_rollback_hook()
+
+    def register_update_hook(self, callback: UpdateHookFn):
+        """Register a callback invoked whenever a row is inserted, updated,
+        or deleted in a rowid table.
+
+        There can only be a single update hook per connection. Registering a
+        new one replaces the previous one. Use `clear_update_hook` to
+        unregister it.
+
+        Args:
+            callback: A `def(UpdateOperation, String, String, Int64) -> None`
+                callback receiving the operation type, database name, table
+                name, and rowid of the affected row.
+        """
+        self.db.register_update_hook(callback)
+
+    def clear_update_hook(self):
+        """Unregister the update hook, if any."""
+        self.db.clear_update_hook()
+
+    def create_collation(self, var name: String, compare: CollationCompareFn, flags: FunctionFlags = FunctionFlags.UTF8) raises:
+        """Define a new collating sequence for use in `ORDER BY`, `COLLATE`, indexes, etc.
+
+        Args:
+            name: Name of the collating sequence (as referenced by `COLLATE name` in SQL).
+            compare: A `def(Span[Byte], Span[Byte]) -> Int` comparator,
+                analogous to C's `strcmp`: negative if the left operand
+                sorts before the right, zero if equal, positive if the left
+                operand sorts after the right.
+            flags: Text encoding flags. Defaults to UTF-8.
+
+        Raises:
+            Error: If the collation could not be registered.
+        """
+        self.raise_if_error(self.db.create_collation(name, c_int(flags.value), compare))
+
+    def remove_collation(self, name: String, flags: FunctionFlags = FunctionFlags.UTF8) raises:
+        """Remove a previously registered collating sequence.
+
+        Args:
+            name: Name of the collating sequence to remove.
+            flags: Text encoding flags that were used to register it.
+                Defaults to UTF-8.
+
+        Raises:
+            Error: If the collation could not be removed.
+        """
+        var name_copy = name
+        self.raise_if_error(self.db.remove_collation(name_copy, c_int(flags.value)))
+
+    def register_progress_handler(self, n_ops: Int, callback: ProgressHandlerFn):
+        """Register a callback invoked approximately every `n_ops` virtual
+        machine instructions during query execution.
+
+        Note: Returning `True` from `callback` INTERRUPTS (aborts) the
+        currently running query.
+
+        There can only be a single progress handler per connection.
+        Registering a new one replaces the previous one. Use
+        `clear_progress_handler` to unregister it.
+
+        Args:
+            n_ops: Approximate number of VM instructions between invocations.
+            callback: A `def() -> Bool` callback. `True` interrupts the running query.
+        """
+        self.db.register_progress_handler(n_ops, callback)
+
+    def clear_progress_handler(self):
+        """Unregister the progress handler, if any."""
+        self.db.clear_progress_handler()
+
+    def register_authorizer(self, callback: AuthorizerFn) raises:
+        """Register an authorizer callback invoked during statement
+        preparation for each action requiring authorization.
+
+        There can only be a single authorizer per connection. Registering a
+        new one replaces the previous one. Use `clear_authorizer` to
+        unregister it. Registering (or clearing) an authorizer invalidates
+        all previously prepared statements.
+
+        Args:
+            callback: A callback receiving an `AuthAction` and up to four subject arguments, returning an
+                `AuthResult` (`OK`, `DENY`, or `IGNORE`).
+
+        Raises:
+            Error: If the authorizer could not be registered.
+        """
+        self.raise_if_error(self.db.register_authorizer(callback))
+
+    def clear_authorizer(self) raises:
+        """Unregister the authorizer callback, if any.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        self.raise_if_error(self.db.clear_authorizer())
 
     def log(self, err_code: Int32, mut msg: String):
         """Write a message to the SQLite error log.
@@ -1355,3 +1566,129 @@ struct Connection(Movable):
         """
         return self.db.wait_for_unlock_notify()
 
+    def wal_checkpoint(self, schema: Optional[String] = None) raises:
+        """Checkpoints the write-ahead log using the default (passive) mode.
+
+        This is equivalent to `wal_checkpoint_v2(CheckpointMode.PASSIVE, schema)`
+        but does not report the number of log/checkpointed frames.
+
+        Args:
+            schema: Name of the database schema to checkpoint (e.g. "main").
+                If None, all attached databases are checkpointed.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        self.db.wal_checkpoint(schema.copy())
+
+    def wal_checkpoint_v2(self, mode: CheckpointMode, schema: Optional[String] = None) raises -> Tuple[Int, Int]:
+        """Checkpoints the write-ahead log with additional control over the
+        checkpoint operation.
+
+        Args:
+            mode: The checkpoint mode (PASSIVE, FULL, RESTART, or TRUNCATE).
+            schema: Name of the database schema to checkpoint (e.g. "main").
+                If None, all attached databases are checkpointed.
+
+        Returns:
+            A tuple `(log_frames, checkpointed_frames)` containing the total
+            number of frames in the WAL log, and the number of frames that
+            were checkpointed.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+
+        ```mojo
+        from slight import Connection
+        from slight.checkpoint import CheckpointMode
+
+        def checkpoint_wal(mut conn: Connection) raises:
+            var log_frames, checkpointed_frames = conn.wal_checkpoint_v2(CheckpointMode.FULL)
+        ```
+        """
+        return self.db.wal_checkpoint_v2(mode, schema.copy())
+
+    def backup(
+        mut self, mut dest: Connection, dest_schema: String = "main", source_schema: String = "main"
+    ) raises -> Backup[origin_of(dest), origin_of(self)]:
+        """Creates a handle for an incremental online backup, copying this
+        connection's database into `dest`.
+
+        Use this when you want fine-grained control over the backup (e.g. to
+        copy a fixed number of pages at a time). For the common one-shot case
+        of copying the entire database in a single call, use `backup_to()`
+        instead.
+
+        Args:
+            dest: A pointer to the destination connection.
+            dest_schema: Name of the destination database schema (e.g. "main").
+            source_schema: Name of the source database schema (e.g. "main").
+
+        Returns:
+            A new `Backup` handle.
+
+        Raises:
+            Error: If the backup operation could not be initialized.
+        """
+        return Backup(Pointer(to=dest), Pointer(to=self), dest_schema, source_schema)
+
+    def backup_to(mut self, mut dest: Connection, dest_schema: String = "main", source_schema: String = "main") raises:
+        """Performs a full online backup of this connection's database into
+        `dest`, running to completion in a single call.
+
+        This is a convenience wrapper that initializes a `Backup`, steps it
+        to completion, and finishes it.
+
+        ```mojo
+        from slight import Connection
+
+        def copy_database(mut source: Connection, mut dest: Connection) raises:
+            source.backup_to(dest)
+        ```
+
+        Args:
+            dest: The destination connection.
+            dest_schema: Name of the destination database schema (e.g. "main").
+            source_schema: Name of the source database schema (e.g. "main").
+
+        Raises:
+            Error: If the backup could not be initialized, or if it fails while copying pages.
+        """
+        var backup = Backup(Pointer(to=dest), Pointer(to=self), dest_schema, source_schema)
+        try:
+            while backup.step(-1):
+                pass
+        finally:
+            backup^.finish()
+
+    def blob_open[read_only: Bool = False](
+        mut self,
+        var table: String,
+        var column: String,
+        row_id: Int64,
+        *,
+        var schema: String = "main"
+    ) raises -> Blob[origin_of(self), read_only=read_only]:
+        """Opens a BLOB for incremental I/O.
+
+        This is more efficient than loading an entire large BLOB value into
+        memory when only part of it needs to be read or written.
+
+        Params:
+            read_only: If True, opens the BLOB for reading only. If False,
+                opens the BLOB for reading and writing.
+
+        Args:
+            table: Name of the table containing the BLOB.
+            column: Name of the column containing the BLOB.
+            row_id: Row ID of the row containing the BLOB.
+            schema: Name of the database schema containing the table
+                (e.g. "main").
+
+        Returns:
+            A new `Blob` handle.
+
+        Raises:
+            Error: If the BLOB could not be opened.
+        """
+        return Blob[read_only=read_only](Pointer(to=self), table, column, row_id, schema=schema^)

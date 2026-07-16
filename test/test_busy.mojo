@@ -60,7 +60,7 @@ def test_busy_handler() raises:
         db1.execute_batch("CREATE TABLE IF NOT EXISTS t(a)")
 
         var db2 = Connection.open(path)
-        db2.register_busy_handler[busy_handler]()
+        db2.register_busy_handler(busy_handler)
 
         # Lock the database exclusively from db1
         db1.execute_batch("BEGIN EXCLUSIVE")

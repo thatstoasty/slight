@@ -26,6 +26,10 @@
 - **Extension Loading**: Load SQLite extensions with a Linear guard for safe enable/disable
 - **Unlock Notification**: Handle shared-cache lock contention with unlock-notify callbacks
 - **Serialization**: Copy a database to/from an in-memory byte buffer
+- **Interrupt**: Cancel a long-running query from another thread
+- **Online Backup**: Copy a live database into another connection, all at once or incrementally
+- **Incremental BLOB I/O**: Read and write BLOB values in chunks without loading them fully into memory
+- **WAL Checkpointing**: Manually checkpoint a database in write-ahead-log mode
 
 ## Adding the `slight` package to your project
 
@@ -219,6 +223,17 @@ def main() raises:
     # Get a single row
     var user = db.one_row[to_user]("SELECT * FROM users WHERE id = ?1", [1])
     print("Found:", user)
+    
+    # Get a single column from a single row, without a transform function
+    var count = db.one_column[Int]("SELECT count(*) FROM users")
+    print("Count:", count)
+    
+    # Get a single row that may not exist, without raising
+    var maybe_user = db.maybe_one_row[to_user]("SELECT * FROM users WHERE id = ?1", [99])
+    if maybe_user:
+        print("Found:", maybe_user.value())
+    else:
+        print("No user with that id")
 ```
 
 ### Transactions
@@ -232,15 +247,18 @@ def main() raises:
     db.execute_batch("CREATE TABLE accounts (name TEXT, balance REAL)")
     
     # Basic transaction with context manager
+    # `Transaction`/`Savepoint` forward common Connection methods
+    # (execute, execute_batch, one_row, maybe_one_row, one_column,
+    # last_insert_row_id, changes) directly, so `tx.conn[]` is optional here.
     with db.transaction() as tx:
-        _ = tx.conn[].execute("INSERT INTO accounts VALUES (?1, ?2)", ("Alice", 1000.0))
-        _ = tx.conn[].execute("INSERT INTO accounts VALUES (?1, ?2)", ("Bob", 500.0))
+        _ = tx.execute("INSERT INTO accounts VALUES (?1, ?2)", ("Alice", 1000.0))
+        _ = tx.execute("INSERT INTO accounts VALUES (?1, ?2)", ("Bob", 500.0))
         tx.commit()  # Explicitly commit; otherwise rolls back on scope exit
     
     # Transaction with specific behavior
     with db.transaction(TransactionBehavior.IMMEDIATE) as tx:
-        _ = tx.conn[].execute("UPDATE accounts SET balance = balance - 100 WHERE name = 'Alice'")
-        _ = tx.conn[].execute("UPDATE accounts SET balance = balance + 100 WHERE name = 'Bob'")
+        _ = tx.execute("UPDATE accounts SET balance = balance - 100 WHERE name = 'Alice'")
+        _ = tx.execute("UPDATE accounts SET balance = balance + 100 WHERE name = 'Bob'")
         tx.commit()
 ```
 
@@ -254,15 +272,15 @@ def main() raises:
     db.execute_batch("CREATE TABLE log (message TEXT)")
     
     with db.transaction() as tx:
-        _ = tx.conn[].execute("INSERT INTO log VALUES (?1)", ["Step 1"])
+        _ = tx.execute("INSERT INTO log VALUES (?1)", ["Step 1"])
         
         # Create a savepoint for a risky operation
         with tx.savepoint() as sp:
-            _ = sp.conn[].execute("INSERT INTO log VALUES (?1)", ["Risky step"])
+            _ = sp.execute("INSERT INTO log VALUES (?1)", ["Risky step"])
             # Rollback just this savepoint if something goes wrong
             sp.rollback()
             # Try again
-            _ = sp.conn[].execute("INSERT INTO log VALUES (?1)", ["Safe step"])
+            _ = sp.execute("INSERT INTO log VALUES (?1)", ["Safe step"])
             sp.commit()
         
         tx.commit()
@@ -516,6 +534,135 @@ Trace event types:
 
 Use `TraceEventCodes.all()` to monitor all event types at once.
 
+### Commit, Rollback, and Update Hooks
+
+Register callbacks that fire when a transaction commits or rolls back, or when a row is inserted, updated, or deleted:
+
+```mojo
+from slight.connection import Connection
+from slight.hooks import UpdateOperation
+
+def my_commit_hook() -> Bool:
+    print("about to commit")
+    # Return True to veto the commit and convert it into a rollback.
+    return False
+
+def my_rollback_hook() -> NoneType:
+    print("transaction rolled back")
+    return NoneType()
+
+def my_update_hook(op: UpdateOperation, db_name: String, table_name: String, rowid: Int64) -> NoneType:
+    print("row", rowid, "in", table_name, "changed:", op)
+    return NoneType()
+
+def main() raises:
+    var db = Connection.open_in_memory()
+
+    db.register_commit_hook[my_commit_hook]()
+    db.register_rollback_hook[my_rollback_hook]()
+    db.register_update_hook[my_update_hook]()
+
+    db.execute_batch("CREATE TABLE t (id INTEGER)")
+    _ = db.execute("INSERT INTO t (id) VALUES (?1)", (1,))
+
+    # Clear any of the hooks individually
+    db.clear_commit_hook()
+    db.clear_rollback_hook()
+    db.clear_update_hook()
+```
+
+> **Note:** Returning `True` from a commit hook converts the commit into a rollback (SQLite semantics: a non-zero return aborts the commit). There can only be one hook of each kind per connection; registering a new one replaces the previous one. `UpdateOperation` is one of `INSERT`, `UPDATE`, or `DELETE`.
+
+### Custom Collations
+
+Define custom string comparison functions for use with `COLLATE` in SQL:
+
+```mojo
+from slight.connection import Connection
+
+def case_insensitive_compare(left: Span[Byte, ImmutUntrackedOrigin], right: Span[Byte, ImmutUntrackedOrigin]) -> Int:
+    # A real implementation would lowercase/normalize before comparing.
+    if left < right:
+        return -1
+    elif left > right:
+        return 1
+    return 0
+
+def main() raises:
+    var db = Connection.open_in_memory()
+
+    db.create_collation[case_insensitive_compare]("NOCASE_CUSTOM")
+
+    db.execute_batch("CREATE TABLE t (name TEXT)")
+    _ = db.execute("INSERT INTO t (name) VALUES (?1)", ("Bob",))
+
+    # Use the collation in a query
+    var stmt = db.prepare("SELECT name FROM t ORDER BY name COLLATE NOCASE_CUSTOM")
+
+    # Remove the collation when no longer needed
+    db.remove_collation("NOCASE_CUSTOM")
+```
+
+> **Note:** The comparator receives the raw bytes of the two values and returns an ordering integer analogous to C's `strcmp`: negative if `left < right`, zero if equal, positive if `left > right`. `remove_collation` raises if referenced afterward from SQL.
+
+### Progress Handler
+
+Register a callback that fires periodically during long-running queries, useful for progress reporting or aborting a runaway query:
+
+```mojo
+from slight.connection import Connection
+
+def my_progress_handler() -> Bool:
+    print("still working...")
+    # Return True to interrupt (abort) the running query.
+    return False
+
+def main() raises:
+    var db = Connection.open_in_memory()
+
+    # Invoke the handler roughly every 1000 VM instructions
+    db.register_progress_handler[my_progress_handler](1000)
+
+    _ = db.execute("SELECT 1")
+
+    db.clear_progress_handler()
+```
+
+> **Note:** Returning `True` interrupts the running query, causing it to fail with an error. There can only be one progress handler per connection; registering a new one replaces the previous one.
+
+### Authorizer
+
+Register a callback invoked during statement preparation for every action that requires authorization, allowing you to allow, deny, or ignore individual operations:
+
+```mojo
+from slight.authorizer import AuthAction, AuthResult
+from slight.connection import Connection
+
+def deny_drops(
+    action: AuthAction,
+    arg1: Optional[String],
+    arg2: Optional[String],
+    db_name: Optional[String],
+    trigger_or_view: Optional[String],
+) -> AuthResult:
+    if action == AuthAction.DROP_TABLE:
+        return AuthResult.DENY
+    return AuthResult.OK
+
+def main() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE t (x INTEGER)")
+
+    db.register_authorizer[deny_drops]()
+
+    # This raises, because DROP TABLE is denied.
+    # db.execute_batch("DROP TABLE t")
+
+    db.clear_authorizer()
+```
+
+> **Note:** `AuthResult.DENY` aborts the SQL statement with an error; `AuthResult.IGNORE` disallows just the specific action (e.g. a denied column read is treated as NULL) while letting the rest of the statement proceed; `AuthResult.OK` allows the action. `AuthAction` covers common action codes (`CREATE_TABLE`, `DROP_TABLE`, `READ`, `INSERT`, `UPDATE`, `DELETE`, `SELECT`, `PRAGMA`, `TRANSACTION`, `ATTACH`, `DETACH`, `FUNCTION`); see [SQLite's authorizer action codes](https://www.sqlite.org/c3ref/c_alter_table.html) for the full list. Registering or clearing an authorizer invalidates previously prepared statements.
+
 ### Extension Loading
 
 SQLite supports loading extensions from shared libraries. Extension loading is disabled by default for security. `slight` provides a Linear `ExtensionLoadGuard` that requires extension loading to be properly disabled after use:
@@ -646,6 +793,133 @@ except e:
 
 > **Note:** `deserialize` transfers ownership of the buffer to SQLite, which frees it when the connection closes (or when that schema is deserialized into again). By default the deserialized database is writable and SQLite is allowed to grow the underlying buffer as it expands; with `read_only=True` it cannot be modified or resized.
 
+### Interrupt
+
+Call `interrupt` to cancel the longest-running query currently executing on a connection, causing it to abort at its earliest opportunity. This is typically called from a different thread than the one running the query (e.g. in response to a user cancel action):
+
+```mojo
+from slight.connection import Connection
+
+def main() raises:
+    var db = Connection.open_in_memory()
+
+    # From another thread:
+    db.interrupt()
+
+    # is_interrupted() reports whether an interrupt is currently pending.
+    print(db.is_interrupted())
+```
+
+> **Note:** It is not safe to call `interrupt` on a connection that is closed or might close before the call returns.
+
+### Backup
+
+SQLite's [online backup API](https://www.sqlite.org/backup.html) copies the contents of one database connection into another while the source remains usable. This is the primary way to back up or duplicate an in-memory database, since it has no file on disk to copy directly.
+
+For the common case of copying an entire database in one call, use `backup_to`:
+
+```mojo
+from slight.connection import Connection
+
+def main() raises:
+    var source = Connection.open_in_memory()
+    source.execute_batch("""
+        CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
+        INSERT INTO users VALUES (1, 'Alice');
+        INSERT INTO users VALUES (2, 'Bob');
+    """)
+
+    var dest = Connection.open_in_memory()
+    source.backup_to(dest)
+
+    var stmt = dest.prepare("SELECT id, name FROM users ORDER BY id")
+    for row in stmt.query():
+        print(row.get[Int](0), ":", row.get[String](1))
+```
+
+For fine-grained control (e.g. copying a fixed number of pages at a time so the source connection remains responsive), use `backup` to get a `Backup` handle and step it manually:
+
+```mojo
+from slight.connection import Connection
+
+def main() raises:
+    var source = Connection.open_in_memory()
+    source.execute_batch("CREATE TABLE t (value INTEGER)")
+
+    var dest = Connection.open_in_memory()
+    var backup = source.backup(Pointer(to=dest))
+
+    # Copy 5 pages at a time until the backup is complete.
+    while backup.step(5):
+        print("remaining pages:", backup.remaining(), "/", backup.pagecount())
+
+    backup^.finish()
+```
+
+> **Note:** A `Backup` finishes itself automatically when it goes out of scope, absorbing any error that occurs while doing so. Call `.finish()` explicitly if you want to observe that error.
+
+### Incremental BLOB I/O
+
+Use `blob_open` to get a handle for reading or writing a BLOB value in chunks, rather than loading the entire value into memory. This is useful for large BLOBs.
+
+```mojo
+from slight.connection import Connection
+
+def main() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE images (id INTEGER PRIMARY KEY, data BLOB)")
+    _ = db.execute("INSERT INTO images (id, data) VALUES (1, ?1)", [List[Byte](1, 2, 3, 4, 5, 6, 7, 8)])
+
+    var blob = db.blob_open("images", "data", row_id=1)
+    print("size:", blob.bytes())
+
+    # Read the first 4 bytes.
+    var chunk = blob.read(4, offset=0)
+
+    blob^.close()
+```
+
+Open with `read_only=False` to write into the BLOB in place:
+
+```mojo
+var blob = db.blob_open("images", "data", row_id=1, read_only=False)
+var patch: List[Byte] = [9, 9, 9]
+blob.write(Span(patch), offset=2)
+blob^.close()
+```
+
+> **Note:** A `Blob` closes itself automatically when it goes out of scope, absorbing any error that occurs while doing so (mirroring `Statement`'s cleanup model). Call `.close()` explicitly if you want to observe that error. Writing requires the BLOB to have been opened with `read_only=False`.
+
+### WAL Checkpointing
+
+When a database is in [write-ahead-log (WAL) mode](https://www.sqlite.org/wal.html), changes accumulate in a separate WAL file until they are checkpointed back into the main database file. Checkpoints normally happen automatically, but `wal_checkpoint` and `wal_checkpoint_v2` allow triggering one manually:
+
+```mojo
+from slight.connection import Connection
+
+def main() raises:
+    var db = Connection.open("my.db")
+    db.execute_batch("PRAGMA journal_mode=WAL")
+    db.execute_batch("CREATE TABLE t (value INTEGER)")
+    _ = db.execute("INSERT INTO t (value) VALUES (?1)", (1,))
+
+    # Passive checkpoint using SQLite's default mode.
+    db.wal_checkpoint()
+```
+
+`wal_checkpoint_v2` additionally accepts a `CheckpointMode` and reports how many frames were in the WAL log and how many were checkpointed:
+
+```mojo
+from slight.checkpoint import CheckpointMode
+
+var log_frames, checkpointed_frames = db.wal_checkpoint_v2(CheckpointMode.FULL)
+print(checkpointed_frames, "/", log_frames, "frames checkpointed")
+```
+
+`CheckpointMode` has four variants: `PASSIVE` (the default, non-blocking), `FULL`, `RESTART`, and `TRUNCATE` (each progressively more aggressive about blocking writers/readers and truncating the WAL file — see the [SQLite documentation](https://www.sqlite.org/c3ref/wal_checkpoint_v2.html) for details).
+
+> **Note:** WAL mode requires a real file on disk; it does not apply to in-memory databases (`Connection.open_in_memory()`).
+
 ## Supported Types
 
 ### Reading from SQL (FromSQL)
@@ -715,3 +989,5 @@ And took notes from:
 - Assess origins of `ValueRef` in general, because I'm pretty sure I have a few incorrect origins being used.
 - I would like `RowTransformFn` to be properly parametrized on the connection and statement origins for `Row`, but I can't get partial parameter binding working for `Connection` functions. Maybe I'll revisit that one day.
 - Improve CSV Reader logic.
+- Add a `prepare_cached` on `Connection` that caches and reuses compiled `Statement`s by SQL text (like `rusqlite`'s `CachedStatement`). Attempted this and hit a wall: `RawStatement` is `@explicit_destroy` (intentionally, since it wraps a `sqlite3_stmt*`), which rules out `Dict[String, RawStatement]` as a cache (the compiler crashes trying to bind `RawStatement` to `Dict`'s `V: Copyable & ImplicitlyDestructible` value-type constraint) and also rules out `List[RawStatement]` (a `List` of non-`ImplicitlyDeletable` elements must be explicitly destroyed via `destroy_with()`, which doesn't actually exist on `List` in the current stdlib). Revisit once there's a container type that supports non-implicitly-destructible values, or once `RawStatement` gains some other cache-friendly ownership story.
+- `Transaction.prepare`/`Savepoint.prepare` are intentionally not forwarded to the underlying `Connection.prepare` (unlike `execute`, `execute_batch`, `one_row`, `maybe_one_row`, `one_column`, `last_insert_row_id`, `changes`, which are). `Connection.prepare`'s return type is `Statement[origin_of(self)]`, and when called through `self.conn[]` inside a thin wrapper, the compiler treats the resulting origin as a distinct derived origin (`origin_of(conn_origin)`) rather than `Self.conn_origin` itself, so no return-type annotation I tried satisfied the borrow checker. Use `tx.conn[].prepare(...)` / `sp.conn[].prepare(...)` directly for now.

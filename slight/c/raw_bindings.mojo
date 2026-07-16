@@ -87,7 +87,15 @@ comptime sqlite3_busy_timeout_fn = def(MutExternalPointer[sqlite3_connection], c
 comptime sqlite3_malloc64_fn = def(UInt64) abi("C") thin -> Optional[MutExternalPointer[NoneType]]
 comptime sqlite3_free_fn = def(MutExternalPointer[NoneType]) abi("C") thin
 comptime sqlite3_msize_fn = def(MutExternalPointer[NoneType]) abi("C") thin -> UInt64
-comptime sqlite3_set_authorizer_fn = def(MutExternalPointer[sqlite3_connection], AuthCallbackFn, MutExternalPointer[NoneType]) abi("C") thin -> c_int
+comptime sqlite3_set_authorizer_fn = def(MutExternalPointer[sqlite3_connection], AuthCallbackFn, Optional[MutExternalPointer[NoneType]]) abi("C") thin -> c_int
+# To clear an authorizer, SQLite wants `sqlite3_set_authorizer(db, NULL, NULL)`.
+# The `xAuth` slot is modeled as `Optional[MutExternalPointer[NoneType]]` (a
+# nullable void*, ABI-identical to a function pointer) rather than
+# `Optional[AuthCallbackFn]`: `Optional` of a bare `thin` function type has no
+# null niche, so it lowers to a 2-word struct that does NOT match the single
+# function-pointer argument the C ABI expects, leaving the authorizer set to
+# garbage instead of cleared.
+comptime sqlite3_remove_authorizer_fn = def(MutExternalPointer[sqlite3_connection], Optional[MutExternalPointer[NoneType]], Optional[MutExternalPointer[NoneType]]) abi("C") thin -> c_int
 comptime sqlite3_trace_fn = def(MutExternalPointer[sqlite3_connection], TraceCallbackFn, MutExternalPointer[NoneType]) abi("C") thin -> Optional[MutExternalPointer[NoneType]]
 comptime sqlite3_profile_fn = def(MutExternalPointer[sqlite3_connection], ProfileCallbackFn, MutExternalPointer[NoneType]) abi("C") thin -> Optional[MutExternalPointer[NoneType]]
 comptime sqlite3_trace_v2_fn = def(MutExternalPointer[sqlite3_connection], c_uint, TraceV2CallbackFn, Optional[MutExternalPointer[NoneType]]) abi("C") thin -> c_int
@@ -189,9 +197,9 @@ comptime sqlite3_db_filename_fn = def(MutExternalPointer[sqlite3_connection], Im
 comptime sqlite3_db_readonly_fn = def(MutExternalPointer[sqlite3_connection], ImmutExternalPointer[c_char]) abi("C") thin -> c_int
 comptime sqlite3_txn_state_fn = def(MutExternalPointer[sqlite3_connection], ImmutExternalPointer[c_char]) abi("C") thin -> c_int
 comptime sqlite3_next_stmt_fn = def(MutExternalPointer[sqlite3_connection], Optional[MutExternalPointer[sqlite3_stmt]]) abi("C") thin -> Optional[MutExternalPointer[sqlite3_stmt]]
-comptime sqlite3_update_hook_fn = def(MutExternalPointer[sqlite3_connection], MutExternalPointer[UpdateHookCallbackFn], MutExternalPointer[NoneType]) abi("C") thin
-comptime sqlite3_commit_hook_fn = def(MutExternalPointer[sqlite3_connection], MutExternalPointer[CommitHookCallbackFn], MutExternalPointer[NoneType]) abi("C") thin -> Optional[MutExternalPointer[NoneType]]
-comptime sqlite3_rollback_hook_fn = def(MutExternalPointer[sqlite3_connection], MutExternalPointer[RollbackHookCallbackFn], MutExternalPointer[NoneType]) abi("C") thin -> Optional[MutExternalPointer[NoneType]]
+comptime sqlite3_update_hook_fn = def(MutExternalPointer[sqlite3_connection], Optional[MutExternalPointer[UpdateHookCallbackFn]], Optional[MutExternalPointer[NoneType]]) abi("C") thin
+comptime sqlite3_commit_hook_fn = def(MutExternalPointer[sqlite3_connection], Optional[MutExternalPointer[CommitHookCallbackFn]], Optional[MutExternalPointer[NoneType]]) abi("C") thin -> Optional[MutExternalPointer[NoneType]]
+comptime sqlite3_rollback_hook_fn = def(MutExternalPointer[sqlite3_connection], Optional[MutExternalPointer[RollbackHookCallbackFn]], Optional[MutExternalPointer[NoneType]]) abi("C") thin -> Optional[MutExternalPointer[NoneType]]
 comptime sqlite3_auto_extension_fn = def(ExtensionEntrypointCallbackFn) abi("C") thin -> c_int
 comptime sqlite3_db_release_memory_fn = def(MutExternalPointer[sqlite3_connection]) abi("C") thin -> c_int
 comptime sqlite3_cancel_auto_extension_fn = def(MutExternalPointer[CancelExtensionCallbackFn]) abi("C") thin -> c_int
@@ -259,6 +267,7 @@ struct _sqlite3(Movable):
     var _fn_sqlite3_free: sqlite3_free_fn
     var _fn_sqlite3_msize: sqlite3_msize_fn
     var _fn_sqlite3_set_authorizer: sqlite3_set_authorizer_fn
+    var _fn_sqlite3_remove_authorizer: sqlite3_remove_authorizer_fn
     var _fn_sqlite3_trace: sqlite3_trace_fn
     var _fn_sqlite3_profile: sqlite3_profile_fn
     var _fn_sqlite3_trace_v2: sqlite3_trace_v2_fn
@@ -433,6 +442,7 @@ struct _sqlite3(Movable):
             self._fn_sqlite3_free = self.lib.get_function[sqlite3_free_fn]("sqlite3_free")
             self._fn_sqlite3_msize = self.lib.get_function[sqlite3_msize_fn]("sqlite3_msize")
             self._fn_sqlite3_set_authorizer = self.lib.get_function[sqlite3_set_authorizer_fn]("sqlite3_set_authorizer")
+            self._fn_sqlite3_remove_authorizer = self.lib.get_function[sqlite3_remove_authorizer_fn]("sqlite3_set_authorizer")
             self._fn_sqlite3_trace = self.lib.get_function[sqlite3_trace_fn]("sqlite3_trace")
             self._fn_sqlite3_profile = self.lib.get_function[sqlite3_profile_fn]("sqlite3_profile")
             self._fn_sqlite3_trace_v2 = self.lib.get_function[sqlite3_trace_v2_fn]("sqlite3_trace_v2")
@@ -952,7 +962,7 @@ struct _sqlite3(Movable):
     def sqlite3_set_authorizer[
         userdata_origin: MutOrigin, //,
         auth_callback: AuthCallbackFn,
-    ](self, db: MutExternalPointer[sqlite3_connection], pUserData: MutOpaquePointer[userdata_origin]) -> c_int:
+    ](self, db: MutExternalPointer[sqlite3_connection], pUserData: Optional[MutOpaquePointer[userdata_origin]]) -> c_int:
         """Compile-Time Authorization Callbacks.
 
         This routine registers an authorizer callback with a particular database
@@ -974,7 +984,28 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._fn_sqlite3_set_authorizer(db, auth_callback, pUserData.unsafe_origin_cast[MutUntrackedOrigin]())
+        var user_data = Optional[MutExternalPointer[NoneType]](pUserData.value().unsafe_origin_cast[MutUntrackedOrigin]()) if pUserData else None
+        return self._fn_sqlite3_set_authorizer(db, auth_callback, user_data)
+    
+    def sqlite3_remove_authorizer(
+        self,
+        db: MutExternalPointer[sqlite3_connection]
+    ) -> c_int:
+        """Compile-Time Authorization Callbacks.
+
+        This routine registers an authorizer callback with a particular database
+        connection. The authorizer callback is invoked as SQL statements are being
+        compiled by `sqlite3_prepare` or its variants. At various points during
+        the compilation process, the authorizer callback is invoked to see if the
+        action being coded is allowed. The authorizer callback should return
+        SQLITE_OK to allow the action, SQLITE_IGNORE to cause the entire SQL
+        statement to be silently ignored, or SQLITE_DENY to cause the entire
+        SQL statement to fail with an error.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
+        """
+        return self._fn_sqlite3_remove_authorizer(db, None, None)
 
     def sqlite3_trace[arg_origin: MutOrigin](
         self,
@@ -3140,15 +3171,11 @@ struct _sqlite3(Movable):
         """
         return self._fn_sqlite3_next_stmt(pDb, pStmt)
 
-    def sqlite3_update_hook[
-        cb_origin: MutOrigin,
-        arg_origin: MutOrigin,
-        //
-    ](
+    def sqlite3_update_hook(
         self,
         db: MutExternalPointer[sqlite3_connection],
-        xCallback: MutUnsafePointer[UpdateHookCallbackFn, cb_origin],
-        pArg: MutOpaquePointer[arg_origin],
+        xCallback: Optional[MutExternalPointer[UpdateHookCallbackFn]],
+        pArg: Optional[MutExternalPointer[NoneType]],
     ) -> None:
         """Data Change Notification Callbacks.
 
@@ -3158,26 +3185,20 @@ struct _sqlite3(Movable):
         The callback receives the operation type (INSERT, UPDATE, or DELETE),
         database name, table name, and rowid of the affected row.
 
+        Passing `None` for `xCallback` unregisters any existing update hook.
+
         Args:
             db: Database connection handle.
-            xCallback: Callback function to invoke on data changes.
-            pArg: User data pointer passed to callback.
+            xCallback: Callback function to invoke on data changes, or `None` to clear.
+            pArg: User data pointer passed to callback, or `None`.
         """
-        self._fn_sqlite3_update_hook(
-            db,
-            xCallback.unsafe_origin_cast[MutUntrackedOrigin](),
-            pArg.unsafe_origin_cast[MutUntrackedOrigin]()
-        )
+        self._fn_sqlite3_update_hook(db, xCallback, pArg)
 
-    def sqlite3_commit_hook[
-        cb_origin: MutOrigin,
-        arg_origin: MutOrigin,
-        //
-    ](
+    def sqlite3_commit_hook(
         self,
         db: MutExternalPointer[sqlite3_connection],
-        xCallback: MutUnsafePointer[CommitHookCallbackFn, cb_origin],
-        pArg: MutOpaquePointer[arg_origin],
+        xCallback: Optional[MutExternalPointer[CommitHookCallbackFn]],
+        pArg: Optional[MutExternalPointer[NoneType]],
     ) -> Optional[MutExternalPointer[NoneType]]:
         """Commit And Rollback Notification Callbacks.
 
@@ -3186,29 +3207,23 @@ struct _sqlite3(Movable):
         the commit into a rollback. This is useful for implementing custom
         constraints or synchronization logic.
 
+        Passing `None` for `xCallback` unregisters any existing commit hook.
+
         Args:
             db: Database connection handle.
-            xCallback: Callback function invoked before commit.
-            pArg: User data pointer passed to callback.
+            xCallback: Callback function invoked before commit, or `None` to clear.
+            pArg: User data pointer passed to callback, or `None`.
 
         Returns:
             Previously registered user data pointer or None if no previous callback was registered.
         """
-        return self._fn_sqlite3_commit_hook(
-            db,
-            xCallback.unsafe_origin_cast[MutUntrackedOrigin](),
-            pArg.unsafe_origin_cast[MutUntrackedOrigin]()
-        )
+        return self._fn_sqlite3_commit_hook(db, xCallback, pArg)
 
-    def sqlite3_rollback_hook[
-        cb_origin: MutOrigin,
-        arg_origin: MutOrigin,
-        //,
-    ](
+    def sqlite3_rollback_hook(
         self,
         db: MutExternalPointer[sqlite3_connection],
-        xCallback: MutUnsafePointer[RollbackHookCallbackFn, cb_origin],
-        pArg: MutOpaquePointer[arg_origin],
+        xCallback: Optional[MutExternalPointer[RollbackHookCallbackFn]],
+        pArg: Optional[MutExternalPointer[NoneType]],
     ) -> Optional[MutExternalPointer[NoneType]]:
         """Commit And Rollback Notification Callbacks.
 
@@ -3216,23 +3231,17 @@ struct _sqlite3(Movable):
         transaction is rolled back. The callback is invoked after the rollback
         has completed. This is useful for cleanup or logging purposes.
 
-        Parameters:
-            cb_origin: Origin of the callback function pointer.
-            arg_origin: Origin of the user data pointer.
+        Passing `None` for `xCallback` unregisters any existing rollback hook.
 
         Args:
             db: Database connection handle.
-            xCallback: Callback function invoked after rollback.
-            pArg: User data pointer passed to callback.
+            xCallback: Callback function invoked after rollback, or `None` to clear.
+            pArg: User data pointer passed to callback, or `None`.
 
         Returns:
             Previously registered user data pointer or None if no previous callback was registered.
         """
-        return self._fn_sqlite3_rollback_hook(
-            db,
-            xCallback.unsafe_origin_cast[MutUntrackedOrigin](),
-            pArg.unsafe_origin_cast[MutUntrackedOrigin]()
-        )
+        return self._fn_sqlite3_rollback_hook(db, xCallback, pArg)
 
     def sqlite3_auto_extension(self, xEntryPoint: ExtensionEntrypointCallbackFn) -> c_int:
         """Register An Auto-Extension.

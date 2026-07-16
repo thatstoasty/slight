@@ -75,6 +75,7 @@ __extension StringSlice(RowIndex):
         """
         return stmt.column_index(self)
 
+
 # comptime RowTransformFn[T: Movable, conn: ImmutOrigin, statement: ImmutOrigin] = def(Row[conn, statement]) raises -> T
 # """A type alias for a function that transforms a Row into a value of type T.
 
@@ -87,14 +88,19 @@ __extension StringSlice(RowIndex):
 # TODO: I tried to include the connection and statement origins in the RowTransformFn type alias,
 # but it causes parameter binding issues in the connection class.
 # And I don't want to constrain functionality more.
-comptime RowTransformFn[T: Movable] = def[conn: ImmutOrigin, statement: ImmutOrigin](Row[conn, statement]) raises thin -> T
+comptime RowTransformFn[T: Movable] = def[conn: ImmutOrigin, statement: ImmutOrigin](
+    Row[conn, statement]
+) raises thin -> T
 """A type alias for a function that transforms a Row into a value of type T.
 
 Parameters:
     T: The target type to transform the Row into.
 """
-comptime BoundRowTransformFn[T: Movable, conn: ImmutOrigin, statement: ImmutOrigin] = def(Row[conn, statement]) raises thin -> T
+comptime BoundRowTransformFn[T: Movable, conn: ImmutOrigin, statement: ImmutOrigin] = def(
+    Row[conn, statement]
+) raises thin -> T
 """A type alias for a function that transforms a Row into a value of type T."""
+
 
 @fieldwise_init
 struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
@@ -346,9 +352,9 @@ struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator):
             # TODO: come back to resetting this to avoid infinite loops
             # raise
 
-    def map[T: Movable, //, transform: RowTransformFn[T]](
-        self,
-    ) -> MappedRows[transform[Self.conn, Self.statement]]:
+    def map[
+        T: Movable, //, transform: RowTransformFn[T]
+    ](self,) -> MappedRows[transform[Self.conn, Self.statement]]:
         """Returns an iterator that transforms each row using the provided function.
 
         Parameters:
@@ -374,9 +380,9 @@ struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator):
         return TypedRows[Self.conn, Self.statement, T](self)
 
 
-struct MappedRows[T: Movable, conn: ImmutOrigin, statement: ImmutOrigin, //, transform: BoundRowTransformFn[T, conn, statement]](
-    Copyable, Iterator
-):
+struct MappedRows[
+    T: Movable, conn: ImmutOrigin, statement: ImmutOrigin, //, transform: BoundRowTransformFn[T, conn, statement]
+](Copyable, Iterator):
     """An iterator that transforms rows using a mapping function.
 
     Parameters:
@@ -488,7 +494,10 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: ColumnType](Copya
         var column_count = self.rows.stmt[].column_count()
         if field_count != Int(column_count):
             raise Error(
-                t"Field count mismatch: struct '{ReflectedT.name()}' has {Int(field_count)} fields, but query returned {Int(column_count)} columns.",
+                (
+                    t"Field count mismatch: struct '{ReflectedT.name()}' has {Int(field_count)} fields, but query"
+                    t" returned {Int(column_count)} columns."
+                ),
             )
 
         result = Self.T()
@@ -497,12 +506,8 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: ColumnType](Copya
                 comptime field_name = field_names[i]
                 comptime field_type = field_types[i]
                 if not conforms_to(field_type, FromSQL):
-                    raise Error(
-                        t"Field '{field_name}' of struct '{ReflectedT.name()}' does not implement FromSQL."
-                    )
-                ref field = trait_downcast[ColumnType](
-                    __struct_field_ref(i, result)
-                )
+                    raise Error(t"Field '{field_name}' of struct '{ReflectedT.name()}' does not implement FromSQL.")
+                ref field = trait_downcast[ColumnType](__struct_field_ref(i, result))
                 field = row.get[type_of(field)](i)
         except e:
             # TODO: We capture and print the error here because an extension bug swallows errors.
