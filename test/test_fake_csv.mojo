@@ -1,7 +1,6 @@
 """Debug test to isolate crash."""
 from std.ffi import c_char, c_int
 from slight.c.types import (
-    ImmutUntrackedOrigin,
     MutExternalPointer,
     sqlite3_connection,
     sqlite3_index_info,

@@ -50,8 +50,8 @@ struct TransactionBehavior(Equatable, ImplicitlyCopyable, TrivialRegisterPassabl
 
 
 @fieldwise_init
-struct DropBehavior(Equatable, ImplicitlyCopyable, TrivialRegisterPassable):
-    """Options for how a Transaction or Savepoint should behave when it is dropped."""
+struct DeleteBehavior(Equatable, ImplicitlyCopyable, TrivialRegisterPassable):
+    """Options for how a Transaction or Savepoint should behave when it is deleted."""
 
     var value: Int
     """Internal enum value."""
@@ -66,7 +66,7 @@ struct DropBehavior(Equatable, ImplicitlyCopyable, TrivialRegisterPassable):
     """Panic. Used to enforce intentional behavior during development."""
 
     def __eq__(self, other: Self) -> Bool:
-        """Check if two DropBehavior values are equal.
+        """Check if two DeleteBehavior values are equal.
 
         Args:
             other: The other value to compare against.
@@ -111,8 +111,7 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
     #### Note:
 
     Transactions will roll back by default. Use `commit` method to explicitly
-    commit the transaction, or use `set_drop_behavior` to change what happens
-    when the transaction is dropped.
+    commit the transaction, or use `rollback` to roll back when the transaction is deleted.
 
     #### Example:
 
@@ -121,8 +120,8 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
     def perform_queries(mut conn: Connection) raises:
         var tx = conn.transaction()
 
-        _ = tx.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
-        _ = tx.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
+        _ = tx.execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
+        _ = tx.execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
 
         tx.commit()
     ```
@@ -130,8 +129,8 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
 
     var conn: Pointer[Connection, Self.conn_origin]
     """A pointer to the database connection."""
-    var drop_behavior: DropBehavior
-    """The behavior when the transaction is dropped."""
+    var delete_behavior: DeleteBehavior
+    """The behavior when the transaction is deleted."""
     var finished: Bool
     """Whether the transaction has been finished (committed or rolled back)."""
 
@@ -139,18 +138,20 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
         out self,
         conn: Pointer[Connection, Self.conn_origin],
         behavior: TransactionBehavior = TransactionBehavior.DEFERRED,
+        delete_behavior: DeleteBehavior = DeleteBehavior.ROLLBACK
     ) raises:
         """Begin a new transaction.
 
         Args:
             conn: The database connection.
             behavior: The transaction behavior (DEFERRED, IMMEDIATE, or EXCLUSIVE).
+            delete_behavior: The cleanup behavior, defaults to ROLLBACK.
 
         Raises:
             Error: If the underlying SQLite call fails.
         """
         self.conn = conn
-        self.drop_behavior = DropBehavior.ROLLBACK
+        self.delete_behavior = delete_behavior
         self.finished = False
         try:
             conn[].execute_batch(behavior.to_sql())
@@ -162,7 +163,7 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
         """Destructor for the Transaction.
 
         If the transaction has not been finished (committed or rolled back),
-        it will be finished according to the current `drop_behavior`.
+        it will be finished according to the current `delete_behavior`.
         """
         try:
             self^.finish()
@@ -236,7 +237,7 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
     # forwarding wrapper hit:
     #   "cannot implicitly convert 'Statement[origin_of(conn_origin)]' value
     #    to 'Statement[conn_origin]'"
-    # Use `tx.conn[].prepare(...)` / `sp.conn[].prepare(...)` directly instead.
+    # Use `tx.prepare(...)` / `sp.prepare(...)` directly instead.
 
     def one_row[
         T: Movable,
@@ -354,7 +355,7 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
 
     def finish(deinit self) raises:
         """Consumes the transaction, committing or rolling back according to the
-        current setting (see `drop_behavior`).
+        current setting (see `delete_behavior`).
 
         Functionally equivalent to the destructor implementation, but allows
         callers to see any errors that occur.
@@ -368,18 +369,18 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
         if self.conn[].is_autocommit():
             return
 
-        if self.drop_behavior == DropBehavior.COMMIT:
+        if self.delete_behavior == DeleteBehavior.COMMIT:
             try:
                 self.commit()
             except:
                 # If commit fails, try to rollback
                 self.rollback()
-        elif self.drop_behavior == DropBehavior.ROLLBACK:
+        elif self.delete_behavior == DeleteBehavior.ROLLBACK:
             self.rollback()
-        elif self.drop_behavior == DropBehavior.IGNORE:
+        elif self.delete_behavior == DeleteBehavior.IGNORE:
             return
-        elif self.drop_behavior == DropBehavior.PANIC:
-            abort("Transaction dropped unexpectedly")
+        elif self.delete_behavior == DeleteBehavior.PANIC:
+            raise Error("Transaction deleted unexpectedly")
 
 
 struct Savepoint[conn_origin: ImmutOrigin](Movable):
@@ -391,8 +392,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
     #### Note:
 
     Savepoints will roll back by default. Use `commit` method to explicitly
-    commit the savepoint, or use `set_drop_behavior` to change what happens
-    when the savepoint is dropped.
+    commit the savepoint, or use `rollback` to roll back when the savepoint is deleted.
 
     #### Example:
 
@@ -402,8 +402,8 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
     def perform_queries(mut conn: Connection) raises:
         var sp = conn.savepoint()
 
-        _ = sp.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
-        _ = sp.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
+        _ = sp.execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
+        _ = sp.execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
 
         sp.commit()
     ```
@@ -413,8 +413,8 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
     """A pointer to the database connection."""
     var name: String
     """The name of the savepoint."""
-    var drop_behavior: DropBehavior
-    """The behavior when the savepoint is dropped."""
+    var delete_behavior: DeleteBehavior
+    """The behavior when the savepoint is deleted."""
     var committed: Bool
     """Whether the savepoint has been committed."""
 
@@ -422,19 +422,21 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
         out self,
         conn: Pointer[Connection, Self.conn_origin],
         name: String = "_slight_sp",
+        delete_behavior: DeleteBehavior = DeleteBehavior.ROLLBACK
     ) raises:
         """Begin a new savepoint.
 
         Args:
             conn: The database connection.
             name: The name of the savepoint. Defaults to "_slight_sp".
+            delete_behavior: The cleanup behavior, defaults to ROLLBACK.
 
         Raises:
             Error: If the underlying SQLite call fails.
         """
         self.conn = conn
         self.name = name
-        self.drop_behavior = DropBehavior.ROLLBACK
+        self.delete_behavior = delete_behavior
         self.committed = False
         try:
             conn[].execute_batch(t"SAVEPOINT {name}")
@@ -519,7 +521,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
     # forwarding wrapper hit:
     #   "cannot implicitly convert 'Statement[origin_of(conn_origin)]' value
     #    to 'Statement[conn_origin]'"
-    # Use `tx.conn[].prepare(...)` / `sp.conn[].prepare(...)` directly instead.
+    # Use `tx.prepare(...)` / `sp.prepare(...)` directly instead.
 
     def one_row[
         T: Movable,
@@ -641,7 +643,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
 
     def finish(deinit self) raises:
         """Consumes the savepoint, committing or rolling back according to the
-        current setting (see `drop_behavior`).
+        current setting (see `delete_behavior`).
 
         Functionally equivalent to the destructor implementation, but allows
         callers to see any errors that occur.
@@ -652,17 +654,17 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
         if self.committed:
             return
 
-        if self.drop_behavior == DropBehavior.COMMIT:
+        if self.delete_behavior == DeleteBehavior.COMMIT:
             try:
                 self.commit()
             except:
                 # If commit fails, try to rollback and then commit
                 self.rollback()
                 self.commit()
-        elif self.drop_behavior == DropBehavior.ROLLBACK:
+        elif self.delete_behavior == DeleteBehavior.ROLLBACK:
             self.rollback()
             self.commit()  # Release the savepoint after rollback
-        elif self.drop_behavior == DropBehavior.IGNORE:
+        elif self.delete_behavior == DeleteBehavior.IGNORE:
             pass
-        elif self.drop_behavior == DropBehavior.PANIC:
-            raise Error("Savepoint dropped unexpectedly")
+        elif self.delete_behavior == DeleteBehavior.PANIC:
+            raise Error("Savepoint deleted unexpectedly")

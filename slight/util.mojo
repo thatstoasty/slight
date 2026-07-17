@@ -1,3 +1,4 @@
+"""Helper utilities."""
 from std.pathlib import Path
 from std.ffi import CStringSlice
 from slight.c.types import MutExternalPointer

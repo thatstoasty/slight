@@ -71,7 +71,7 @@ def bench_query_raw_rows(mut b: Bencher, conn: Connection) raises:
 
     @parameter
     def do() raises:
-        var stmt = conn.prepare("SELECT id, name, value FROM t", PrepFlag(0))
+        var stmt = conn.prepare("SELECT id, name, value FROM t", PrepFlag.NONE)
         for row in stmt.query():
             _ = row.get[Int](0)
             _ = row.get[String](1)
@@ -87,7 +87,7 @@ def bench_query_mapped(mut b: Bencher, conn: Connection) raises:
 
     @parameter
     def do() raises:
-        var stmt = conn.prepare("SELECT id, name, value FROM t", PrepFlag(0))
+        var stmt = conn.prepare("SELECT id, name, value FROM t", PrepFlag.NONE)
         for _ in stmt.query[_to_query_row]():
             pass
 
@@ -101,7 +101,7 @@ def bench_query_typed_reflection(mut b: Bencher, conn: Connection) raises:
 
     @parameter
     def do() raises:
-        var stmt = conn.prepare("SELECT id, name, value FROM t", PrepFlag(0))
+        var stmt = conn.prepare("SELECT id, name, value FROM t", PrepFlag.NONE)
         for _ in stmt.query[QueryRow]():
             pass
 

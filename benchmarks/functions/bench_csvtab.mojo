@@ -40,7 +40,7 @@ def bench_csvtab_full_scan[origin: ImmutOrigin](mut b: Bencher, context: CSVTabB
     """
     @parameter
     def do() raises:
-        var stmt = context.connection[].prepare("SELECT id, name, value, category FROM t", PrepFlag(0))
+        var stmt = context.connection[].prepare("SELECT id, name, value, category FROM t", PrepFlag.NONE)
         for _ in stmt.query():
             pass
 
@@ -57,7 +57,7 @@ def bench_csvtab_count[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBench
 
     @parameter
     def do() raises:
-        var stmt = context.connection[].prepare("SELECT COUNT(*) FROM t", PrepFlag(0))
+        var stmt = context.connection[].prepare("SELECT COUNT(*) FROM t", PrepFlag.NONE)
         for _ in stmt.query():
             pass
 
@@ -75,7 +75,7 @@ def bench_csvtab_filter[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBenc
     @parameter
     def do() raises:
         var stmt = context.connection[].prepare(
-            "SELECT id, name FROM t WHERE CAST(value AS INTEGER) > 498", PrepFlag(0)
+            "SELECT id, name FROM t WHERE CAST(value AS INTEGER) > 498", PrepFlag.NONE
         )
         for _ in stmt.query():
             pass

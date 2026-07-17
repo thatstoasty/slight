@@ -1,3 +1,4 @@
+"""Result rows."""
 from std.builtin.rebind import downcast
 from slight.statement import Statement
 from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef

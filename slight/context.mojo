@@ -1,3 +1,4 @@
+"""SQLite Function Evaluation Context."""
 from std.ffi import c_int, CStringSlice
 from std.os import abort
 from std.memory import ImmutSpan

@@ -1,7 +1,8 @@
+"""Informational Enums."""
 from slight.c.types import ResultDestructorFn
 
 @fieldwise_init
-struct DataType(Equatable, Movable, TrivialRegisterPassable):
+struct DataType(Equatable, TrivialRegisterPassable):
     """Fundamental Datatypes.
 
     Every value in SQLite has one of five fundamental datatypes:

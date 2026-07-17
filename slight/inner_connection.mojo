@@ -1,3 +1,4 @@
+"""SQLite Inner DB Connection."""
 from std.ffi import c_char, c_int, CStringSlice
 from std.pathlib import Path
 from slight.c.types import (
@@ -191,7 +192,7 @@ struct InnerConnection(Movable):
         return sqlite_ffi()[].last_insert_rowid(self.db)
 
     def prepare(
-        self, var sql: String, flags: PrepFlag = PrepFlag.PREPARE_PERSISTENT
+        self, var sql: String, flags: PrepFlag = PrepFlag.NONE
     ) raises -> Tuple[Optional[MutExternalPointer[sqlite3_stmt]], UInt]:
         """Prepares an SQL statement for execution.
 

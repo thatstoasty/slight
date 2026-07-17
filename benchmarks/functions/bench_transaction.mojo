@@ -36,7 +36,7 @@ def bench_transaction_commit(mut b: Bencher, conn: Connection) raises:
     def do() raises:
         with conn.transaction() as tx:
             for i in range(INSERT_COUNT):
-                _ = tx.conn[].execute("INSERT INTO t (id) VALUES (?1)", (i,))
+                _ = tx.execute("INSERT INTO t (id) VALUES (?1)", (i,))
             tx.commit()
 
     b.iter[do]()
@@ -51,7 +51,7 @@ def bench_transaction_rollback(mut b: Bencher, conn: Connection) raises:
     def do() raises:
         with conn.transaction() as tx:
             for i in range(INSERT_COUNT):
-                _ = tx.conn[].execute("INSERT INTO t (id) VALUES (?1)", (i,))
+                _ = tx.execute("INSERT INTO t (id) VALUES (?1)", (i,))
             # No commit -- implicit rollback on scope exit.
 
     b.iter[do]()
@@ -65,7 +65,7 @@ def bench_savepoint_nested(mut b: Bencher, conn: Connection) raises:
     def do() raises:
         with conn.transaction() as tx:
             with tx.savepoint() as sp:
-                _ = sp.conn[].execute("INSERT INTO t (id) VALUES (?1)", (1,))
+                _ = sp.execute("INSERT INTO t (id) VALUES (?1)", (1,))
                 sp.commit()
             tx.commit()
 

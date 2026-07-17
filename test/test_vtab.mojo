@@ -1,7 +1,6 @@
 from std.ffi import c_int, c_uchar
 from slight.connection import Connection
 from slight.c.types import (
-    ImmutUntrackedOrigin,
     MutExternalPointer,
     _sqlite3_index_info_sqlite3_index_constraint_usage,
     sqlite3_connection,

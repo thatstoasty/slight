@@ -1,3 +1,4 @@
+"""SQLite String Wrapper."""
 from slight.c.types import MutExternalPointer
 from slight.api import sqlite_ffi
 from std.ffi import c_char, CStringSlice

@@ -2,7 +2,7 @@
 
 from std.testing import assert_equal, assert_true, TestSuite
 
-from slight import Connection, Int, Row, String
+from slight import Connection, Row
 
 
 def test_backup_to_copies_table_contents() raises:

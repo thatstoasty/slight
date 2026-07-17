@@ -1,6 +1,5 @@
 from slight.connection import Connection
 from slight.row import Row
-from slight.statement import eq_ignore_ascii_case
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 

@@ -1,3 +1,4 @@
+"""Runtime limits."""
 @fieldwise_init
 @explicit_destroy("You must call `disable_extension_loading` to explicitly destroy this guard.")
 struct ExtensionLoadGuard[conn: MutOrigin]:

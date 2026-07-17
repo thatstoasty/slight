@@ -249,7 +249,7 @@ def main() raises:
     # Basic transaction with context manager
     # `Transaction`/`Savepoint` forward common Connection methods
     # (execute, execute_batch, one_row, maybe_one_row, one_column,
-    # last_insert_row_id, changes) directly, so `tx.conn[]` is optional here.
+    # last_insert_row_id, changes) directly, so `tx` is optional here.
     with db.transaction() as tx:
         _ = tx.execute("INSERT INTO accounts VALUES (?1, ?2)", ("Alice", 1000.0))
         _ = tx.execute("INSERT INTO accounts VALUES (?1, ?2)", ("Bob", 500.0))
@@ -737,7 +737,7 @@ def main() raises:
 
     # db1 acquires a write lock via an IMMEDIATE transaction
     var tx = db1.transaction(TransactionBehavior.IMMEDIATE)
-    tx.conn[].execute_batch("INSERT INTO items VALUES (42)")
+    tx.execute_batch("INSERT INTO items VALUES (42)")
 
     # db2 can check if it's locked and wait for the notification
     var rc = db2.wait_for_unlock_notify()
@@ -990,4 +990,5 @@ And took notes from:
 - I would like `RowTransformFn` to be properly parametrized on the connection and statement origins for `Row`, but I can't get partial parameter binding working for `Connection` functions. Maybe I'll revisit that one day.
 - Improve CSV Reader logic.
 - Add a `prepare_cached` on `Connection` that caches and reuses compiled `Statement`s by SQL text (like `rusqlite`'s `CachedStatement`). Attempted this and hit a wall: `RawStatement` is `@explicit_destroy` (intentionally, since it wraps a `sqlite3_stmt*`), which rules out `Dict[String, RawStatement]` as a cache (the compiler crashes trying to bind `RawStatement` to `Dict`'s `V: Copyable & ImplicitlyDestructible` value-type constraint) and also rules out `List[RawStatement]` (a `List` of non-`ImplicitlyDeletable` elements must be explicitly destroyed via `destroy_with()`, which doesn't actually exist on `List` in the current stdlib). Revisit once there's a container type that supports non-implicitly-destructible values, or once `RawStatement` gains some other cache-friendly ownership story.
-- `Transaction.prepare`/`Savepoint.prepare` are intentionally not forwarded to the underlying `Connection.prepare` (unlike `execute`, `execute_batch`, `one_row`, `maybe_one_row`, `one_column`, `last_insert_row_id`, `changes`, which are). `Connection.prepare`'s return type is `Statement[origin_of(self)]`, and when called through `self.conn[]` inside a thin wrapper, the compiler treats the resulting origin as a distinct derived origin (`origin_of(conn_origin)`) rather than `Self.conn_origin` itself, so no return-type annotation I tried satisfied the borrow checker. Use `tx.conn[].prepare(...)` / `sp.conn[].prepare(...)` directly for now.
+- `Transaction.prepare`/`Savepoint.prepare` are intentionally not forwarded to the underlying `Connection.prepare` (unlike `execute`, `execute_batch`, `one_row`, `maybe_one_row`, `one_column`, `last_insert_row_id`, `changes`, which are). `Connection.prepare`'s return type is `Statement[origin_of(self)]`, and when called through `self.conn[]` inside a thin wrapper, the compiler treats the resulting origin as a distinct derived origin (`origin_of(conn_origin)`) rather than `Self.conn_origin` itself, so no return-type annotation I tried satisfied the borrow checker. Use `tx.prepare(...)` / `sp.prepare(...)` directly for now.
+- I need to look over what functions should borrow self mutably for Connection and Statement. It doesn't feel correct to take a Connection mutably then run a query that modifies the DB connection it wraps?

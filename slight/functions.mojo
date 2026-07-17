@@ -1,3 +1,4 @@
+"""Function creation helpers."""
 from std.ffi import c_int
 from std.sys import size_of
 from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value

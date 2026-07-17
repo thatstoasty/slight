@@ -1,3 +1,4 @@
+"""SQLite Result wrapper."""
 from slight.c.types import (
     SQLITE_ABORT,
     SQLITE_AUTH,

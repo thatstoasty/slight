@@ -1,3 +1,4 @@
+"""Error handling."""
 from slight.api import sqlite_ffi
 from slight.inner_connection import InnerConnection
 from slight.result import SQLite3Result

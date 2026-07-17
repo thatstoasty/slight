@@ -8,7 +8,7 @@ from std import tempfile
 from std.pathlib import Path
 from std.testing import assert_equal, assert_true, TestSuite
 
-from slight import Connection, Int, Row
+from slight import Connection, Row
 from slight.checkpoint import CheckpointMode
 
 

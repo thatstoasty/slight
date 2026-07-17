@@ -1,5 +1,5 @@
 from slight.connection import Connection
-from slight.transaction import DropBehavior, Savepoint, Transaction, TransactionBehavior
+from slight.transaction import DeleteBehavior, Savepoint, Transaction, TransactionBehavior
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 from slight import SIMD, Bool, Int, Params, Row, String
@@ -28,13 +28,13 @@ def test_drop() raises:
     
     # Test 1: Default behavior is rollback
     var tx = db.transaction()
-    tx.conn[].execute_batch("INSERT INTO foo VALUES(1)")
+    tx.execute_batch("INSERT INTO foo VALUES(1)")
     tx^.finish()
     
-    # Test 2: Explicit commit via drop_behavior
+    # Test 2: Explicit commit via delete_behavior
     tx = db.transaction()
-    tx.conn[].execute_batch("INSERT INTO foo VALUES(2)")
-    tx.drop_behavior = DropBehavior.COMMIT
+    tx.execute_batch("INSERT INTO foo VALUES(2)")
+    tx.delete_behavior = DeleteBehavior.COMMIT
     tx^.finish()
     
     # Test 3: Verify only the committed transaction persisted
@@ -42,7 +42,7 @@ def test_drop() raises:
         return r.get[Int](0)
     
     tx = db.transaction()
-    var sum = tx.conn[].one_row[get_sum]("SELECT SUM(x) FROM foo")
+    var sum = tx.one_row[get_sum]("SELECT SUM(x) FROM foo")
     assert_equal(sum, 2)
     tx^.finish()
 
@@ -54,21 +54,21 @@ def test_explicit_rollback_commit() raises:
     
     with db.transaction() as tx:
         with tx.savepoint() as sp:
-            sp.conn[].execute_batch("INSERT INTO foo VALUES(1)")
+            sp.execute_batch("INSERT INTO foo VALUES(1)")
             sp.rollback()
-            sp.conn[].execute_batch("INSERT INTO foo VALUES(2)")
+            sp.execute_batch("INSERT INTO foo VALUES(2)")
             sp.commit()
         tx.commit()
     
     with db.transaction() as tx:
-        tx.conn[].execute_batch("INSERT INTO foo VALUES(4)")
+        tx.execute_batch("INSERT INTO foo VALUES(4)")
         tx.commit()
     
     def get_sum(r: Row) raises -> Int:
         return r.get[Int](0)
     
     with db.transaction() as tx:
-        var sum = tx.conn[].one_row[get_sum]("SELECT SUM(x) FROM foo")
+        var sum = tx.one_row[get_sum]("SELECT SUM(x) FROM foo")
         assert_equal(sum, 6)
 
 
@@ -78,13 +78,13 @@ def test_savepoint() raises:
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
     
     with db.transaction() as tx:
-        tx.conn[].execute_batch("INSERT INTO foo VALUES(1)")
+        tx.execute_batch("INSERT INTO foo VALUES(1)")
         assert_current_sum(1, tx.conn[])
-        tx.drop_behavior = DropBehavior.COMMIT
+        tx.delete_behavior = DeleteBehavior.COMMIT
         
         # First savepoint level
         with tx.savepoint() as sp:
-            sp.conn[].execute_batch("INSERT INTO foo VALUES(2)")
+            sp.execute_batch("INSERT INTO foo VALUES(2)")
             assert_current_sum(3, sp.conn[])
             # sp will roll back by default
         
@@ -114,19 +114,19 @@ def test_savepoint() raises:
     assert_current_sum(1, db)
 
 
-def test_ignore_drop_behavior() raises:
+def test_ignore_delete_behavior() raises:
     """Test IGNORE drop behavior which leaves savepoint active."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
     
     with db.transaction() as tx:
         with tx.savepoint() as sp:
-            _ = sp.conn[].execute("INSERT INTO foo VALUES(?1)", [1])
+            _ = sp.execute("INSERT INTO foo VALUES(?1)", [1])
             sp.rollback()
-            _ = sp.conn[].execute("INSERT INTO foo VALUES(?1)", [2])
+            _ = sp.execute("INSERT INTO foo VALUES(?1)", [2])
         
             with sp.savepoint() as sp2:
-                sp2.drop_behavior = DropBehavior.IGNORE
+                sp2.delete_behavior = DeleteBehavior.IGNORE
                 _ = sp2.conn[].execute("INSERT INTO foo VALUES(?1)", [4])
                 # IGNORE means the savepoint stays active
         
@@ -135,19 +135,19 @@ def test_ignore_drop_behavior() raises:
         assert_current_sum(6, tx.conn[])
 
 
-def test_savepoint_drop_behavior_releases() raises:
+def test_savepoint_delete_behavior_releases() raises:
     """Test that savepoints with COMMIT/ROLLBACK drop behaviors properly release."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
     
     # Test COMMIT drop behavior
     with db.savepoint() as sp:
-        sp.drop_behavior = DropBehavior.COMMIT
+        sp.delete_behavior = DeleteBehavior.COMMIT
     assert_true(db.is_autocommit())
     
     # Test ROLLBACK drop behavior
     with db.savepoint() as sp2:
-        sp2.drop_behavior = DropBehavior.ROLLBACK
+        sp2.delete_behavior = DeleteBehavior.ROLLBACK
     assert_true(db.is_autocommit())
 
 
@@ -157,12 +157,12 @@ def test_savepoint_names() raises:
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
     
     with db.savepoint("my_sp") as sp:
-        _ = sp.conn[].execute("INSERT INTO foo VALUES(?1)", [1])
+        _ = sp.execute("INSERT INTO foo VALUES(?1)", [1])
         assert_current_sum(1, sp.conn[])
     
         # Nested savepoint with same name
         with sp.savepoint("my_sp") as sp2:
-            sp2.drop_behavior = DropBehavior.COMMIT
+            sp2.delete_behavior = DeleteBehavior.COMMIT
             _ = sp2.conn[].execute("INSERT INTO foo VALUES(?1)", [2])
             assert_current_sum(3, sp2.conn[])
             sp2.rollback()
@@ -175,7 +175,7 @@ def test_savepoint_names() raises:
         
         # Another nested savepoint with IGNORE
         with sp.savepoint("my_sp") as sp3:
-            sp3.drop_behavior = DropBehavior.IGNORE
+            sp3.delete_behavior = DeleteBehavior.IGNORE
             _ = sp3.conn[].execute("INSERT INTO foo VALUES(?1)", [8])
             # ignore
         
@@ -192,7 +192,7 @@ def test_transaction_behavior() raises:
     
     # Test DEFERRED transaction (default)
     with db.transaction(TransactionBehavior.DEFERRED) as tx:
-        tx.conn[].execute_batch("INSERT INTO foo VALUES(1)")
+        tx.execute_batch("INSERT INTO foo VALUES(1)")
         tx.commit()
     
     # Test IMMEDIATE transaction
@@ -218,7 +218,7 @@ def test_rollback_after_commit() raises:
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
     
     with db.transaction() as tx:
-        tx.conn[].execute_batch("INSERT INTO foo VALUES(1)")
+        tx.execute_batch("INSERT INTO foo VALUES(1)")
         tx.commit()
     
         # Attempting to rollback after commit should fail
@@ -232,7 +232,7 @@ def test_commit_after_commit() raises:
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
     
     with db.transaction() as tx:
-        tx.conn[].execute_batch("INSERT INTO foo VALUES(1)")
+        tx.execute_batch("INSERT INTO foo VALUES(1)")
         tx.commit()
         
         # Attempting to commit again should fail
@@ -247,7 +247,7 @@ def test_savepoint_rollback_after_commit() raises:
     
     with db.transaction() as tx:
         with tx.savepoint() as sp:
-            sp.conn[].execute_batch("INSERT INTO foo VALUES(1)")
+            sp.execute_batch("INSERT INTO foo VALUES(1)")
             sp.commit()
     
             # Attempting to rollback after commit should fail
@@ -262,7 +262,7 @@ def test_multiple_inserts_in_transaction() raises:
     
     with db.transaction() as tx:
         comptime for i in range(10):
-            _ = tx.conn[].execute("INSERT INTO foo VALUES(?1)", [i])
+            _ = tx.execute("INSERT INTO foo VALUES(?1)", [i])
         tx.commit()
     
     def get_sum(r: Row) raises -> Int:
@@ -278,13 +278,13 @@ def test_nested_savepoint_rollback() raises:
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
     
     with db.transaction() as tx:
-        _ = tx.conn[].execute("INSERT INTO foo VALUES(?1)", [1])
+        _ = tx.execute("INSERT INTO foo VALUES(?1)", [1])
 
         with tx.savepoint() as sp:
-            _ = tx.conn[].execute("INSERT INTO foo VALUES(?1)", [2])
+            _ = tx.execute("INSERT INTO foo VALUES(?1)", [2])
     
             with sp.savepoint() as sp2:
-                _ = tx.conn[].execute("INSERT INTO foo VALUES(?1)", [4])
+                _ = tx.execute("INSERT INTO foo VALUES(?1)", [4])
                 sp2.rollback()  # Rolls back the insert of 4
     
             assert_current_sum(3, sp.conn[])
@@ -304,7 +304,7 @@ def test_transaction_and_savepoint_forwarding() raises:
         return r.get[Int](0)
 
     with db.transaction() as tx:
-        # execute forwards directly, without needing tx.conn[].
+        # execute forwards directly, without needing tx.
         _ = tx.execute("INSERT INTO foo VALUES(?1)", [1])
         tx.execute_batch("INSERT INTO foo VALUES(2)")
 
@@ -319,7 +319,7 @@ def test_transaction_and_savepoint_forwarding() raises:
         assert_false(Bool(miss))
 
         # NOTE: `prepare` is not forwarded (see slight/transaction.mojo for why);
-        # use `tx.conn[].prepare(...)` directly.
+        # use `tx.prepare(...)` directly.
         var stmt = tx.conn[].prepare("SELECT x FROM foo WHERE x = ?1")
         assert_equal(stmt.one_column[Int]([2]), 2)
 
@@ -328,7 +328,7 @@ def test_transaction_and_savepoint_forwarding() raises:
         with tx.savepoint() as sp:
             _ = sp.execute("INSERT INTO foo VALUES(?1)", [4])
             assert_equal(sp.one_column[Int]("SELECT SUM(x) FROM foo"), 7)
-            assert_equal(sp.last_insert_row_id(), sp.conn[].last_insert_row_id())
+            assert_equal(sp.last_insert_row_id(), sp.last_insert_row_id())
             sp.commit()
 
         assert_equal(tx.one_column[Int]("SELECT SUM(x) FROM foo"), 7)

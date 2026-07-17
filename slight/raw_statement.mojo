@@ -1,3 +1,4 @@
+"""Raw SQLite statment wrapper."""
 from std.ffi import CStringSlice
 from std.os import abort
 from std.memory import ImmutSpan

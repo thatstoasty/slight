@@ -2,7 +2,7 @@
 
 from std.testing import assert_equal, assert_raises, TestSuite
 
-from slight import Connection, Int, Row
+from slight import Connection, Row
 
 
 def test_blob_read_matches_inserted_data() raises:

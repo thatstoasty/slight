@@ -1,3 +1,4 @@
+"""SQLite DB Connection."""
 from std.ffi import c_int
 from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
 from std.pathlib import Path
@@ -238,7 +239,7 @@ struct Connection(Movable):
         """
         return self.db.total_changes()
 
-    def prepare(self, sql: String, flags: PrepFlag = PrepFlag.PREPARE_PERSISTENT) raises -> Statement[origin_of(self)]:
+    def prepare(self, sql: String, flags: PrepFlag = PrepFlag.NONE) raises -> Statement[origin_of(self)]:
         """Prepares a SQL statement for execution.
 
         Args:
@@ -303,7 +304,7 @@ struct Connection(Movable):
         var current_sql = String(sql)
         while current_sql.byte_length() > 0:
             # Is it possible to copy the sql string less here? I don't want to keep allocating strings.
-            var stmt, tail = self.db.prepare(current_sql.copy(), PrepFlag.PREPARE_PERSISTENT)
+            var stmt, tail = self.db.prepare(current_sql.copy(), PrepFlag.NONE)
             if stmt and Statement(Pointer(to=self), RawStatement(stmt.take())).step():
                 pass  # some pragmas return results
 
@@ -359,7 +360,7 @@ struct Connection(Movable):
             reflect[P].name(),
             " does not implement `Params`. Try a tuple or a list of parameters.",
         )
-        var stmt = self.prepare(sql^)
+        var stmt = self.prepare(sql^, PrepFlag.NONE)
         var rows = stmt.query(params)
         var row: Row[origin_of(self), origin_of(stmt)]
         try:
@@ -573,7 +574,7 @@ struct Connection(Movable):
 
         The transaction defaults to rolling back when it is dropped. If you
         want the transaction to commit, you must call `commit()` or
-        `set_drop_behavior(DropBehavior.COMMIT())`.
+        `set_delete_behavior(DeleteBehavior.COMMIT())`.
 
         Args:
             behavior: The transaction behavior (DEFERRED, IMMEDIATE, or EXCLUSIVE).
@@ -591,8 +592,8 @@ struct Connection(Movable):
 
         def perform_queries(conn: Connection) raises:
             var tx = conn.transaction()
-            _ = tx.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
-            _ = tx.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
+            _ = tx.execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
+            _ = tx.execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
             tx.commit()
         ```
         """
@@ -606,7 +607,7 @@ struct Connection(Movable):
 
         The savepoint defaults to rolling back when it is dropped. If you want
         the savepoint to commit, you must call `commit()` or
-        `set_drop_behavior(DropBehavior.COMMIT())`.
+        `set_delete_behavior(DeleteBehavior.COMMIT())`.
 
         Args:
             name: The name of the savepoint. If None, an unnamed savepoint is created.
@@ -624,8 +625,8 @@ struct Connection(Movable):
 
         def perform_queries(conn: Connection) raises:
             var sp = conn.savepoint()
-            _ = sp.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
-            _ = sp.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
+            _ = sp.execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
+            _ = sp.execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
             sp.commit()
         ```
         """

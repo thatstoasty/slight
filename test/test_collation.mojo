@@ -1,7 +1,6 @@
 """Tests for custom collating sequences."""
 
 from slight.connection import Connection
-from slight.functions import FunctionFlags
 from slight.row import Row
 from std.testing import TestSuite, assert_equal, assert_raises
 

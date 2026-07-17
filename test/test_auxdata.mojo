@@ -1,7 +1,7 @@
 from slight.connection import Connection
 from slight.context import Context
 from slight.row import Row
-from slight.c.types import MutExternalPointer, ResultDestructorFn
+from slight.c.types import MutExternalPointer
 from slight.util import ptr_copy
 from std.testing import TestSuite, assert_equal
 

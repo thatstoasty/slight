@@ -1,3 +1,4 @@
+"""SQLite FFI Binding."""
 from slight.c.types import MutExternalPointer
 from slight.bindings import sqlite3
 from std.ffi import _get_global

@@ -1,3 +1,4 @@
+"""SQLite statment wrapper."""
 from std.os import abort
 from std.sys import stderr
 from std.utils import Variant

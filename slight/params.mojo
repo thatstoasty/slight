@@ -1,3 +1,4 @@
+"""Params trait for binding parameter values to prepared statements."""
 from std.builtin.constrained import _constrained_conforms_to
 from slight.bind import BindIndex
 from slight.statement import Statement

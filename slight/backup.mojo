@@ -9,7 +9,6 @@ See the official documentation for more information:
 - https://www.sqlite.org/c3ref/backup_finish.html
 """
 
-from std.sys import stderr
 from slight.c.types import MutExternalPointer, sqlite3_backup
 from slight.connection import Connection
 from slight.result import SQLite3Result

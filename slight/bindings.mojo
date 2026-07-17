@@ -1,3 +1,4 @@
+"""SQLite Bindings for Slight."""
 from std.ffi import c_char, c_int, c_uchar, c_uint, CStringSlice
 from std.memory import MutOpaquePointer, MutUnsafePointer
 from std.pathlib import Path
