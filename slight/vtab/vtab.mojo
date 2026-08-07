@@ -1,8 +1,8 @@
-from std.ffi import c_char, c_int
-from std.sys import size_of
+from std.ffi import c_char, c_int, CStringSlice
+from std.memory.alloc import alloc, dealloc, Layout, Allocation, unsafe_alloc
 from slight.api import sqlite_ffi
 from slight.c.types import (
-    ImmutExternalPointer,
+    ImmExternalPointer,
     MutExternalPointer,
     SQLITE_ERROR,
     SQLITE_OK,
@@ -157,7 +157,7 @@ struct VTabConnection(Movable):
 
     def unsafe_ptr[
         origin: Origin, address_space: AddressSpace, //
-    ](ref[origin, address_space] self) -> UnsafePointer[sqlite3_connection, origin, address_space=address_space]:
+    ](ref[origin, address_space] self) -> Pointer[sqlite3_connection, origin, address_space=address_space]:
         """Retrieves a pointer to the underlying memory.
 
         Parameters:
@@ -167,7 +167,7 @@ struct VTabConnection(Movable):
         Returns:
             The pointer to the underlying memory.
         """
-        return self.db.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().address_space_cast[address_space]()
+        return self.db.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().unsafe_address_space_cast[address_space]()
 
 
 comptime VTabConnectFn[T: MoveDestructible] = def(
@@ -219,7 +219,7 @@ Parameters:
 comptime VTabFilterFn[C: MoveDestructible] = def(
     MutExternalPointer[C],
     c_int,
-    Optional[StringSlice[ImmutUntrackedOrigin]],
+    Optional[StringSpan[ImmUntrackedOrigin]],
     MutExternalPointer[MutExternalPointer[sqlite3_value]],
     c_int,
 ) raises thin
@@ -314,7 +314,7 @@ def _vtab_stub_rollback(pVTab: MutExternalPointer[sqlite3_vtab]) abi("C") -> c_i
 def _vtab_stub_find_function(
     pVtab: MutExternalPointer[sqlite3_vtab],
     nArg: c_int,
-    zName: ImmutExternalPointer[c_char],
+    zName: ImmExternalPointer[c_char],
     pxFunc: def(MutExternalPointer[sqlite3_context], c_int, MutExternalPointer[MutExternalPointer[sqlite3_value]]) abi("C") thin -> MutExternalPointer[MutExternalPointer[NoneType]],
     ppArg: MutExternalPointer[MutExternalPointer[NoneType]],
 ) abi("C") -> c_int:
@@ -351,7 +351,7 @@ def _vtab_stub_rollback_to(
     return SQLITE_OK
 
 
-def _vtab_stub_shadow_name(zName: ImmutExternalPointer[c_char]) abi("C") -> c_int:
+def _vtab_stub_shadow_name(zName: ImmExternalPointer[c_char]) abi("C") -> c_int:
     """Stub xShadowName — no shadow tables."""
     return c_int(0)
 
@@ -398,10 +398,10 @@ def _vtab_xConnect[
         var result = connect_fn(
             connection,
             pAux,
-            String(unsafe_from_utf8_ptr=argv[0]),
-            String(unsafe_from_utf8_ptr=argv[1]),
-            String(unsafe_from_utf8_ptr=argv[2]),
-            [ String(unsafe_from_utf8_ptr=argv[i]) for i in range(3, Int(argc)) ]
+            String(unsafe_from_utf8_ptr=argv[unsafe_offset=0]),
+            String(unsafe_from_utf8_ptr=argv[unsafe_offset=1]),
+            String(unsafe_from_utf8_ptr=argv[unsafe_offset=2]),
+            [ String(unsafe_from_utf8_ptr=argv[unsafe_offset=i]) for i in range(3, Int(argc)) ]
         )
         var schema = ""
         var vtab_data = result^.take_vtab(schema)
@@ -415,11 +415,11 @@ def _vtab_xConnect[
         var vtab_base = sqlite3_vtab(
             pModule=None, nRef=c_int(0), zErrMsg=None
         )
-        var box_ptr = alloc[VTabBox[T]](count=1) # TODO: Maybe use OwnedPointer here instead of VTabBox
-        box_ptr.init_pointee_move(VTabBox[T](_base=vtab_base^, data=vtab_data^))
+        var box_ptr = unsafe_alloc[VTabBox[T]](count=1) # TODO: Maybe use OwnedPointer here instead of VTabBox
+        box_ptr.unsafe_write(VTabBox[T](_base=vtab_base^, data=vtab_data^))
 
         # Write the vtab pointer back to SQLite.
-        ppVTab[] = box_ptr.bitcast[sqlite3_vtab]().unsafe_origin_cast[MutUntrackedOrigin]()
+        ppVTab[] = box_ptr.unsafe_bitcast[sqlite3_vtab]().unsafe_origin_cast[MutUntrackedOrigin]()
         return SQLITE_OK
     except e:
         print("vtab xConnect error:", e)
@@ -442,9 +442,9 @@ def _vtab_xBestIndex[
         T: The user-provided virtual table state type.
         best_index_fn: The user-provided xBestIndex implementation.
     """
-    var box_ptr = pVTab.bitcast[VTabBox[T]]()
+    var box_ptr = pVTab.unsafe_bitcast[VTabBox[T]]()
     try:
-        var data_ptr = UnsafePointer(to=box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]()
+        var data_ptr = Pointer(to=box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]()
         _ = best_index_fn(data_ptr, pIdxInfo)
         return SQLITE_OK
     except:
@@ -462,11 +462,11 @@ def _vtab_xDisconnect[T: MoveDestructible](
     Parameters:
         T: The user-provided virtual table state type.
     """
-    var box_ptr = pVTab.bitcast[VTabBox[T]]()
+    var box_ptr = pVTab.unsafe_bitcast[VTabBox[T]]()
     # Destroy the user data in-place so its destructor runs (frees inner heap
     # allocations) before we free the raw VTabBox memory.
-    UnsafePointer(to=box_ptr[].data).destroy_pointee()
-    box_ptr.free()
+    Pointer(to=box_ptr[].data).unsafe_deinit_pointee()
+    box_ptr.unsafe_free()
     return SQLITE_OK
 
 
@@ -488,19 +488,19 @@ def _vtab_xOpen[
         C: The user-provided cursor state type.
         open_fn: The user-provided xOpen implementation.
     """
-    var box_ptr = pVTab.bitcast[VTabBox[T]]()
+    var box_ptr = pVTab.unsafe_bitcast[VTabBox[T]]()
     try:
-        var cursor_data = open_fn(UnsafePointer(to=box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]())
+        var cursor_data = open_fn(Pointer(to=box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]())
 
         # Allocate VTabCursorBox[C] on the heap.
         var cursor_base = sqlite3_vtab_cursor(pVtab=None)
-        var cursor_box_ptr = alloc[VTabCursorBox[C]](count=1)
-        cursor_box_ptr.init_pointee_move(
+        var cursor_box_ptr = unsafe_alloc[VTabCursorBox[C]](count=1)
+        cursor_box_ptr.unsafe_write(
             VTabCursorBox[C](_base=cursor_base^, data=cursor_data^)
         )
 
         # Write the cursor pointer back to SQLite.
-        ppCursor[] = cursor_box_ptr.bitcast[sqlite3_vtab_cursor]().unsafe_origin_cast[
+        ppCursor[] = cursor_box_ptr.unsafe_bitcast[sqlite3_vtab_cursor]().unsafe_origin_cast[
             MutUntrackedOrigin
         ]()
         return SQLITE_OK
@@ -519,10 +519,10 @@ def _vtab_xClose[C: MoveDestructible](
     Parameters:
         C: The user-provided cursor state type.
     """
-    var cursor_box_ptr = pCursor.bitcast[VTabCursorBox[C]]()
+    var cursor_box_ptr = pCursor.unsafe_bitcast[VTabCursorBox[C]]()
     # Destroy the cursor data in-place so its destructor runs before freeing memory.
-    UnsafePointer(to=cursor_box_ptr[].data).destroy_pointee()
-    cursor_box_ptr.free()
+    Pointer(to=cursor_box_ptr[].data).unsafe_deinit_pointee()
+    cursor_box_ptr.unsafe_free()
     return SQLITE_OK
 
 
@@ -532,7 +532,7 @@ def _vtab_xFilter[
 ](
     pCursor: MutExternalPointer[sqlite3_vtab_cursor],
     idxNum: c_int,
-    idxStr: Optional[ImmutExternalPointer[c_char]],
+    idxStr: Optional[ImmExternalPointer[c_char]],
     argc: c_int,
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
 ) abi("C") -> c_int:
@@ -545,18 +545,18 @@ def _vtab_xFilter[
         C: The user-provided cursor state type.
         filter_fn: The user-provided xFilter implementation.
     """
-    var cursor_box_ptr = pCursor.bitcast[VTabCursorBox[C]]()
+    var cursor_box_ptr = pCursor.unsafe_bitcast[VTabCursorBox[C]]()
 
-    # Convert nullable idxStr C pointer to Optional[StringSlice].
-    var idx_str: Optional[StringSlice[ImmutUntrackedOrigin]] = None
+    # Convert nullable idxStr C pointer to Optional[StringSpan].
+    var idx_str: Optional[StringSpan[ImmUntrackedOrigin]] = None
     if idxStr:
-        idx_str = StringSlice[ImmutUntrackedOrigin](
-            unsafe_from_utf8_ptr=idxStr.value()
+        idx_str = StringSpan(
+            unsafe_from_utf8=CStringSlice(unsafe_from_ptr=idxStr.value())
         )
 
     try:
         filter_fn(
-            UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin](),
+            Pointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin](),
             idxNum,
             idx_str,
             argv,
@@ -579,9 +579,9 @@ def _vtab_xNext[
         C: The user-provided cursor state type.
         next_fn: The user-provided xNext implementation.
     """
-    var cursor_box_ptr = pCursor.bitcast[VTabCursorBox[C]]()
+    var cursor_box_ptr = pCursor.unsafe_bitcast[VTabCursorBox[C]]()
     try:
-        next_fn(UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]())
+        next_fn(Pointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]())
         return SQLITE_OK
     except:
         return SQLITE_ERROR
@@ -601,8 +601,8 @@ def _vtab_xEof[
         C: The user-provided cursor state type.
         eof_fn: The user-provided xEof implementation.
     """
-    var cursor_box_ptr = pCursor.bitcast[VTabCursorBox[C]]()
-    return c_int(1) if eof_fn(UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]()) else c_int(0)
+    var cursor_box_ptr = pCursor.unsafe_bitcast[VTabCursorBox[C]]()
+    return c_int(1) if eof_fn(Pointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]()) else c_int(0)
 
 
 def _vtab_xColumn[
@@ -619,10 +619,10 @@ def _vtab_xColumn[
         C: The user-provided cursor state type.
         column_fn: The user-provided xColumn implementation.
     """
-    var cursor_box_ptr = pCursor.bitcast[VTabCursorBox[C]]()
+    var cursor_box_ptr = pCursor.unsafe_bitcast[VTabCursorBox[C]]()
     var context = Context(pCtx)
     try:
-        column_fn(UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin](), context, iCol)
+        column_fn(Pointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin](), context, iCol)
         return SQLITE_OK
     except:
         return SQLITE_ERROR
@@ -641,9 +641,9 @@ def _vtab_xRowid[
         C: The user-provided cursor state type.
         rowid_fn: The user-provided xRowid implementation.
     """
-    var cursor_box_ptr = pCursor.bitcast[VTabCursorBox[C]]()
+    var cursor_box_ptr = pCursor.unsafe_bitcast[VTabCursorBox[C]]()
     try:
-        pRowid[] = rowid_fn(UnsafePointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]())
+        pRowid[] = rowid_fn(Pointer(to=cursor_box_ptr[].data).unsafe_origin_cast[MutUntrackedOrigin]())
         return SQLITE_OK
     except:
         return SQLITE_ERROR
@@ -665,7 +665,7 @@ def make_read_only_module[
     eof_fn: VTabEofFn[C],
     column_fn: VTabColumnFn[C],
     rowid_fn: VTabRowidFn[C],
-]() -> MutExternalPointer[sqlite3_module]:
+]() -> Allocation[sqlite3_module]:
     """Allocate and return a heap-allocated `sqlite3_module` for a read-only virtual table.
 
     The same callback is used for both xCreate and xConnect, making this an
@@ -689,34 +689,36 @@ def make_read_only_module[
         rowid_fn: Called for xRowid to retrieve the current rowid.
 
     Returns:
-        A heap-allocated `MutExternalPointer[sqlite3_module]`.
+        A heap-allocated `Allocation[sqlite3_module]`.
     """
-    var module_ptr = alloc[sqlite3_module](count=1)
-    module_ptr[0] = sqlite3_module(
-        iVersion=c_int(3),
-        xCreate=_vtab_xConnect[T, connect_fn],
-        xConnect=_vtab_xConnect[T, connect_fn],
-        xBestIndex=_vtab_xBestIndex[best_index_fn],
-        xDisconnect=_vtab_xDisconnect[T],
-        xDestroy=_vtab_xDisconnect[T],
-        xOpen=_vtab_xOpen[open_fn],
-        xClose=_vtab_xClose[C],
-        xFilter=_vtab_xFilter[filter_fn],
-        xNext=_vtab_xNext[next_fn],
-        xEof=_vtab_xEof[eof_fn],
-        xColumn=_vtab_xColumn[column_fn],
-        xRowid=_vtab_xRowid[rowid_fn],
-        xUpdate=_vtab_stub_update,
-        xBegin=_vtab_stub_begin,
-        xSync=_vtab_stub_sync,
-        xCommit=_vtab_stub_commit,
-        xRollback=_vtab_stub_rollback,
-        xFindFunction=_vtab_stub_find_function,
-        xRename=_vtab_stub_rename,
-        xSavepoint=_vtab_stub_savepoint,
-        xRelease=_vtab_stub_release,
-        xRollbackTo=_vtab_stub_rollback_to,
-        xShadowName=_vtab_stub_shadow_name,
-        xIntegrity=_vtab_stub_integrity,
+    var module_ptr = alloc(Layout[sqlite3_module](count=1))
+    module_ptr.unsafe_ptr().unsafe_offset(0).unsafe_write(
+        sqlite3_module(
+            iVersion=c_int(3),
+            xCreate=_vtab_xConnect[T, connect_fn],
+            xConnect=_vtab_xConnect[T, connect_fn],
+            xBestIndex=_vtab_xBestIndex[best_index_fn],
+            xDisconnect=_vtab_xDisconnect[T],
+            xDestroy=_vtab_xDisconnect[T],
+            xOpen=_vtab_xOpen[open_fn],
+            xClose=_vtab_xClose[C],
+            xFilter=_vtab_xFilter[filter_fn],
+            xNext=_vtab_xNext[next_fn],
+            xEof=_vtab_xEof[eof_fn],
+            xColumn=_vtab_xColumn[column_fn],
+            xRowid=_vtab_xRowid[rowid_fn],
+            xUpdate=_vtab_stub_update,
+            xBegin=_vtab_stub_begin,
+            xSync=_vtab_stub_sync,
+            xCommit=_vtab_stub_commit,
+            xRollback=_vtab_stub_rollback,
+            xFindFunction=_vtab_stub_find_function,
+            xRename=_vtab_stub_rename,
+            xSavepoint=_vtab_stub_savepoint,
+            xRelease=_vtab_stub_release,
+            xRollbackTo=_vtab_stub_rollback_to,
+            xShadowName=_vtab_stub_shadow_name,
+            xIntegrity=_vtab_stub_integrity,
+        )
     )
-    return module_ptr
+    return module_ptr^

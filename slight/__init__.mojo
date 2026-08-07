@@ -1,5 +1,5 @@
 from slight.authorizer import AuthAction, AuthResult
-from slight.bind import BindIndex, Int, String, StringSlice, UInt
+from slight.bind import BindIndex, Int, String, StringSpan, UInt
 from slight.checkpoint import CheckpointMode
 from slight.connection import Connection
 from slight.context import Context
@@ -10,7 +10,7 @@ from slight.limits import Limit
 from slight.load_extension import ExtensionLoadGuard
 from slight.params import Dict, List, Params
 from slight.result import SQLite3Result
-from slight.row import Int, MappedRows, Row, RowIndex, Rows, String, StringSlice, UInt
+from slight.row import Int, MappedRows, Row, RowIndex, Rows, String, StringSpan, UInt
 from slight.statement import Statement
 from slight.types.value_ref import ValueRef, SQLite3Null, SQLite3Blob, SQLite3Integer, SQLite3Real, SQLite3Text
 from slight.types.from_sql import SIMD, Bool, FromSQL, Int, List, NoneType, Optional, String
@@ -37,6 +37,6 @@ from slight.vtab import (
     VTabRowidFn,
     make_read_only_module,
 )
-from slight.c.types import ImmutExternalStringSlice, MutExternalPointer, ImmutExternalPointer
+from slight.c.types import ImmExternalStringSlice, MutExternalPointer, ImmExternalPointer
 
 # from slight.types.json import Value

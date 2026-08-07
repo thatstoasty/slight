@@ -24,7 +24,7 @@ from slight.result import SQLite3Result
 
 
 def _unlock_notify_cb(
-    ap_arg: MutUnsafePointer[MutExternalPointer[NoneType], MutUntrackedOrigin],
+    ap_arg: MutPointer[MutExternalPointer[NoneType], MutUntrackedOrigin],
     n_arg: c_int,
 ) abi("C"):
     """C-compatible unlock-notify callback.
@@ -37,7 +37,7 @@ def _unlock_notify_cb(
         n_arg: Number of entries in the array.
     """
     for i in range(Int(n_arg)):
-        var flag_ptr = ap_arg[i].bitcast[Bool]()
+        var flag_ptr = ap_arg[unsafe_offset=i].unsafe_bitcast[Bool]()
         flag_ptr[] = True
 
 
@@ -82,7 +82,7 @@ def wait_for_unlock_notify(
         registering the notification fails.
     """
     var fired = False
-    var notify_arg = UnsafePointer(to=fired).bitcast[NoneType]()
+    var notify_arg = Pointer(to=fired).unsafe_bitcast[NoneType]()
 
     var rc = sqlite_ffi()[].unlock_notify(
         db,

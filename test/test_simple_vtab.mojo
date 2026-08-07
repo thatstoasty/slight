@@ -79,7 +79,7 @@ def simple_open(vtab: MutExternalPointer[SimpleVTab]) raises -> SimpleCursor:
 def simple_filter(
     cursor: MutExternalPointer[SimpleCursor],
     idx_num: c_int,
-    idx_str: Optional[StringSlice[ImmutUntrackedOrigin]],
+    idx_str: Optional[StringSpan[ImmUntrackedOrigin]],
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
     argc: c_int,
 ) raises:

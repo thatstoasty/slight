@@ -1,6 +1,5 @@
 from std.os import abort
 from std.utils import Variant
-from std.ffi import CStringSlice
 from slight.c.types import sqlite3_value, MutExternalPointer
 from slight.api import sqlite_ffi
 from slight.enums import DataType
@@ -73,23 +72,23 @@ struct SQLite3Real(SQLType):
         self.value = value
 
 
-struct SQLite3Text[stmt: ImmutOrigin](SQLType):
+struct SQLite3Text[stmt: ImmOrigin](SQLType):
     """Represents a SQL TEXT value.
 
     This struct wraps a text string value from SQLite. The text is stored
-    as a StringSlice that references memory owned by the SQLite statement,
+    as a StringSpan that references memory owned by the SQLite statement,
     so it's only valid for the lifetime of the statement.
 
     Parameters:
         stmt: The origin of the statement that owns the text memory.
     """
 
-    var value: StringSlice[Self.stmt]
+    var value: StringSpan[Self.stmt]
     """The underlying text value."""
 
     @implicit
-    def __init__(out self, value: StringSlice[Self.stmt]):
-        """Initialize a `SQLite3Text` with the given `StringSlice` value.
+    def __init__(out self, value: StringSpan[Self.stmt]):
+        """Initialize a `SQLite3Text` with the given `StringSpan` value.
 
         Args:
             value: The text value to wrap.
@@ -97,7 +96,7 @@ struct SQLite3Text[stmt: ImmutOrigin](SQLType):
         self.value = value
 
 
-struct SQLite3Blob[stmt: ImmutOrigin](SQLType):
+struct SQLite3Blob[stmt: ImmOrigin](SQLType):
     """Represents a SQL BLOB (binary large object) value.
 
     This struct wraps binary data from SQLite. The data is stored as a Span
@@ -121,7 +120,7 @@ struct SQLite3Blob[stmt: ImmutOrigin](SQLType):
         self.value = value
 
 
-struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
+struct ValueRef[stmt: ImmOrigin](Movable, Writable):
     """A non-owning dynamic type value. Typically, the memory backing this value is var by SQLite.
 
     Parameters:
@@ -206,11 +205,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
             var blob = sqlite_ffi()[].value_blob(value)
             if not blob:
                 return Self(SQLite3Null())
-            return Self(
-                SQLite3Blob(
-                    blob.value()
-                )
-            )
+            return Self(SQLite3Blob(blob.value()))
         else:
             abort("[UNREACHABLE] sqlite3_value_type returned an invalid value")
 
@@ -269,7 +264,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         """
         return self.value.isa[T]()
 
-    def __getitem_param__[T: SQLType](self) -> ref[self.value] T:
+    def __getitem_param__[T: SQLType](self) -> ref[self.value["value"]] T:
         """Get the value as the specified type T.
 
         This method provides type-safe access to the stored SQL value. The type T
@@ -283,7 +278,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
         """
         return self.value[T]
 
-    def as_string_slice(self) raises -> StringSlice[Self.stmt]:
+    def as_string_slice(self) raises -> StringSpan[Self.stmt]:
         """Convert the SQL value to its string representation.
 
         This method provides a way to get a human-readable string representation
@@ -300,7 +295,7 @@ struct ValueRef[stmt: ImmutOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type TEXT")
 
-    def as_string_slice_or_null(self) raises -> Optional[StringSlice[Self.stmt]]:
+    def as_string_slice_or_null(self) raises -> Optional[StringSpan[Self.stmt]]:
         """Convert the SQL value to its string representation.
 
         This method provides a way to get a human-readable string representation

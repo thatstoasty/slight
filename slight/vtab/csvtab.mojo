@@ -22,7 +22,7 @@ Port of ``rusqlite/src/vtab/csvtab.rs``.
 from std.ffi import c_char, c_int
 from std.memory import stack_allocation
 from slight.c.types import (
-    ImmutUntrackedOrigin,
+    ImmUntrackedOrigin,
     MutExternalPointer,
     sqlite3_connection,
     sqlite3_index_info,
@@ -103,7 +103,7 @@ struct CsvCursor(Movable):
 
     Each cursor holds an open ``FILE *`` handle (represented as ``Int``).
     Rows are parsed one at a time: only ``current_row`` is kept in memory.
-    The file is closed when the cursor is destroyed (``__del__``).
+    The file is closed when the cursor is destroyed (``__deinit__``).
     """
 
     var fp: CPointer[NoneType, MutUntrackedOrigin]
@@ -146,7 +146,7 @@ struct CsvCursor(Movable):
         self.row_number = 0
         self.eof = True
 
-    def __del__(deinit self):
+    def __deinit__(deinit self):
         """Close the file handle when the cursor is destroyed."""
         if self.fp:
             _ = fclose(self.fp)
@@ -284,7 +284,7 @@ comptime L_BRACKET_BYTE = as_byte["["]()
 comptime R_BRACKET_BYTE = as_byte["]"]()
 
 
-def _dequote(s: StringSlice) -> String:
+def _dequote(s: StringSpan) -> String:
     """Remove surrounding quote characters from a string.
 
     Handles ``"..."``, ``'...'``, `` `...` ``, and ``[...]`` delimiters.
@@ -318,7 +318,7 @@ def _dequote(s: StringSlice) -> String:
     return String(unsafe_from_utf8=bytes[1 : n - 1])
 
 
-def _parse_boolean(s: StringSlice) -> Optional[Bool]:
+def _parse_boolean(s: StringSpan) -> Optional[Bool]:
     """Parse a boolean keyword.
 
     Recognised **true** values (case-insensitive): ``yes``, ``on``, ``true``,
@@ -340,7 +340,7 @@ def _parse_boolean(s: StringSlice) -> Optional[Bool]:
     return None
 
 
-def _escape_double_quotes(s: StringSlice) -> String:
+def _escape_double_quotes(s: StringSpan) -> String:
     """Escape double-quote characters in a string by doubling them.
 
     Used when embedding CSV column names inside a double-quoted SQL identifier.
@@ -370,13 +370,13 @@ def _escape_double_quotes(s: StringSlice) -> String:
 # ===----------------------------------------------------------------------=== #
 
 
-def csv_connect(
+def csv_connect[origin: Origin, //](
     db: VTabConnection,
     aux: MutExternalPointer[NoneType],
     module_name: String,
     database_name: String,
     table_name: String,
-    argv: Span[String, ...],
+    argv: Span[String, origin],
 ) raises -> VTabConnectResult[CsvState]:
     """Parse module arguments, open the CSV file for schema detection, and
     build the virtual table state.
@@ -426,8 +426,8 @@ def csv_connect(
         if eq_idx < 0:
             raise Error(t"Illegal argument: '{raw_arg}'")
 
-        var key = StringSlice(unsafe_from_utf8=raw_arg.as_bytes()[:eq_idx]).strip()
-        var val = _dequote(StringSlice(unsafe_from_utf8=raw_arg.as_bytes()[eq_idx + 1 :]).strip())
+        var key = StringSpan(unsafe_from_utf8=raw_arg.as_bytes()[:eq_idx]).strip()
+        var val = _dequote(StringSpan(unsafe_from_utf8=raw_arg.as_bytes()[eq_idx + 1 :]).strip())
 
         if key == "filename":
             filename = val
@@ -465,7 +465,7 @@ def csv_connect(
 
     # Open the CSV file to determine schema and data_start_offset.
     # Use as_c_string_slice().unsafe_ptr() — the same pattern as the rest of the
-    # bindings — so fopen receives typed ImmutUnsafePointer[c_char] args.  This
+    # bindings — so fopen receives typed ImmPointer[c_char] args.  This
     # prevents LLVM from dead-store-eliminating the string buffer contents in
     # AOT-compiled code (unlike passing the pointer cast to Int).
     var open_mode = "r"
@@ -626,7 +626,7 @@ def _csv_advance(cursor: MutExternalPointer[CsvCursor]) raises:
 def csv_filter(
     cursor: MutExternalPointer[CsvCursor],
     idx_num: c_int,
-    idx_str: Optional[StringSlice[ImmutUntrackedOrigin]],
+    idx_str: Optional[StringSpan[ImmUntrackedOrigin]],
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
     argc: c_int,
 ) raises:

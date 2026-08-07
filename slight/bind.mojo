@@ -3,7 +3,7 @@
 This module provides the BindIndex trait and implementations for types that can
 be used to index into parameters of a SQL statement.
 
-It allows parameters to be referenced by position (`Int`/`UInt`) or by name (`String`/`StringSlice`).
+It allows parameters to be referenced by position (`Int`/`UInt`) or by name (`String`/`StringSpan`).
 """
 
 from slight.statement import Statement
@@ -36,7 +36,7 @@ struct BindIndexError(Movable, Writable):
 trait BindIndex(Movable):
     """A trait implemented by types that can index into parameters of a statement.
 
-    This trait is implemented for Int, UInt, String, and StringSlice types.
+    This trait is implemented for Int, UInt, String, and StringSpan types.
     """
 
     def bind_idx(self, stmt: Statement) raises BindIndexError -> UInt:
@@ -54,7 +54,7 @@ trait BindIndex(Movable):
         ...
 
 
-__extension Int(BindIndex):
+__extension SIMD(BindIndex):
     def bind_idx(self, stmt: Statement) -> UInt:
         """Returns the index directly without validation.
 
@@ -66,7 +66,8 @@ __extension Int(BindIndex):
             The parameter index as a UInt.
         """
         # No validation - direct conversion
-        return UInt(self)
+        comptime assert Self.length == 1, "Only SIMD vectors of size 1 can be used as a bind index."
+        return UInt(self._refine[self.dtype, 1]())
 
 
 __extension String(BindIndex):
@@ -89,7 +90,7 @@ __extension String(BindIndex):
         return result.value()
 
 
-__extension StringSlice(BindIndex):
+__extension StringSpan(BindIndex):
     def bind_idx(self, stmt: Statement) raises BindIndexError -> UInt:
         """Returns the index of the parameter with the given name.
 

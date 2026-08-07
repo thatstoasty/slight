@@ -43,14 +43,14 @@ def test_open_failure() raises:
 #     try:
 #         var sql: String = "SELECT 1"
 #         var sql_ptr = sql.unsafe_cstr_ptr()
-#         var c_tail = UnsafePointer(to=sql_ptr)
-#         var raw_stmt = UnsafePointer[sqlite3_stmt]()
+#         var c_tail = Pointer(to=sql_ptr)
+#         var raw_stmt = Pointer[sqlite3_stmt]()
 #         var rc = sqlite_ffi()[].prepare_v3(
 #             db.db.db,
 #             sql_ptr,
 #             Int32(len(sql) + 1),
 #             1,
-#             UnsafePointer(to=raw_stmt),
+#             Pointer(to=raw_stmt),
 #             c_tail,
 #         )
 

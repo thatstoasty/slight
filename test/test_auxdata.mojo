@@ -14,7 +14,7 @@ from std.testing import TestSuite, assert_equal
 def free_auxdata(ptr: Optional[MutExternalPointer[NoneType]]) abi("C"):
     """Free heap-allocated auxdata. Passed as the destructor to set_auxdata."""
     if ptr:
-        ptr.value().free()
+        ptr.value().unsafe_free()
 
 
 # ===----------------------------------------------------------------------=== #
@@ -32,7 +32,7 @@ def detect_first_call(ctx: Context) raises -> Int64:
     var existing = ctx.get_auxdata(0)
     if not existing:
         var ptr = ptr_copy(Int64(1))
-        ctx.set_auxdata(0, ptr.bitcast[NoneType](), free_auxdata)
+        ctx.set_auxdata(0, ptr.unsafe_bitcast[NoneType](), free_auxdata)
         return Int64(1)
     return Int64(0)
 
@@ -44,11 +44,11 @@ def round_trip_auxdata(ctx: Context) raises -> Int64:
     get_auxdata within the same function invocation.
     """
     var ptr = ptr_copy(ctx.get_int64(0) * 2)
-    ctx.set_auxdata(0, ptr.bitcast[NoneType](), free_auxdata)
+    ctx.set_auxdata(0, ptr.unsafe_bitcast[NoneType](), free_auxdata)
     var stored = ctx.get_auxdata(0)
     if not stored:
         return Int64(-1)  # Unexpected: auxdata should be visible immediately
-    return stored.value().bitcast[Int64]()[]
+    return stored.value().unsafe_bitcast[Int64]()[]
 
 
 def overwrite_auxdata(ctx: Context) raises -> Int64:
@@ -58,13 +58,13 @@ def overwrite_auxdata(ctx: Context) raises -> Int64:
     previous value, with the new value returned by the subsequent get_auxdata.
     """
     var p1 = ptr_copy(Int64(100))
-    ctx.set_auxdata(0, p1.bitcast[NoneType](), free_auxdata)
+    ctx.set_auxdata(0, p1.unsafe_bitcast[NoneType](), free_auxdata)
     var p2 = ptr_copy(Int64(200))
-    ctx.set_auxdata(0, p2.bitcast[NoneType](), free_auxdata)
+    ctx.set_auxdata(0, p2.unsafe_bitcast[NoneType](), free_auxdata)
     var stored = ctx.get_auxdata(0)
     if not stored:
         return Int64(-1)  # Unexpected
-    return stored.value().bitcast[Int64]()[]
+    return stored.value().unsafe_bitcast[Int64]()[]
 
 
 def sum_two_auxdata(ctx: Context) raises -> Int64:
@@ -76,12 +76,12 @@ def sum_two_auxdata(ctx: Context) raises -> Int64:
     """
     if not ctx.get_auxdata(0):
         var p0 = ptr_copy(ctx.get_int64(0))
-        ctx.set_auxdata(0, p0.bitcast[NoneType](), free_auxdata)
+        ctx.set_auxdata(0, p0.unsafe_bitcast[NoneType](), free_auxdata)
     if not ctx.get_auxdata(1):
         var p1 = ptr_copy(ctx.get_int64(1))
-        ctx.set_auxdata(1, p1.bitcast[NoneType](), free_auxdata)
-    var v0 = ctx.get_auxdata(0).value().bitcast[Int64]()[]
-    var v1 = ctx.get_auxdata(1).value().bitcast[Int64]()[]
+        ctx.set_auxdata(1, p1.unsafe_bitcast[NoneType](), free_auxdata)
+    var v0 = ctx.get_auxdata(0).value().unsafe_bitcast[Int64]()[]
+    var v1 = ctx.get_auxdata(1).value().unsafe_bitcast[Int64]()[]
     return v0 + v1
 
 

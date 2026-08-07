@@ -2,7 +2,6 @@
 from std.os import abort
 from std.sys import stderr
 from std.utils import Variant
-from std.memory import ImmutSpan
 from std.ffi import CStringSlice
 from slight.c.raw_bindings import sqlite3_stmt
 from slight.c.types import MutExternalPointer, ResultDestructorFn
@@ -82,7 +81,7 @@ struct InvalidColumnError(Movable, Writable):
         self.err = e
 
 
-def eq_ignore_ascii_case(a: ImmutSpan[Byte, ...], b: ImmutSpan[Byte, ...]) -> Bool:
+def eq_ignore_ascii_case(a: ImmSpan[Byte, ...], b: ImmSpan[Byte, ...]) -> Bool:
     """Compares two StringSlices for equality, ignoring ASCII case differences.
 
     Args:
@@ -111,7 +110,7 @@ def eq_ignore_ascii_case(a: ImmutSpan[Byte, ...], b: ImmutSpan[Byte, ...]) -> Bo
     return True
 
 
-struct Statement[conn: ImmutOrigin](Movable):
+struct Statement[conn: ImmOrigin](Movable):
     """A prepared SQL statement that can be executed multiple times with different parameters.
 
     This struct wraps a SQLite prepared statement and provides methods for binding parameters,
@@ -138,7 +137,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         self.stmt = stmt^
 
     # TODO: When should statements be finalized? Also we shouldn't be absorbing the error.
-    def __del__(deinit self):
+    def __deinit__(deinit self):
         """Destructor that automatically finalizes the statement.
 
         Note: This currently absorbs any errors that occur during finalization.
@@ -177,14 +176,14 @@ struct Statement[conn: ImmutOrigin](Movable):
         """
         return DataType(self.stmt.column_type(col))
 
-    def column_text(self, idx: UInt) raises -> StringSlice[origin_of(self)]:
+    def column_text(self, idx: UInt) raises -> StringSpan[origin_of(self)]:
         """Returns the value of the specified column as a text string.
 
         Args:
             idx: The index of the column to retrieve.
 
         Returns:
-            The value of the specified column as a StringSlice.
+            The value of the specified column as a StringSpan.
 
         Raises:
             Error: If the column contains NULL data.
@@ -192,8 +191,8 @@ struct Statement[conn: ImmutOrigin](Movable):
         var text = self.stmt.column_text(idx)
 
         # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
-        var c_str_slice = CStringSlice(unsafe_from_ptr=text.unsafe_ptr().bitcast[Int8]().unsafe_origin_cast[origin_of(self)]())
-        return StringSlice(unsafe_from_utf8=c_str_slice)
+        var c_str_slice = CStringSlice(unsafe_from_ptr=text.unsafe_ptr().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)]())
+        return StringSpan(unsafe_from_utf8=c_str_slice)
 
     def column_blob(self, idx: UInt) raises -> Span[Byte, origin_of(self)]:
         """Returns the value of the specified column as binary data.
@@ -210,7 +209,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         var blob = self.stmt.column_blob(idx)
 
         # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
-        return Span(ptr=blob.unsafe_ptr().unsafe_origin_cast[origin_of(self)](), length=len(blob))
+        return Span(unsafe_ptr=blob.unsafe_ptr().unsafe_origin_cast[origin_of(self)](), length=len(blob))
 
     def value_ref(self, col: UInt) -> ValueRef[origin_of(self)]:
         """Returns a reference to the value in the specified column of the current row.
@@ -393,7 +392,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         self.connection[].raise_if_error(self.stmt.bind_text(index, value, destructor_callback))
 
     def bind_blob(
-        self, index: UInt, value: ImmutSpan[Byte, ...], destructor_callback: ResultDestructorFn
+        self, index: UInt, value: ImmSpan[Byte, ...], destructor_callback: ResultDestructorFn
     ) raises -> None:
         """Binds a blob value to the specified parameter.
 
@@ -659,11 +658,11 @@ struct Statement[conn: ImmutOrigin](Movable):
         """
         self.connection[].raise_if_error(self.stmt.clear_bindings())
 
-    def sql(self) -> Optional[StringSlice[origin_of(self.stmt)]]:
+    def sql(self) -> Optional[StringSpan[origin_of(self.stmt)]]:
         """Returns the original SQL text of the prepared statement.
 
         Returns:
-            The original SQL statement as a StringSlice.
+            The original SQL statement as a StringSpan.
         """
         return self.stmt.sql()
 
@@ -682,14 +681,14 @@ struct Statement[conn: ImmutOrigin](Movable):
 
         return String(sql.value().as_string_slice())
 
-    def column_name(self, idx: UInt) raises -> StringSlice[origin_of(self)]:
+    def column_name(self, idx: UInt) raises -> StringSpan[origin_of(self)]:
         """Returns the name of the column at the specified index.
 
         Args:
             idx: The column index (0-based).
 
         Returns:
-            The name of the column as a StringSlice.
+            The name of the column as a StringSpan.
 
         Raises:
             InvalidColumnIndexError: If the column index is out of bounds.
@@ -698,10 +697,10 @@ struct Statement[conn: ImmutOrigin](Movable):
         if not name:
             raise Error("InvalidColumnIndexError: column index is out of bounds.")
 
-        var c_str_slice = CStringSlice(unsafe_from_ptr=name.value().bitcast[Int8]().unsafe_origin_cast[origin_of(self)]())
-        return StringSlice(unsafe_from_utf8=c_str_slice)
+        var c_str_slice = CStringSlice(unsafe_from_ptr=name.value().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)]())
+        return StringSpan(unsafe_from_utf8=c_str_slice)
 
-    def column_index(self, name: StringSlice) raises -> UInt:
+    def column_index(self, name: StringSpan) raises -> UInt:
         """Returns the index of the column with the specified name.
 
         Args:
@@ -770,7 +769,7 @@ struct Statement[conn: ImmutOrigin](Movable):
         """
         return self.stmt.is_read_only()
 
-    def column_names(self) raises -> List[StringSlice[origin_of(self)]]:
+    def column_names(self) raises -> List[StringSpan[origin_of(self)]]:
         """Get all the column names in the result set of the prepared statement.
 
         If associated DB schema can be altered concurrently, you should make
@@ -784,7 +783,7 @@ struct Statement[conn: ImmutOrigin](Movable):
             InvalidColumnIndexError: If a column index is out of bounds.
         """
         var n = self.column_count()
-        var cols = List[StringSlice[origin_of(self)]](capacity=Int(n))
+        var cols = List[StringSpan[origin_of(self)]](capacity=Int(n))
         for i in range(n):
             cols.append(self.column_name(i))
         return cols^

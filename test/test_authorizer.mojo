@@ -2,7 +2,7 @@
 
 from slight.authorizer import AuthAction, AuthResult
 from slight.connection import Connection
-from slight.c.types import ImmutExternalStringSlice
+from slight.c.types import ImmExternalStringSlice
 from std.testing import TestSuite, assert_equal, assert_raises
 
 
@@ -11,10 +11,10 @@ from std.testing import TestSuite, assert_equal, assert_raises
 # ===----------------------------------------------------------------------=== #
 def _deny_drop_table(
     action: AuthAction,
-    arg1: Optional[ImmutExternalStringSlice],
-    arg2: Optional[ImmutExternalStringSlice],
-    db_name: Optional[ImmutExternalStringSlice],
-    trigger_or_view: Optional[ImmutExternalStringSlice],
+    arg1: Optional[ImmExternalStringSlice],
+    arg2: Optional[ImmExternalStringSlice],
+    db_name: Optional[ImmExternalStringSlice],
+    trigger_or_view: Optional[ImmExternalStringSlice],
 ) -> AuthResult:
     if action == AuthAction.DROP_TABLE:
         return AuthResult.DENY
@@ -41,10 +41,10 @@ def test_authorizer_denies_drop_table() raises:
 # ===----------------------------------------------------------------------=== #
 def _ignore_secret_column(
     action: AuthAction,
-    arg1: Optional[ImmutExternalStringSlice],
-    arg2: Optional[ImmutExternalStringSlice],
-    db_name: Optional[ImmutExternalStringSlice],
-    trigger_or_view: Optional[ImmutExternalStringSlice],
+    arg1: Optional[ImmExternalStringSlice],
+    arg2: Optional[ImmExternalStringSlice],
+    db_name: Optional[ImmExternalStringSlice],
+    trigger_or_view: Optional[ImmExternalStringSlice],
 ) -> AuthResult:
     if action == AuthAction.READ:
         if arg2 and arg2.value() == "secret":
@@ -62,7 +62,7 @@ def test_authorizer_ignores_column_read() raises:
     var stmt = db.prepare("SELECT secret FROM t WHERE id = 1")
     var saw_null = False
     for row in stmt.query():
-        saw_null = not row.get[Optional[ImmutExternalStringSlice]](0)
+        saw_null = not row.get[Optional[ImmExternalStringSlice]](0)
     assert_equal(saw_null, True)
 
     db.clear_authorizer()
@@ -73,10 +73,10 @@ def test_authorizer_ignores_column_read() raises:
 # ===----------------------------------------------------------------------=== #
 def _always_ok(
     action: AuthAction,
-    arg1: Optional[ImmutExternalStringSlice],
-    arg2: Optional[ImmutExternalStringSlice],
-    db_name: Optional[ImmutExternalStringSlice],
-    trigger_or_view: Optional[ImmutExternalStringSlice],
+    arg1: Optional[ImmExternalStringSlice],
+    arg2: Optional[ImmExternalStringSlice],
+    db_name: Optional[ImmExternalStringSlice],
+    trigger_or_view: Optional[ImmExternalStringSlice],
 ) -> AuthResult:
     return AuthResult.OK
 

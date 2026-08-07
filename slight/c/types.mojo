@@ -3,20 +3,20 @@ from std.memory import OpaquePointer
 from std.utils import StaticTuple
 
 
-comptime ImmutExternalPointer[type: AnyType] = ImmutUnsafePointer[type, origin=ImmutUntrackedOrigin, address_space=AddressSpace.GENERIC, ...]
-"""Immutable External Pointer. This points to data owned by SQLite and should not be modified by Mojo code.
+comptime ImmExternalPointer[type: AnyType] = ImmPointer[type, origin=ImmUntrackedOrigin, address_space=AddressSpace.GENERIC, ...]
+"""Immable External Pointer. This points to data owned by SQLite and should not be modified by Mojo code.
 
 Parameters:
     type: The type of the data the pointer points to.
 """
-comptime MutExternalPointer[type: AnyType] = MutUnsafePointer[type, origin=MutUntrackedOrigin, address_space=AddressSpace.GENERIC, ...]
+comptime MutExternalPointer[type: AnyType] = MutPointer[type, origin=MutUntrackedOrigin, address_space=AddressSpace.GENERIC, ...]
 """Mutable External Pointer. This points to data owned by SQLite and may be modified by Mojo code.
 
 Parameters:
     type: The type of the data the pointer points to.
 """
-comptime ImmutExternalSpan[type: AnyType] = Span[type, origin=ImmutUntrackedOrigin, ...]
-"""Immutable External Span. This points to data owned by SQLite and should not be modified by Mojo code.
+comptime ImmExternalSpan[type: AnyType] = Span[type, origin=ImmUntrackedOrigin, ...]
+"""Immable External Span. This points to data owned by SQLite and should not be modified by Mojo code.
 
 Parameters:
     type: The type of the data the span points to.
@@ -27,10 +27,10 @@ comptime MutExternalSpan[type: AnyType] = Span[type, origin=MutUntrackedOrigin, 
 Parameters:
     type: The type of the data the span points to.
 """
-comptime ImmutExternalStringSlice = StringSlice[origin=ImmutUntrackedOrigin]
-"""Immutable External StringSlice. This points to data owned by SQLite and should not be modified by Mojo code."""
-comptime MutExternalStringSlice = StringSlice[origin=MutUntrackedOrigin]
-"""Mutable External StringSlice. This points to data owned by SQLite and may be modified by Mojo code."""
+comptime ImmExternalStringSlice = StringSpan[origin=ImmUntrackedOrigin]
+"""Immable External StringSpan. This points to data owned by SQLite and should not be modified by Mojo code."""
+comptime MutExternalStringSlice = StringSpan[origin=MutUntrackedOrigin]
+"""Mutable External StringSpan. This points to data owned by SQLite and may be modified by Mojo code."""
 
 comptime SQLITE_OPEN_READONLY: c_int = 0x00000001  # Ok for sqlite3_open_v2()
 """SQLITE Open Flag: Read Only."""
@@ -254,33 +254,33 @@ the content before returning."""
 comptime ExtensionEntrypointCallbackFn = def(
     MutExternalPointer[sqlite3_connection],
     MutExternalPointer[MutExternalPointer[c_char]],
-    ImmutExternalPointer[sqlite3_api_routines],
+    ImmExternalPointer[sqlite3_api_routines],
 ) abi("C") thin -> c_int
 """Callback type for registering SQLite extensions."""
 comptime CancelExtensionCallbackFn = def() abi("C") thin -> c_int
 """Callback type for canceling the loading of an SQLite extension."""
 
-comptime TraceCallbackFn = def(MutExternalPointer[NoneType], ImmutExternalPointer[c_char]) abi("C") thin
+comptime TraceCallbackFn = def(MutExternalPointer[NoneType], ImmExternalPointer[c_char]) abi("C") thin
 """Callback type for SQLite trace callbacks."""
 comptime TraceV2CallbackFn = def(c_uint, MutExternalPointer[NoneType], MutExternalPointer[NoneType], MutExternalPointer[NoneType]) abi("C") thin -> c_int
 """Callback type for SQLite trace v2 callbacks."""
-comptime ProfileCallbackFn = def(MutExternalPointer[NoneType], ImmutExternalPointer[c_char], UInt64) abi("C") thin
+comptime ProfileCallbackFn = def(MutExternalPointer[NoneType], ImmExternalPointer[c_char], UInt64) abi("C") thin
 """Callback type for SQLite profile callbacks."""
 comptime QueryProgressCallbackFn = def(MutExternalPointer[NoneType]) abi("C") thin -> c_int
 """Callback type for SQLite query progress callbacks."""
 comptime CollationCompareCallbackFn = def(
     MutExternalPointer[NoneType],
     c_int,
-    ImmutExternalPointer[NoneType],
+    ImmExternalPointer[NoneType],
     c_int,
-    ImmutExternalPointer[NoneType],
+    ImmExternalPointer[NoneType],
 ) abi("C") thin -> c_int
 """Callback type for SQLite collation compare callbacks."""
 comptime CollationNeededCallbackFn = def(
     MutExternalPointer[NoneType],
     MutExternalPointer[sqlite3_connection],
     c_int,
-    ImmutExternalPointer[c_char],
+    ImmExternalPointer[c_char],
 ) abi("C") thin
 """Callback type for SQLite unknown collation needed callbacks."""
 comptime UpdateHookCallbackFn = def(
@@ -326,15 +326,15 @@ comptime ExecCallbackFn = def(
 comptime AuthCallbackFn = def(
     MutExternalPointer[NoneType],
     c_int,
-    Optional[ImmutExternalPointer[c_char]],
-    Optional[ImmutExternalPointer[c_char]],
-    Optional[ImmutExternalPointer[c_char]],
-    Optional[ImmutExternalPointer[c_char]],
+    Optional[ImmExternalPointer[c_char]],
+    Optional[ImmExternalPointer[c_char]],
+    Optional[ImmExternalPointer[c_char]],
+    Optional[ImmExternalPointer[c_char]],
 ) abi("C") thin -> c_int
 """Callback Function Type for `sqlite3_set_authorizer()`.
 
 The four `const char*` arguments may be NULL depending on the action code and
-are modeled as `Optional[ImmutExternalPointer[c_char]]`; the null-pointer niche
+are modeled as `Optional[ImmExternalPointer[c_char]]`; the null-pointer niche
 lets a NULL argument arrive as `None`.
 """
 
@@ -508,7 +508,7 @@ comptime VtabCloseCallbackFn = def (MutExternalPointer[sqlite3_vtab_cursor]) abi
 comptime VtabFilterCallbackFn = def (
     MutExternalPointer[sqlite3_vtab_cursor],
     c_int,
-    Optional[ImmutExternalPointer[c_char]],
+    Optional[ImmExternalPointer[c_char]],
     c_int,
     MutExternalPointer[MutExternalPointer[sqlite3_value]],
 ) abi("C") thin -> c_int
@@ -539,7 +539,7 @@ comptime VtabRollbackCallbackFn = def (MutExternalPointer[sqlite3_vtab]) abi("C"
 comptime VtabFindFunctionCallbackFn = def (
     MutExternalPointer[sqlite3_vtab],
     c_int,
-    ImmutExternalPointer[c_char],
+    ImmExternalPointer[c_char],
     def (
         MutExternalPointer[sqlite3_context], c_int, MutExternalPointer[MutExternalPointer[sqlite3_value]]
     ) abi("C") thin -> MutExternalPointer[MutExternalPointer[NoneType]],
@@ -556,7 +556,7 @@ comptime VtabReleaseCallbackFn = def (MutExternalPointer[sqlite3_vtab], c_int) a
 """Called to release a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
 comptime VtabRollbackToCallbackFn = def (MutExternalPointer[sqlite3_vtab], c_int) abi("C") thin -> c_int
 """Called to roll back to a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabShadowNameCallbackFn = def (ImmutExternalPointer[c_char]) abi("C") thin -> c_int
+comptime VtabShadowNameCallbackFn = def (ImmExternalPointer[c_char]) abi("C") thin -> c_int
 """Called to retrieve the shadow name of a virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
 comptime VtabIntegrityCallbackFn = def (
     MutExternalPointer[sqlite3_vtab],

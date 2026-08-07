@@ -16,18 +16,18 @@ struct _ProgressState:
 def _init_progress_state() -> Optional[MutExternalPointer[NoneType]]:
     var ptr = alloc[_ProgressState](1)
     ptr[] = _ProgressState()
-    return ptr.bitcast[NoneType]()
+    return ptr.unsafe_bitcast[NoneType]()
 
 
 def _destroy_progress_state(state: Optional[MutExternalPointer[NoneType]]):
     if state:
-        state.value().bitcast[_ProgressState]().free()
+        state.value().unsafe_bitcast[_ProgressState]().unsafe_free()
 
 
 def _progress_state() -> MutExternalPointer[_ProgressState]:
     return _get_global[
         "test_progress_state", _init_progress_state, _destroy_progress_state
-    ]().value().bitcast[_ProgressState]()
+    ]().value().unsafe_bitcast[_ProgressState]()
 
 
 # ===----------------------------------------------------------------------=== #

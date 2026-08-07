@@ -18,7 +18,7 @@ from slight.vtab.csvtab import load_module
 
 
 @fieldwise_init
-struct CSVTabBenchContext[origin: ImmutOrigin]:
+struct CSVTabBenchContext[origin: ImmOrigin]:
     var csv_path: String
     var file_bytes: Int
     var connection: Pointer[Connection, Self.origin]
@@ -30,7 +30,7 @@ struct CSVTabBenchContext[origin: ImmutOrigin]:
 
 
 @parameter
-def bench_csvtab_full_scan[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBenchContext[origin]) raises:
+def bench_csvtab_full_scan[origin: ImmOrigin](mut b: Bencher, context: CSVTabBenchContext[origin]) raises:
     """Full table scan: iterate every row from the CSV virtual table.
 
     Each iteration opens a fresh in-memory connection, loads the csvtab module,
@@ -48,7 +48,7 @@ def bench_csvtab_full_scan[origin: ImmutOrigin](mut b: Bencher, context: CSVTabB
 
 
 @parameter
-def bench_csvtab_count[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBenchContext[origin]) raises:
+def bench_csvtab_count[origin: ImmOrigin](mut b: Bencher, context: CSVTabBenchContext[origin]) raises:
     """COUNT(*) query: full scan aggregated through SQLite.
 
     Each iteration opens a fresh connection and measures connect + vtab +
@@ -65,7 +65,7 @@ def bench_csvtab_count[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBench
 
 
 @parameter
-def bench_csvtab_filter[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBenchContext[origin]) raises:
+def bench_csvtab_filter[origin: ImmOrigin](mut b: Bencher, context: CSVTabBenchContext[origin]) raises:
     """Filtered scan: WHERE clause that passes roughly half the rows.
 
     Each iteration opens a fresh connection and measures connect + vtab +
@@ -84,7 +84,7 @@ def bench_csvtab_filter[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBenc
 
 
 @parameter
-def bench_csvtab_create_and_drop[origin: ImmutOrigin](mut b: Bencher, context: CSVTabBenchContext[origin]) raises:
+def bench_csvtab_create_and_drop[origin: ImmOrigin](mut b: Bencher, context: CSVTabBenchContext[origin]) raises:
     """CREATE VIRTUAL TABLE and drop it."""
 
     @always_inline

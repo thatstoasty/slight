@@ -1,7 +1,9 @@
 """Runtime limits."""
+from slight.connection import Connection
+
 @fieldwise_init
 @explicit_destroy("You must call `disable_extension_loading` to explicitly destroy this guard.")
-struct ExtensionLoadGuard[conn: MutOrigin]:
+struct ExtensionLoadGuard[conn: MutOrigin](Deinitable where False):
     """Temporarily enables extension loading on a connection, and provides a guard to disable it."""
     
     var connection: Pointer[Connection, Self.conn]

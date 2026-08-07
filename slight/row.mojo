@@ -1,5 +1,6 @@
 """Result rows."""
 from std.builtin.rebind import downcast
+from slight.types.from_sql import FromSQL
 from slight.statement import Statement
 from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
 from slight.util import ColumnType
@@ -60,7 +61,7 @@ __extension String(RowIndex):
         return stmt.column_index(self)
 
 
-__extension StringSlice(RowIndex):
+__extension StringSpan(RowIndex):
     def idx(self, stmt: Statement) raises -> UInt:
         """Convert this index type to a UInt column index.
 
@@ -77,7 +78,7 @@ __extension StringSlice(RowIndex):
         return stmt.column_index(self)
 
 
-# comptime RowTransformFn[T: Movable, conn: ImmutOrigin, statement: ImmutOrigin] = def(Row[conn, statement]) raises -> T
+# comptime RowTransformFn[T: Movable, conn: ImmOrigin, statement: ImmOrigin] = def(Row[conn, statement]) raises -> T
 # """A type alias for a function that transforms a Row into a value of type T.
 
 # Parameters:
@@ -89,7 +90,7 @@ __extension StringSlice(RowIndex):
 # TODO: I tried to include the connection and statement origins in the RowTransformFn type alias,
 # but it causes parameter binding issues in the connection class.
 # And I don't want to constrain functionality more.
-comptime RowTransformFn[T: Movable] = def[conn: ImmutOrigin, statement: ImmutOrigin](
+comptime RowTransformFn[T: Movable] = def[conn: ImmOrigin, statement: ImmOrigin](
     Row[conn, statement]
 ) raises thin -> T
 """A type alias for a function that transforms a Row into a value of type T.
@@ -97,14 +98,14 @@ comptime RowTransformFn[T: Movable] = def[conn: ImmutOrigin, statement: ImmutOri
 Parameters:
     T: The target type to transform the Row into.
 """
-comptime BoundRowTransformFn[T: Movable, conn: ImmutOrigin, statement: ImmutOrigin] = def(
+comptime BoundRowTransformFn[T: Movable, conn: ImmOrigin, statement: ImmOrigin] = def(
     Row[conn, statement]
 ) raises thin -> T
 """A type alias for a function that transforms a Row into a value of type T."""
 
 
 @fieldwise_init
-struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
+struct Row[conn: ImmOrigin, statement: ImmOrigin](Copyable, Writable):
     """Represents a single row in the result set of a SQL query.
 
     Parameters:
@@ -214,14 +215,14 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
 
         raise Error("InvalidColumnTypeError: column is not of type REAL")
 
-    def get_string_slice(self, idx: Some[RowIndex]) raises -> Optional[StringSlice[Self.conn]]:
-        """Gets a StringSlice value from the specified column.
+    def get_string_slice(self, idx: Some[RowIndex]) raises -> Optional[StringSpan[Self.conn]]:
+        """Gets a StringSpan value from the specified column.
 
         Args:
             idx: The column index (0-based).
 
         Returns:
-            An Optional containing the StringSlice value, or None if the column is NULL.
+            An Optional containing the StringSpan value, or None if the column is NULL.
 
         Raises:
             InvalidColumnIndexError: If the column index is out of bounds.
@@ -250,7 +251,7 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
     #     Parameters:
     #         S: The type to convert the column value to. Supported types are:
     #            Int, SIMD types (Int8/UInt8 to Int64/UInt64, Float16 to Float64, Int), String, Bool, and NoneType.
-    #         I: The type used to specify the column index (0-based). Can be Int, UInt, String, or StringSlice.
+    #         I: The type used to specify the column index (0-based). Can be Int, UInt, String, or StringSpan.
 
     #     Args:
     #         idx: The column index (0-based).
@@ -274,7 +275,7 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
         Parameters:
             S: The type to convert the column value to. Supported types are:
                Int, SIMD types (Int8/UInt8 to Int64/UInt64, Float16 to Float64, Int), String, Bool, and NoneType.
-            I: The type used to specify the column index (0-based). Can be Int, UInt, String, or StringSlice.
+            I: The type used to specify the column index (0-based). Can be Int, UInt, String, or StringSpan.
 
         Args:
             idx: The column index (0-based).
@@ -298,7 +299,7 @@ struct Row[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Writable):
 
 
 @fieldwise_init
-struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator):
+struct Rows[conn: ImmOrigin, statement: ImmOrigin](Copyable, Iterator):
     """An iterator over rows returned by a SQL query.
 
     Parameters:
@@ -382,7 +383,7 @@ struct Rows[conn: ImmutOrigin, statement: ImmutOrigin](Copyable, Iterator):
 
 
 struct MappedRows[
-    T: Movable, conn: ImmutOrigin, statement: ImmutOrigin, //, transform: BoundRowTransformFn[T, conn, statement]
+    T: Movable, conn: ImmOrigin, statement: ImmOrigin, //, transform: BoundRowTransformFn[T, conn, statement]
 ](Copyable, Iterator):
     """An iterator that transforms rows using a mapping function.
 
@@ -450,7 +451,7 @@ struct MappedRows[
         return result^
 
 
-struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: ColumnType](Copyable, Iterator):
+struct TypedRows[conn: ImmOrigin, statement: ImmOrigin, T: ColumnType](Copyable, Iterator):
     """An iterator that transforms rows using a mapping function.
 
     Parameters:
@@ -506,8 +507,9 @@ struct TypedRows[conn: ImmutOrigin, statement: ImmutOrigin, T: ColumnType](Copya
             comptime for i in range(field_count):
                 comptime field_name = field_names[i]
                 comptime field_type = field_types[i]
-                if not conforms_to(field_type, FromSQL):
+                comptime if not conforms_to(field_type, FromSQL) or not conforms_to(field_type, ColumnType):
                     raise Error(t"Field '{field_name}' of struct '{ReflectedT.name()}' does not implement FromSQL.")
+
                 ref field = trait_downcast[ColumnType](__struct_field_ref(i, result))
                 field = row.get[type_of(field)](i)
         except e:

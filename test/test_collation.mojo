@@ -13,7 +13,7 @@ def _get_text(row: Row) raises -> String:
 # Reversed collation: orders strings by comparing them back-to-front,
 # giving a different order than the default BINARY collation for this data.
 # ===----------------------------------------------------------------------=== #
-def _reverse_compare(left: Span[Byte, ImmutUntrackedOrigin], right: Span[Byte, ImmutUntrackedOrigin]) -> Int:
+def _reverse_compare(left: Span[Byte, ImmUntrackedOrigin], right: Span[Byte, ImmUntrackedOrigin]) -> Int:
     var n_left = len(left)
     var n_right = len(right)
     var n = min(n_left, n_right)

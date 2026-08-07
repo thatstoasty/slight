@@ -32,15 +32,15 @@ struct Sql(Movable, Writable):
         """
         writer.write(self.buf)
 
-    def as_string_slice(self) -> StringSlice[origin_of(self.buf)]:
+    def as_string_slice(self) -> StringSpan[origin_of(self.buf)]:
         """Get the current SQL statement as a string slice.
 
         Returns:
             A string slice containing the SQL statement.
         """
-        return StringSlice(self.buf)
+        return StringSpan(self.buf)
 
-    def push_pragma(mut self, pragma: StringSlice, schema: Optional[String] = None) raises:
+    def push_pragma(mut self, pragma: StringSpan, schema: Optional[String] = None) raises:
         """Push a PRAGMA statement prefix to the buffer.
 
         Args:
@@ -58,7 +58,7 @@ struct Sql(Movable, Writable):
 
         self.push_keyword(pragma)
 
-    def push_keyword(mut self, keyword: StringSlice) raises:
+    def push_keyword(mut self, keyword: StringSpan) raises:
         """Push a SQL keyword to the buffer.
 
         Args:
@@ -72,7 +72,7 @@ struct Sql(Movable, Writable):
         else:
             raise Error(SQLITE_MISUSE, 'Invalid keyword "' + keyword + '"')
 
-    def push_schema(mut self, schema: StringSlice):
+    def push_schema(mut self, schema: StringSpan):
         """Push a schema name to the buffer, escaping if necessary.
 
         Args:
@@ -80,7 +80,7 @@ struct Sql(Movable, Writable):
         """
         self.push_identifier(schema)
 
-    def push_identifier(mut self, s: StringSlice):
+    def push_identifier(mut self, s: StringSpan):
         """Push an identifier to the buffer, escaping if necessary.
 
         Args:
@@ -117,7 +117,7 @@ struct Sql(Movable, Writable):
         else:
             raise Error(SQLITE_MISUSE, " Unsupported parameter type for pragma value")
 
-    def push_string_literal(mut self, s: StringSlice):
+    def push_string_literal(mut self, s: StringSpan):
         """Push a string literal to the buffer, properly escaped.
 
         Args:
@@ -161,7 +161,7 @@ struct Sql(Movable, Writable):
         """Push a closing parenthesis to the buffer."""
         self.buf.write_string(")")
 
-    def wrap_and_escape(mut self, s: StringSlice, quote: StringSlice):
+    def wrap_and_escape(mut self, s: StringSpan, quote: StringSpan):
         """Wrap a string in quotes and escape internal quotes by doubling.
 
         Args:
@@ -177,7 +177,7 @@ struct Sql(Movable, Writable):
         self.buf.write_string(quote)
 
 
-def is_identifier(s: StringSlice) -> Bool:
+def is_identifier(s: StringSpan) -> Bool:
     """Check if a string is a valid SQL identifier.
 
     Args:
@@ -201,7 +201,7 @@ def is_identifier(s: StringSlice) -> Bool:
     return True
 
 
-def is_identifier_start(c: StringSlice) -> Bool:
+def is_identifier_start(c: StringSpan) -> Bool:
     """Check if a character can start an identifier.
 
     Args:
@@ -229,7 +229,7 @@ def is_identifier_start(c: StringSlice) -> Bool:
     return False
 
 
-def is_identifier_continue(c: StringSlice) -> Bool:
+def is_identifier_continue(c: StringSpan) -> Bool:
     """Check if a character can continue an identifier.
 
     Args:

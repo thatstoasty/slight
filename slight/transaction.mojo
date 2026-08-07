@@ -102,7 +102,7 @@ struct TransactionState(Equatable, ImplicitlyCopyable, TrivialRegisterPassable):
         return self.value == other.value
 
 
-struct Transaction[conn_origin: ImmutOrigin](Movable):
+struct Transaction[conn_origin: ImmOrigin](Movable):
     """Represents a transaction on a database connection.
 
     Parameters:
@@ -159,7 +159,7 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
             self^.finish()
             raise e^
 
-    def __del__(deinit self):
+    def __deinit__(deinit self):
         """Destructor for the Transaction.
 
         If the transaction has not been finished (committed or rolled back),
@@ -383,7 +383,7 @@ struct Transaction[conn_origin: ImmutOrigin](Movable):
             raise Error("Transaction deleted unexpectedly")
 
 
-struct Savepoint[conn_origin: ImmutOrigin](Movable):
+struct Savepoint[conn_origin: ImmOrigin](Movable):
     """Represents a savepoint on a database connection.
 
     Parameters:
@@ -444,7 +444,7 @@ struct Savepoint[conn_origin: ImmutOrigin](Movable):
             self^.finish()
             raise e^
 
-    def __del__(deinit self):
+    def __deinit__(deinit self):
         """Destructor for the Savepoint.
 
         If the savepoint has not been committed, it will be rolled back.

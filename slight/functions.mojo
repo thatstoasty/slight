@@ -1,7 +1,9 @@
 """Function creation helpers."""
 from std.ffi import c_int
+from std.memory.alloc import unsafe_alloc
 from std.sys import size_of
 from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
+from slight.types.to_sql import ToSQL
 from slight.types.value_ref import ValueRef
 from slight.context import Context
 from slight.util import CopyDestructible, MoveDestructible
@@ -63,7 +65,7 @@ def _default_destructor(pApp: Optional[MutExternalPointer[NoneType]]) abi("C"):
         pApp: A mutable external pointer to the application data.
     """
     if pApp:
-        pApp.value().free()
+        pApp.value().unsafe_free()
 
 
 # For scalar functions, SQLite requires xFunc to be non-NULL and
@@ -175,14 +177,14 @@ def _call_step_callback[
     var agg_context = context.aggregate_context[A](size_of[A]())
     # TODO: Throw sqlite3_result_error_nomem if we fail to allocate memory for the aggregate context.
     if not agg_context:
-        var agg_context_ptr = alloc[A](count=1)
+        var agg_context_ptr = unsafe_alloc[A](count=1)
         try:
-            agg_context_ptr[0] = init_fn(context)
+            agg_context_ptr.unsafe_write(init_fn(context))
         except e:
             # If the user's init function raises an error, we need to convert it to a SQLite error result.
             context.result_error(t"Error in aggregate init function: {e}")
             return
-        agg_context = Optional[UnsafePointer[A, MutUntrackedOrigin]](agg_context_ptr)
+        agg_context = Optional[Pointer[A, MutUntrackedOrigin]](agg_context_ptr)
 
     try:
         step_fn(context, agg_context.value()[])

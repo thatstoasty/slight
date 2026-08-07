@@ -25,6 +25,6 @@ def _busy_handler_callback(
     Returns:
         Non-zero to retry, zero to return SQLITE_BUSY.
     """
-    var fn_ptr = p_arg.bitcast[BusyHandlerFn]()
+    var fn_ptr = p_arg.unsafe_bitcast[BusyHandlerFn]()
     var handler = fn_ptr[]
     return c_int(handler(Int32(count)))

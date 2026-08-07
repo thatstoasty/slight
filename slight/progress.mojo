@@ -47,7 +47,7 @@ def _progress_handler_callback(ctx: MutExternalPointer[NoneType]) abi("C") -> c_
     var fn_as_int = Int(ctx)
     if fn_as_int == _NO_CALLBACK_SENTINEL:
         return c_int(0)
-    var callback = UnsafePointer(to=fn_as_int).bitcast[ProgressHandlerFn]()[]
+    var callback = Pointer(to=fn_as_int).unsafe_bitcast[ProgressHandlerFn]()[]
     if callback():
         return c_int(1)
     return c_int(0)

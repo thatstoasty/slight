@@ -1,8 +1,7 @@
 """Raw SQLite statment wrapper."""
 from std.ffi import CStringSlice
 from std.os import abort
-from std.memory import ImmutSpan
-from slight.c.types import ImmutExternalPointer, MutExternalPointer, ResultDestructorFn, sqlite3_stmt
+from slight.c.types import ImmExternalPointer, MutExternalPointer, ResultDestructorFn, sqlite3_stmt
 from slight.api import sqlite_ffi
 from slight.sqlite_string import SQLiteMallocString
 from slight.result import SQLite3Result
@@ -11,7 +10,7 @@ from slight.enums import TextEncoding
 
 @fieldwise_init
 @explicit_destroy("RawStatement must be explicitly destroyed. Use self.finalize() to destroy.")
-struct RawStatement(Movable):
+struct RawStatement(Movable, Deinitable where False):
     """A raw SQL statement wrapper around a pointer to a `sqlite3_stmt`."""
 
     var stmt: Optional[MutExternalPointer[sqlite3_stmt]]
@@ -47,14 +46,14 @@ struct RawStatement(Movable):
         """
         return sqlite_ffi()[].column_double(self.stmt, Int32(idx))
 
-    def column_text(self, idx: UInt) raises -> StringSlice[ImmutUntrackedOrigin]:
+    def column_text(self, idx: UInt) raises -> StringSpan[ImmUntrackedOrigin]:
         """Returns the value of the specified column as a text string.
 
         Args:
             idx: The index of the column to retrieve.
 
         Returns:
-            The value of the specified column as a StringSlice.
+            The value of the specified column as a StringSpan.
 
         Raises:
             Error: If the column contains NULL data.
@@ -64,7 +63,7 @@ struct RawStatement(Movable):
             raise Error("Unexpected SQLITE_TEXT column type with NULL data.")
 
         # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
-        return StringSlice(unsafe_from_utf8=text.take())
+        return StringSpan(unsafe_from_utf8=text.take())
 
     def column_blob(self, idx: UInt) raises -> Span[Byte, origin_of(self)]:
         """Returns the value of the specified column as binary data.
@@ -87,7 +86,10 @@ struct RawStatement(Movable):
             raise Error("unexpected SQLITE_BLOB column type with negative length: ", length)
 
         # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
-        return Span(ptr=ptr.value().bitcast[Byte]().unsafe_origin_cast[origin_of(self)](), length=Int(length))
+        return Span(
+            unsafe_ptr=ptr.value().unsafe_bitcast[Byte]().unsafe_origin_cast[origin_of(self)](),
+            length=Int(length)
+        )
 
     def column_type(self, idx: UInt) -> Int32:
         """Returns the data type of the specified column.
@@ -186,7 +188,7 @@ struct RawStatement(Movable):
             self.stmt, Int32(index), value, UInt64(value.byte_length()), TextEncoding.UTF8, destructor_callback
         )
 
-    def bind_blob(self, index: UInt, value: ImmutSpan[Byte, ...], destructor_callback: ResultDestructorFn) -> SQLite3Result:
+    def bind_blob[origin: ImmOrigin, //](self, index: UInt, value: Span[Byte, origin], destructor_callback: ResultDestructorFn) -> SQLite3Result:
         """Binds a blob value to the specified parameter.
 
         Args:
@@ -198,10 +200,10 @@ struct RawStatement(Movable):
             The SQLite result code from binding the blob value.
         """
         return sqlite_ffi()[].bind_blob64(
-            self.stmt, Int32(index), value.unsafe_ptr().bitcast[NoneType](), UInt64(len(value)), destructor_callback
+            self.stmt, Int32(index), value.unsafe_ptr().unsafe_bitcast[NoneType](), UInt64(len(value)), destructor_callback
         )
 
-    def sql(self) -> Optional[StringSlice[origin_of(self)]]:
+    def sql(self) -> Optional[StringSpan[origin_of(self)]]:
         """Returns the original SQL text of the prepared statement.
 
         Returns:
@@ -215,7 +217,11 @@ struct RawStatement(Movable):
         var sql_ptr = sqlite_ffi()[].sql(self.stmt.value())
         if not sql_ptr:
             return None
-        return StringSlice(unsafe_from_utf8_ptr=sql_ptr.value().unsafe_origin_cast[origin_of(self)]())
+        return StringSpan(
+            unsafe_from_utf8=CStringSlice(
+                unsafe_from_ptr=sql_ptr.value().unsafe_origin_cast[origin_of(self)]()
+            )
+        )
 
     def expanded_sql(self) raises -> Optional[SQLiteMallocString]:
         """Returns the SQL text of the prepared statement with bound parameters expanded.
@@ -270,7 +276,7 @@ struct RawStatement(Movable):
         """
         return sqlite_ffi()[].clear_bindings(self.stmt)
 
-    def column_name(self, idx: UInt) -> Optional[ImmutExternalPointer[Int8]]:
+    def column_name(self, idx: UInt) -> Optional[ImmExternalPointer[Int8]]:
         """Returns the name of the specified column.
 
         Args:

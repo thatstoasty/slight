@@ -14,7 +14,7 @@ from slight.connection import Connection
 
 
 @explicit_destroy("You must call `.close()` to close the BLOB before the `Blob` is destroyed.")
-struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Movable, Sized):
+struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Movable, Sized, Deinitable where False):
     """A handle for incremental BLOB I/O, allowing a BLOB value to be read
     or written in chunks without loading the entire value into memory.
 

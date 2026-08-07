@@ -15,7 +15,7 @@ from slight.result import SQLite3Result
 
 
 @explicit_destroy("You must call `.finish()` to finish the backup before the `Backup` is destroyed.")
-struct Backup[dest_origin: MutOrigin, source_origin: MutOrigin](Movable):
+struct Backup[dest_origin: MutOrigin, source_origin: MutOrigin](Movable, Deinitable where False):
     """A handle to an in-progress online backup operation, copying the
     contents of one database connection into another.
 

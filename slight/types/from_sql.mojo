@@ -1,6 +1,5 @@
-from slight.types.value_ref import ValueRef
+from slight.types.value_ref import ValueRef, SQLite3Null
 from std.builtin.rebind import downcast
-from std.sys.intrinsics import _type_is_eq
 
 
 trait FromSQL(Movable):
@@ -16,19 +15,6 @@ trait FromSQL(Movable):
             Error: If the value cannot be converted to the type.
         """
         ...
-
-
-__extension Int(FromSQL):
-    def __init__(out self, value: ValueRef) raises:
-        """Initializes the type from a SQL value.
-
-        Args:
-            value: The SQL value to construct the type from.
-
-        Raises:
-            Error: If the value cannot be converted to the type.
-        """
-        self = Self(value.as_int64())
 
 
 __extension Optional(FromSQL):
@@ -60,7 +46,7 @@ __extension String(FromSQL):
         self = Self(value.as_string_slice())
 
 
-# __extension StringSlice(FromSQL):
+# __extension StringSpan(FromSQL):
 #     def __init__(out self, value: ValueRef[Self.origin]) raises:
 #         var val = value.as_string_slice()
 #         self = val
@@ -102,9 +88,11 @@ __extension SIMD(FromSQL):
         Raises:
             Error: If the value cannot be converted to the type.
         """
+        comptime assert Self.length == 1, "Only SIMD vectors of size 1 can be constructed from SQL parameters"
         comptime if dtype in (DType.float16, DType.float32, DType.float64):
             self = Scalar[dtype](value.as_float64())
         elif dtype in (
+            DType.int,
             DType.int8,
             DType.int16,
             DType.int32,
@@ -121,9 +109,6 @@ __extension SIMD(FromSQL):
 
 
 __extension List(FromSQL):
-    # def __init__(out self, value: ValueRef) raises where _type_is_eq_parse_time[
-    #     Self.T, Byte
-    # ]():
     def __init__(out self, value: ValueRef) raises:
         """Initializes the type from a SQL value.
 
@@ -133,7 +118,7 @@ __extension List(FromSQL):
         Raises:
             Error: If the value cannot be converted to the type.
         """
-        comptime assert _type_is_eq[Self.T, Byte](), String(
+        comptime assert Self.T == Byte, String(
             t"List can only be used with Byte type for `FromSQL`. {reflect[Self.T].name()} is not Byte."
         )
         self = rebind_var[List[Self.T]](List[Byte](value.as_blob()))

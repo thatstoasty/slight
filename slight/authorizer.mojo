@@ -13,7 +13,7 @@ See:
 """
 
 from std.ffi import c_char, c_int, CStringSlice
-from slight.c.types import MutExternalPointer, ImmutExternalPointer, ImmutExternalStringSlice
+from slight.c.types import MutExternalPointer, ImmExternalPointer, ImmExternalStringSlice
 
 
 # ── Authorizer action codes ─────────────────────────────────────────────
@@ -104,10 +104,10 @@ struct AuthResult(Equatable, TrivialRegisterPassable, Writable):
 
 comptime AuthorizerFn = def(
     AuthAction,
-    Optional[ImmutExternalStringSlice],
-    Optional[ImmutExternalStringSlice],
-    Optional[ImmutExternalStringSlice],
-    Optional[ImmutExternalStringSlice]
+    Optional[ImmExternalStringSlice],
+    Optional[ImmExternalStringSlice],
+    Optional[ImmExternalStringSlice],
+    Optional[ImmExternalStringSlice]
 ) thin -> AuthResult
 """User-provided authorizer callback type for `Connection.register_authorizer()`.
 
@@ -123,27 +123,27 @@ ignore the action.
 # ── C-compatible callback ────────────────────────────────────────────────
 
 
-def _optional_c_string_slice(ptr: Optional[ImmutExternalPointer[c_char]]) -> Optional[ImmutExternalStringSlice]:
-    """Decode a possibly-NULL `const char*` into an `Optional[StringSlice]`.
+def _optional_c_string_slice(ptr: Optional[ImmExternalPointer[c_char]]) -> Optional[ImmExternalStringSlice]:
+    """Decode a possibly-NULL `const char*` into an `Optional[StringSpan]`.
 
     Args:
         ptr: The pointer to decode.
 
     Returns:
-        `None` if `ptr` is NULL, otherwise the decoded `StringSlice`.
+        `None` if `ptr` is NULL, otherwise the decoded `StringSpan`.
     """
     if not ptr:
         return None
-    return StringSlice(unsafe_from_utf8=CStringSlice(unsafe_from_ptr=ptr.value()))
+    return StringSpan(unsafe_from_utf8=CStringSlice(unsafe_from_ptr=ptr.value()))
 
 
 def _authorizer_callback(
     ctx: MutExternalPointer[NoneType],
     action: c_int,
-    arg1: Optional[ImmutExternalPointer[c_char]],
-    arg2: Optional[ImmutExternalPointer[c_char]],
-    db_name: Optional[ImmutExternalPointer[c_char]],
-    trigger_or_view: Optional[ImmutExternalPointer[c_char]],
+    arg1: Optional[ImmExternalPointer[c_char]],
+    arg2: Optional[ImmExternalPointer[c_char]],
+    db_name: Optional[ImmExternalPointer[c_char]],
+    trigger_or_view: Optional[ImmExternalPointer[c_char]],
 ) abi("C") -> c_int:
     """C-compatible callback for `sqlite3_set_authorizer`.
 
@@ -166,7 +166,7 @@ def _authorizer_callback(
     # NULL)`, so SQLite never invokes this trampoline once cleared; `ctx` is
     # always a live callback.
     var fn_as_int = Int(ctx)
-    var callback = UnsafePointer(to=fn_as_int).bitcast[AuthorizerFn]()[]
+    var callback = Pointer(to=fn_as_int).unsafe_bitcast[AuthorizerFn]()[]
     var result = callback(
         AuthAction(Int32(action)),
         _optional_c_string_slice(arg1),

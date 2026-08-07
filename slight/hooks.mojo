@@ -14,7 +14,7 @@ See:
 """
 
 from std.ffi import c_char, c_int, CStringSlice
-from std.memory import MutUnsafePointer
+from std.memory import MutPointer
 from slight.c.types import (
     MutExternalPointer,
     CommitHookCallbackFn,
@@ -115,7 +115,7 @@ def _commit_hook_callback(ctx: MutExternalPointer[NoneType]) abi("C") -> c_int:
         Non-zero to veto the commit (convert to rollback), zero to allow it.
     """
     var fn_as_int = Int(ctx)
-    var callback = UnsafePointer(to=fn_as_int).bitcast[CommitHookFn]()[]
+    var callback = Pointer(to=fn_as_int).unsafe_bitcast[CommitHookFn]()[]
     if callback():
         return c_int(1)
     return c_int(0)
@@ -134,7 +134,7 @@ def _rollback_hook_callback(ctx: MutExternalPointer[NoneType]) abi("C"):
         ctx: Void pointer whose address value IS the `RollbackHookFn` pointer.
     """
     var fn_as_int = Int(ctx)
-    var callback = UnsafePointer(to=fn_as_int).bitcast[RollbackHookFn]()[]
+    var callback = Pointer(to=fn_as_int).unsafe_bitcast[RollbackHookFn]()[]
     callback()
 
 
@@ -161,9 +161,9 @@ def _update_hook_callback(
         rowid: The rowid of the row affected by the change.
     """
     var fn_as_int = Int(ctx)
-    var callback = UnsafePointer(to=fn_as_int).bitcast[UpdateHookFn]()[]
-    var db_str = String(CStringSlice(unsafe_from_ptr=db_name.unsafe_mut_cast[False]().bitcast[Int8]()))
-    var table_str = String(CStringSlice(unsafe_from_ptr=table_name.unsafe_mut_cast[False]().bitcast[Int8]()))
+    var callback = Pointer(to=fn_as_int).unsafe_bitcast[UpdateHookFn]()[]
+    var db_str = String(CStringSlice(unsafe_from_ptr=db_name.unsafe_mut_cast[False]().unsafe_bitcast[Int8]()))
+    var table_str = String(CStringSlice(unsafe_from_ptr=table_name.unsafe_mut_cast[False]().unsafe_bitcast[Int8]()))
     callback(
         UpdateOperation(Int32(op)),
         db_str,
@@ -174,11 +174,11 @@ def _update_hook_callback(
 
 # ── Stable trampoline pointers ───────────────────────────────────────────
 #
-# `UnsafePointer(to=some_def_value)` materializes a fresh temporary on each
+# `Pointer(to=some_def_value)` materializes a fresh temporary on each
 # use rather than pointing at stable static storage, which is unsafe here
 # since SQLite retains `xCallback` past the registering call's return. We
 # instead dereference the trampoline once to get its (stable) code address,
-# then rebuild an `UnsafePointer` from that raw address on every call.
+# then rebuild an `Pointer` from that raw address on every call.
 
 
 def _commit_hook_trampoline_ptr() -> MutExternalPointer[CommitHookCallbackFn]:
@@ -188,7 +188,7 @@ def _commit_hook_trampoline_ptr() -> MutExternalPointer[CommitHookCallbackFn]:
         A pointer suitable for passing as `xCallback` to `sqlite3_commit_hook`.
     """
     var fn_val: CommitHookCallbackFn = _commit_hook_callback
-    var addr = UnsafePointer(to=fn_val).bitcast[Int]()[]
+    var addr = Pointer(to=fn_val).unsafe_bitcast[Int]()[]
     return MutExternalPointer[CommitHookCallbackFn](unsafe_from_address=addr)
 
 
@@ -199,7 +199,7 @@ def _rollback_hook_trampoline_ptr() -> MutExternalPointer[RollbackHookCallbackFn
         A pointer suitable for passing as `xCallback` to `sqlite3_rollback_hook`.
     """
     var fn_val: RollbackHookCallbackFn = _rollback_hook_callback
-    var addr = UnsafePointer(to=fn_val).bitcast[Int]()[]
+    var addr = Pointer(to=fn_val).unsafe_bitcast[Int]()[]
     return MutExternalPointer[RollbackHookCallbackFn](unsafe_from_address=addr)
 
 
@@ -210,5 +210,5 @@ def _update_hook_trampoline_ptr() -> MutExternalPointer[UpdateHookCallbackFn]:
         A pointer suitable for passing as `xCallback` to `sqlite3_update_hook`.
     """
     var fn_val: UpdateHookCallbackFn = _update_hook_callback
-    var addr = UnsafePointer(to=fn_val).bitcast[Int]()[]
+    var addr = Pointer(to=fn_val).unsafe_bitcast[Int]()[]
     return MutExternalPointer[UpdateHookCallbackFn](unsafe_from_address=addr)

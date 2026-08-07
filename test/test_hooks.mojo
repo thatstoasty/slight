@@ -41,16 +41,16 @@ struct _HookState:
 def _init_hook_state() -> Optional[MutExternalPointer[NoneType]]:
     var ptr = alloc[_HookState](1)
     ptr[] = _HookState()
-    return ptr.bitcast[NoneType]()
+    return ptr.unsafe_bitcast[NoneType]()
 
 
 def _destroy_hook_state(state: Optional[MutExternalPointer[NoneType]]):
     if state:
-        state.value().bitcast[_HookState]().free()
+        state.value().unsafe_bitcast[_HookState]().unsafe_free()
 
 
 def _hook_state() -> MutExternalPointer[_HookState]:
-    return _get_global["test_hooks_state", _init_hook_state, _destroy_hook_state]().value().bitcast[_HookState]()
+    return _get_global["test_hooks_state", _init_hook_state, _destroy_hook_state]().value().unsafe_bitcast[_HookState]()
 
 
 # ===----------------------------------------------------------------------=== #

@@ -1,7 +1,7 @@
 [workspace]
 description = "Mojo SQLite3 Bindings."
 authors = ["Mikhail Tavarez <miktavarez@gmail.com>"]
-channels = ["conda-forge", "https://conda.modular.com/max"]
+channels = ["conda-forge", "https://conda.modular.com/max-nightly"]
 platforms = ["osx-arm64", "linux-64", "linux-aarch64"]
 license = "MIT"
 license-file = "LICENSE"
@@ -32,21 +32,21 @@ version = "0.2.1"
 backend = { name = "pixi-build-mojo", version = "0.1.*" }
 
 [dependencies]
-mojo = ">=1.0.0b2,<2"
+mojo = ">=1.0.0rc0,<1.0.0"
 sqlite = ">=3.53.2,<4"
 
 # TODO: json feature should be optional when Mojo supports conditional dependencies.
 # emberjson = { git = "https://github.com/bgreni/EmberJson", tag = "0.3.2" }
 
 [package.build-dependencies]
-mojo-compiler = ">=1.0.0b2,<1.0.0b3"
+mojo-compiler = ">=1.0.0rc0,<1.0.0"
 
 [package.host-dependencies]
-mojo-compiler = ">=1.0.0b2,<1.0.0b3"
+mojo-compiler = ">=1.0.0rc0,<1.0.0"
 sqlite = ">=3.50.4,<4"
 # emberjson = { git = "https://github.com/bgreni/EmberJson", tag = "0.3.2" }
 
 [package.run-dependencies]
-mojo-compiler = ">=1.0.0b2,<1.0.0b3"
+mojo-compiler = ">=1.0.0rc0,<1.0.0"
 sqlite = ">=3.50.4,<4"
 # emberjson = { git = "https://github.com/bgreni/EmberJson", tag = "0.3.2" }

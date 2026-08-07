@@ -135,7 +135,7 @@ struct Connection(Movable):
         """
         self = Connection.open(path)
 
-    def __del__(deinit self):
+    def __deinit__(deinit self):
         """Closes the connection when it is deleted."""
         # if self.db:
         #     _ = self^.close()
@@ -311,7 +311,7 @@ struct Connection(Movable):
             if tail == 0 or Int(tail) >= current_sql.byte_length():
                 break
 
-            current_sql = String(current_sql[byte = Int(tail) :])
+            current_sql = String(StringSpan(current_sql)[byte = Int(tail) :])
 
     def path(self) -> Optional[Path]:
         """Returns the file path of the database.
@@ -717,7 +717,7 @@ struct Connection(Movable):
 
     def pragma[
         T: AnyType, //, callback: def(Row) raises thin -> None
-    ](self, pragma: StringSlice, value: T, schema: Optional[String] = None,) raises:
+    ](self, pragma: StringSpan, value: T, schema: Optional[String] = None,) raises:
         """Query the current value(s) of a pragma associated with a value.
 
         This method can be used with query-only pragmas which need an argument
@@ -767,7 +767,7 @@ struct Connection(Movable):
 
     def pragma_update[
         T: AnyType, //
-    ](self, pragma: StringSlice, value: T, schema: Optional[String] = None,) raises:
+    ](self, pragma: StringSpan, value: T, schema: Optional[String] = None,) raises:
         """Set a new value to a pragma.
 
         Some pragmas will return the updated value which cannot be retrieved
@@ -803,7 +803,7 @@ struct Connection(Movable):
 
     def pragma_update_and_check[
         T: Movable, V: AnyType, //, transform: def(Row) raises thin -> T
-    ](self, pragma: StringSlice, value: V, schema: Optional[String] = None) raises -> T:
+    ](self, pragma: StringSpan, value: V, schema: Optional[String] = None) raises -> T:
         """Set a new value to a pragma and return the updated value.
 
         Only a few pragmas automatically return the updated value.
@@ -869,7 +869,7 @@ struct Connection(Movable):
         callbacks are set to NULL internally, as required by SQLite.
 
         Parameters:
-            P: The type of the application data to pass to the callback. Must be Copyable and ImplicitlyDestructible.
+            P: The type of the application data to pass to the callback. Must be Copyable and Deinitable.
             V: The return type of the scalar function. Must conform to `ToSQL`.
             x_func: The scalar function callback implementation.
 

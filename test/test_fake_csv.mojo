@@ -81,7 +81,7 @@ def fake_open(vtab: MutExternalPointer[FakeState]) raises -> FakeCursor:
 def fake_filter(
     cursor: MutExternalPointer[FakeCursor],
     idx_num: c_int,
-    idx_str: Optional[StringSlice[ImmutUntrackedOrigin]],
+    idx_str: Optional[StringSpan[ImmUntrackedOrigin]],
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
     argc: c_int,
 ) raises:

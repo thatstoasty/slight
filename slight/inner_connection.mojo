@@ -83,7 +83,7 @@ from slight.vtab import (
 
 @fieldwise_init
 @explicit_destroy("InnerConnection must be explicitly destroyed. Use self.close() to destroy.")
-struct InnerConnection(Movable):
+struct InnerConnection(Movable, Deinitable where False):
     """A connection to a SQLite3 database."""
 
     var db: MutExternalPointer[sqlite3_connection]
@@ -104,14 +104,14 @@ struct InnerConnection(Movable):
             Will return an `Error` if the underlying SQLite open call fails.
         """
         var ptr = MutExternalPointer[sqlite3_connection].unsafe_dangling()
-        var result = sqlite_ffi()[].open_v2(path, UnsafePointer(to=ptr), flags.value, None)
+        var result = sqlite_ffi()[].open_v2(path, Pointer(to=ptr), flags.value, None)
         if result != SQLite3Result.OK:
             raise Error(t"Could not open database: {String(result)}")
         self.db = ptr
 
     def unsafe_ptr[
         origin: Origin, address_space: AddressSpace, //
-    ](ref[origin, address_space] self) -> UnsafePointer[sqlite3_connection, origin, address_space=address_space]:
+    ](ref[origin, address_space] self) -> Pointer[sqlite3_connection, origin, address_space=address_space]:
         """Retrieves a pointer to the underlying memory.
 
         Parameters:
@@ -121,7 +121,7 @@ struct InnerConnection(Movable):
         Returns:
             The pointer to the underlying memory.
         """
-        return self.db.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().address_space_cast[address_space]()
+        return self.db.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().unsafe_address_space_cast[address_space]()
 
     def is_autocommit(self) -> Bool:
         """Returns whether the connection is in auto-commit mode.
@@ -208,7 +208,7 @@ struct InnerConnection(Movable):
         """
         var stmt: Optional[MutExternalPointer[sqlite3_stmt]] = None
         var str = sql.as_c_string_slice().unsafe_ptr()
-        var c_tail = UnsafePointer(to=str)
+        var c_tail = Pointer(to=str)
 
         try:
             self.raise_if_error(
@@ -301,7 +301,7 @@ struct InnerConnection(Movable):
         V: MoveDestructible,
         //,
         x_func: ScalarUDF[V],
-    ](self, fn_name: StringSlice, n_arg: Int, flags: FunctionFlags, pApp: T) -> SQLite3Result:
+    ](self, fn_name: StringSpan, n_arg: Int, flags: FunctionFlags, pApp: T) -> SQLite3Result:
         """Attach a user-defined scalar function to a database connection.
 
         The function will remain available until the connection is closed or
@@ -340,14 +340,14 @@ struct InnerConnection(Movable):
             fn_name,
             c_int(n_arg),
             flags.value,
-            pAppPtr.bitcast[NoneType](),
+            pAppPtr.unsafe_bitcast[NoneType](),
             _call_scalar_callback[x_func],
             _default_destructor,
         )
 
     def create_scalar_function[
         V: MoveDestructible, //, x_func: ScalarUDF[V]
-    ](self, fn_name: StringSlice, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
+    ](self, fn_name: StringSpan, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
         """Attach a user-defined scalar function to a database connection.
 
         The function will remain available until the connection is closed or
@@ -387,7 +387,7 @@ struct InnerConnection(Movable):
         init_fn: AggregateInitUDF[A],
         step_fn: AggregateStepUDF[A],
         final_fn: AggregateFinalUDF[A, T],
-    ](self, fn_name: StringSlice, n_arg: Int, flags: FunctionFlags, pApp: P) -> SQLite3Result:
+    ](self, fn_name: StringSpan, n_arg: Int, flags: FunctionFlags, pApp: P) -> SQLite3Result:
         """Attach a user-defined aggregate function to a database connection.
 
         Aggregate functions process multiple rows and produce a single result.
@@ -426,7 +426,7 @@ struct InnerConnection(Movable):
             fn_name,
             c_int(n_arg),
             flags.value,
-            pAppPtr.bitcast[NoneType](),
+            pAppPtr.unsafe_bitcast[NoneType](),
             _call_step_callback[init_fn, step_fn],
             _call_final_callback[final_fn],
             _default_destructor,
@@ -439,7 +439,7 @@ struct InnerConnection(Movable):
         init_fn: AggregateInitUDF[A],
         step_fn: AggregateStepUDF[A],
         final_fn: AggregateFinalUDF[A, T],
-    ](self, fn_name: StringSlice, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
+    ](self, fn_name: StringSpan, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
         """Attach a user-defined aggregate function to a database connection.
 
         Aggregate functions process multiple rows and produce a single result.
@@ -486,7 +486,7 @@ struct InnerConnection(Movable):
         final_fn: AggregateFinalUDF[A, T],
         value_fn: WindowAggregateValueUDF[A, T],
         inverse_fn: WindowAggregateInverseUDF[A],
-    ](self, fn_name: StringSlice, n_arg: Int, flags: FunctionFlags, pApp: P) -> SQLite3Result:
+    ](self, fn_name: StringSpan, n_arg: Int, flags: FunctionFlags, pApp: P) -> SQLite3Result:
         """Attach a user-defined aggregate function to a database connection.
 
         Aggregate functions process multiple rows and produce a single result.
@@ -527,7 +527,7 @@ struct InnerConnection(Movable):
             fn_name,
             c_int(n_arg),
             flags.value,
-            pAppPtr.bitcast[NoneType](),
+            pAppPtr.unsafe_bitcast[NoneType](),
             _call_step_callback[init_fn, step_fn],
             _call_final_callback[final_fn],
             _call_value_callback[value_fn],
@@ -544,7 +544,7 @@ struct InnerConnection(Movable):
         final_fn: AggregateFinalUDF[A, T],
         value_fn: WindowAggregateValueUDF[A, T],
         inverse_fn: WindowAggregateInverseUDF[A],
-    ](self, fn_name: StringSlice, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
+    ](self, fn_name: StringSpan, n_arg: Int, flags: FunctionFlags,) -> SQLite3Result:
         """Attach a user-defined aggregate function to a database connection.
 
         Aggregate functions process multiple rows and produce a single result.
@@ -596,7 +596,7 @@ struct InnerConnection(Movable):
         eof_fn: VTabEofFn[C],
         column_fn: VTabColumnFn[C],
         rowid_fn: VTabRowidFn[C],
-    ](self, module_name: StringSlice) -> SQLite3Result:
+    ](self, module_name: StringSpan) -> SQLite3Result:
         """Register a read-only virtual table module with this connection.
 
         Allocates a `sqlite3_module` on the heap, fills in all required and
@@ -622,7 +622,7 @@ struct InnerConnection(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        var module_ptr = make_read_only_module[
+        var module = make_read_only_module[
             connect_fn,
             best_index_fn,
             open_fn,
@@ -632,7 +632,7 @@ struct InnerConnection(Movable):
             column_fn,
             rowid_fn,
         ]()
-        return sqlite_ffi()[].create_module(self.db, module_name, module_ptr)
+        return sqlite_ffi()[].create_module(self.db, module_name, module.unsafe_ptr())
 
     def remove_function(
         self,
@@ -691,7 +691,7 @@ struct InnerConnection(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         var fn_val = callback
-        var fn_ptr = UnsafePointer(to=fn_val).bitcast[NoneType]()
+        var fn_ptr = Pointer(to=fn_val).unsafe_bitcast[NoneType]()
         return sqlite_ffi()[].busy_handler(
             self.db,
             _busy_handler_callback,
@@ -752,7 +752,7 @@ struct InnerConnection(Movable):
         var fn_val = callback
         # Transmute: store def pointer VALUE as the void pointer address
         # (same as Rust's `f as *mut c_void`)
-        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var fn_as_int = Pointer(to=fn_val).unsafe_bitcast[Int]()[]
         var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
         return sqlite_ffi()[].trace_v2(
             self.db,
@@ -782,7 +782,7 @@ struct InnerConnection(Movable):
             callback: A `CommitHookFn` callback. Returning `True` converts the commit into a rollback.
         """
         var fn_val = callback
-        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var fn_as_int = Pointer(to=fn_val).unsafe_bitcast[Int]()[]
         var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
         _ = sqlite_ffi()[].commit_hook(self.db, _commit_hook_trampoline_ptr(), ctx)
 
@@ -801,7 +801,7 @@ struct InnerConnection(Movable):
             callback: A `RollbackHookFn` callback.
         """
         var fn_val = callback
-        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var fn_as_int = Pointer(to=fn_val).unsafe_bitcast[Int]()[]
         var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
         _ = sqlite_ffi()[].rollback_hook(self.db, _rollback_hook_trampoline_ptr(), ctx)
 
@@ -821,7 +821,7 @@ struct InnerConnection(Movable):
             callback: An `UpdateHookFn` callback.
         """
         var fn_val = callback
-        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var fn_as_int = Pointer(to=fn_val).unsafe_bitcast[Int]()[]
         var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
         sqlite_ffi()[].update_hook(self.db, _update_hook_trampoline_ptr(), ctx)
 
@@ -845,7 +845,7 @@ struct InnerConnection(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         var fn_val = compare
-        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var fn_as_int = Pointer(to=fn_val).unsafe_bitcast[Int]()[]
         var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
         return sqlite_ffi()[].create_collation_v2(
             self.db,
@@ -869,7 +869,7 @@ struct InnerConnection(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        var null_compare = UnsafePointer(to=Int(0)).bitcast[CollationCompareCallbackFn]()[]
+        var null_compare = Pointer(to=Int(0)).unsafe_bitcast[CollationCompareCallbackFn]()[]
         return sqlite_ffi()[].create_collation_v2(
             self.db,
             name,
@@ -889,7 +889,7 @@ struct InnerConnection(Movable):
                 interrupts the running query.
         """
         var fn_val = callback
-        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var fn_as_int = Pointer(to=fn_val).unsafe_bitcast[Int]()[]
         var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
         sqlite_ffi()[].progress_handler(self.db, c_int(n_ops), _progress_handler_callback, ctx)
 
@@ -911,7 +911,7 @@ struct InnerConnection(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         var fn_val = callback
-        var fn_as_int = UnsafePointer(to=fn_val).bitcast[Int]()[]
+        var fn_as_int = Pointer(to=fn_val).unsafe_bitcast[Int]()[]
         var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
         return sqlite_ffi()[].set_authorizer[_authorizer_callback](self.db, ctx)
 
@@ -975,7 +975,7 @@ struct InnerConnection(Movable):
         if errmsg:
             var errmsg_ptr = errmsg.take()
             message = String(unsafe_from_utf8_ptr=errmsg_ptr)
-            sqlite_ffi()[].free(errmsg_ptr.bitcast[NoneType]())
+            sqlite_ffi()[].free(errmsg_ptr.unsafe_bitcast[NoneType]())
 
         raise Error(error_from_sqlite_code(result, message))
 
@@ -993,14 +993,14 @@ struct InnerConnection(Movable):
             Error: If serialization fails (e.g. out of memory).
         """
         var size: Int64 = 0
-        var maybe_buf = sqlite_ffi()[].serialize(self.db, schema, UnsafePointer(to=size), 0)
+        var maybe_buf = sqlite_ffi()[].serialize(self.db, schema, Pointer(to=size), 0)
         if not maybe_buf:
             raise Error("sqlite3_serialize failed: out of memory")
 
         var buf = maybe_buf.value()
         var data = List[Byte](capacity=len(buf))
         data.extend(buf)
-        sqlite_ffi()[].free(buf.unsafe_ptr().bitcast[NoneType]())
+        sqlite_ffi()[].free(buf.unsafe_ptr().unsafe_bitcast[NoneType]())
         return data^
 
     def deserialize(self, var data: List[Byte], var schema: String = "main", read_only: Bool = False) raises:
@@ -1026,9 +1026,9 @@ struct InnerConnection(Movable):
         if not maybe_ptr:
             raise Error("sqlite3_malloc64 failed: out of memory")
 
-        var ptr = maybe_ptr.value().bitcast[Byte]()
+        var ptr = maybe_ptr.value().unsafe_bitcast[Byte]()
         for i in range(len(data)):
-            ptr[i] = data[i]
+            ptr.unsafe_offset(i).unsafe_write(data[i])
 
         var flags = SQLITE_DESERIALIZE_FREEONCLOSE
         if read_only:
@@ -1076,8 +1076,8 @@ struct InnerConnection(Movable):
                 self.db,
                 schema^,
                 c_int(mode.value),
-                UnsafePointer(to=log_frames),
-                UnsafePointer(to=checkpointed_frames),
+                Pointer(to=log_frames),
+                Pointer(to=checkpointed_frames),
             )
         )
         return (Int(log_frames), Int(checkpointed_frames))
@@ -1190,7 +1190,7 @@ struct InnerConnection(Movable):
         """
         var ppBlob = MutExternalPointer[sqlite3_blob].unsafe_dangling()
         var flags: c_int = 0 if read_only else 1
-        var ppBlob_ptr = UnsafePointer(to=ppBlob)
+        var ppBlob_ptr = Pointer(to=ppBlob)
         self.raise_if_error(
             sqlite_ffi()[].blob_open[origin_of(schema), origin_of(table), origin_of(column), origin_of(ppBlob_ptr[])](
                 self.db, schema, table, column, row_id, flags, ppBlob_ptr
@@ -1246,7 +1246,7 @@ struct InnerConnection(Movable):
             Error: If the underlying SQLite call fails.
         """
         self.raise_if_error(
-            sqlite_ffi()[].blob_read(pBlob, buffer.unsafe_ptr().bitcast[NoneType](), c_int(len(buffer)), c_int(offset))
+            sqlite_ffi()[].blob_read(pBlob, buffer.unsafe_ptr().unsafe_bitcast[NoneType](), c_int(len(buffer)), c_int(offset))
         )
 
     def blob_write(self, pBlob: MutExternalPointer[sqlite3_blob], data: Span[Byte, ...], offset: Int) raises:
@@ -1263,7 +1263,7 @@ struct InnerConnection(Movable):
         self.raise_if_error(
             sqlite_ffi()[].blob_write(
                 pBlob,
-                data.unsafe_ptr().bitcast[NoneType]().unsafe_mut_cast[True](),
+                data.unsafe_ptr().unsafe_bitcast[NoneType]().unsafe_mut_cast[True](),
                 c_int(len(data)),
                 c_int(offset),
             )

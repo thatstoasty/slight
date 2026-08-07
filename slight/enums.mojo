@@ -91,7 +91,7 @@ struct DestructorHint(Movable, TrivialRegisterPassable):
         Returns:
             A function pointer representing the `SQLITE_STATIC` destructor.
         """
-        return UnsafePointer(to=Self.STATIC.value).bitcast[ResultDestructorFn]()[]
+        return Pointer(to=Self.STATIC.value).unsafe_bitcast[ResultDestructorFn]()[]
 
     @staticmethod
     def transient_destructor() -> ResultDestructorFn:
@@ -100,4 +100,4 @@ struct DestructorHint(Movable, TrivialRegisterPassable):
         Returns:
             A function pointer representing the `SQLITE_TRANSIENT` destructor.
         """
-        return UnsafePointer(to=Self.TRANSIENT.value).bitcast[ResultDestructorFn]()[]
+        return Pointer(to=Self.TRANSIENT.value).unsafe_bitcast[ResultDestructorFn]()[]

@@ -1,7 +1,6 @@
 """SQLite Function Evaluation Context."""
 from std.ffi import c_int, CStringSlice
 from std.os import abort
-from std.memory import ImmutSpan
 from slight.c.types import MutExternalPointer, sqlite3_connection, sqlite3_context, sqlite3_value, ResultDestructorFn
 from slight.api import sqlite_ffi
 from slight.types.value_ref import (
@@ -71,7 +70,7 @@ struct Context(Movable, Sized, Boolable):
             argv: A pointer to the array of argument value pointers.
         """
         self.ctx = ctx
-        self.args = [argv[i] for i in range(argc)]
+        self.args = [argv[unsafe_offset=i] for i in range(argc)]
 
     # ===------------------------------------------------------------------=== #
     # Argument Access
@@ -163,7 +162,7 @@ struct Context(Movable, Sized, Boolable):
         # We're laundering the origin here. It should be safe because the value should
         # live as long as the context is alive. That conveys more information than using an external origin.
         return CStringSlice(
-            unsafe_from_ptr=text.value().unsafe_ptr().bitcast[Int8]().unsafe_origin_cast[origin_of(self)](),
+            unsafe_from_ptr=text.value().unsafe_ptr().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)](),
         )
 
     def get_blob(self, idx: Int) -> Optional[Span[Byte, origin_of(self)]]:
@@ -188,7 +187,7 @@ struct Context(Movable, Sized, Boolable):
         # We're laundering the origin here. It should be safe because the value should
         # live as long as the context is alive. That conveys more information than using an external origin.
         return Span(
-            ptr=blob.value().unsafe_ptr().unsafe_origin_cast[origin_of(self)](),
+            unsafe_ptr=blob.value().unsafe_ptr().unsafe_origin_cast[origin_of(self)](),
             length=len(blob.value()),
         )
 
@@ -256,7 +255,7 @@ struct Context(Movable, Sized, Boolable):
         """Set the result of the function to NULL."""
         sqlite_ffi()[].result_null(self.ctx)
 
-    def result_blob(self, data: ImmutSpan[Byte, ...]):
+    def result_blob[origin: ImmOrigin, //](self, data: Span[Byte, origin]):
         """Set the result of the function to a BLOB value.
 
         SQLite makes its own copy of the data (uses SQLITE_TRANSIENT).
@@ -266,7 +265,7 @@ struct Context(Movable, Sized, Boolable):
         """
         sqlite_ffi()[].result_blob64(
             self.ctx,
-            data.unsafe_ptr().bitcast[NoneType](),
+            data.unsafe_ptr().unsafe_bitcast[NoneType](),
             UInt64(len(data)),
             DestructorHint.transient_destructor(),
         )
@@ -373,7 +372,7 @@ struct Context(Movable, Sized, Boolable):
         var ptr = sqlite_ffi()[].aggregate_context(self.ctx, c_int(n_bytes))
         if not ptr:
             return None
-        return ptr.take().bitcast[A]()
+        return ptr.take().unsafe_bitcast[A]()
 
     def user_data(self) -> Optional[MutExternalPointer[NoneType]]:
         """Get the user data pointer that was passed to `create_scalar_function`,

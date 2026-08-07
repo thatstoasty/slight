@@ -129,7 +129,7 @@ def gs_open(vtab: MutExternalPointer[GenerateSeriesVTab]) raises -> GenerateSeri
 def gs_filter(
     cursor: MutExternalPointer[GenerateSeriesCursor],
     idx_num: c_int,
-    idx_str: Optional[StringSlice[ImmutUntrackedOrigin]],
+    idx_str: Optional[StringSpan[ImmUntrackedOrigin]],
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
     argc: c_int,
 ) raises:
