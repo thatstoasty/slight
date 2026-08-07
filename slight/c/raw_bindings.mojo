@@ -3336,13 +3336,14 @@ struct _sqlite3(Movable):
 
     def sqlite3_create_module_v2[
         name_origin: ImmOrigin,
+        module_origin: MutOrigin,
         client_data_origin: MutOrigin,
         //
     ](
         self,
         db: MutExternalPointer[sqlite3_connection],
         zName: ImmPointer[c_char, name_origin],
-        p: MutExternalPointer[sqlite3_module],
+        p: MutPointer[sqlite3_module, module_origin],
         pClientData: MutOpaquePointer[client_data_origin],
         destructor_callback: ResultDestructorFn,
     ) -> c_int:

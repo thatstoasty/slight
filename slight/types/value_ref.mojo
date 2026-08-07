@@ -264,7 +264,7 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         """
         return self.value.isa[T]()
 
-    def __getitem_param__[T: SQLType](self) -> ref[self.value["value"]] T:
+    def __getitem_param__[T: SQLType](self) -> ref[origin_of(self.value)._get_owned_interior["value"]] T:
         """Get the value as the specified type T.
 
         This method provides type-safe access to the stored SQL value. The type T

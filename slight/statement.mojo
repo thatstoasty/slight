@@ -391,8 +391,8 @@ struct Statement[conn: ImmOrigin](Movable):
         """
         self.connection[].raise_if_error(self.stmt.bind_text(index, value, destructor_callback))
 
-    def bind_blob(
-        self, index: UInt, value: ImmSpan[Byte, ...], destructor_callback: ResultDestructorFn
+    def bind_blob[origin: ImmOrigin, //](
+        self, index: UInt, value: ImmSpan[Byte, origin], destructor_callback: ResultDestructorFn
     ) raises -> None:
         """Binds a blob value to the specified parameter.
 

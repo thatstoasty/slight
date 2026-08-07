@@ -3101,11 +3101,11 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_vtab_distinct(pIdxInfo)
 
-    def create_module(
+    def create_module[origin: MutOrigin, //](
         self,
         db: MutExternalPointer[sqlite3_connection],
         module_name: StringSpan,
-        module_ptr: MutExternalPointer[sqlite3_module],
+        module_ptr: MutPointer[sqlite3_module, origin],
     ) -> SQLite3Result:
         """Register A Virtual Table Module.
 

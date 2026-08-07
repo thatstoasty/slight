@@ -632,7 +632,7 @@ struct InnerConnection(Movable, Deinitable where False):
             column_fn,
             rowid_fn,
         ]()
-        return sqlite_ffi()[].create_module(self.db, module_name, module.unsafe_ptr())
+        return sqlite_ffi()[].create_module(self.db, module_name, module)
 
     def remove_function(
         self,
@@ -1249,7 +1249,7 @@ struct InnerConnection(Movable, Deinitable where False):
             sqlite_ffi()[].blob_read(pBlob, buffer.unsafe_ptr().unsafe_bitcast[NoneType](), c_int(len(buffer)), c_int(offset))
         )
 
-    def blob_write(self, pBlob: MutExternalPointer[sqlite3_blob], data: Span[Byte, ...], offset: Int) raises:
+    def blob_write[origin: Origin, //](self, pBlob: MutExternalPointer[sqlite3_blob], data: Span[Byte, origin], offset: Int) raises:
         """Writes data into a BLOB incrementally.
 
         Args:

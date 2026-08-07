@@ -116,7 +116,7 @@ struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Movable, Sized, Dei
 
     # Self doesn't need to be Mut since it carries a mutable pointer.
     # But we're altering the blob, so self being borrow immutably is wrong.
-    def write(mut self, data: Span[Byte, ...], offset: Int = 0) raises where
+    def write[origin: ImmOrigin, //](mut self, data: Span[Byte, origin], offset: Int = 0) raises where
         not Self.read_only:
         """Writes data into the BLOB incrementally.
 

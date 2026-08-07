@@ -170,13 +170,13 @@ struct VTabConnection(Movable):
         return self.db.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().unsafe_address_space_cast[address_space]()
 
 
-comptime VTabConnectFn[T: MoveDestructible] = def(
+comptime VTabConnectFn[T: MoveDestructible] = def[origin: ImmOrigin, //](
     VTabConnection,
     MutExternalPointer[NoneType], # Maybe make this a Copyable struct and pass a pointer to a copy?
     String,
     String,
     String,
-    Span[String, ...],
+    Span[String, origin],
 ) raises thin -> VTabConnectResult[T]
 """User-provided xCreate / xConnect callback.
 
@@ -665,7 +665,7 @@ def make_read_only_module[
     eof_fn: VTabEofFn[C],
     column_fn: VTabColumnFn[C],
     rowid_fn: VTabRowidFn[C],
-]() -> Allocation[sqlite3_module]:
+]() -> Pointer[sqlite3_module, MutUntrackedOrigin]:
     """Allocate and return a heap-allocated `sqlite3_module` for a read-only virtual table.
 
     The same callback is used for both xCreate and xConnect, making this an
@@ -691,8 +691,8 @@ def make_read_only_module[
     Returns:
         A heap-allocated `Allocation[sqlite3_module]`.
     """
-    var module_ptr = alloc(Layout[sqlite3_module](count=1))
-    module_ptr.unsafe_ptr().unsafe_offset(0).unsafe_write(
+    var module_ptr = unsafe_alloc[sqlite3_module](1)
+    module_ptr.unsafe_offset(0).unsafe_write(
         sqlite3_module(
             iVersion=c_int(3),
             xCreate=_vtab_xConnect[T, connect_fn],
@@ -721,4 +721,4 @@ def make_read_only_module[
             xIntegrity=_vtab_stub_integrity,
         )
     )
-    return module_ptr^
+    return module_ptr

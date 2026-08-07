@@ -24,7 +24,7 @@ trait RowIndex:
         ...
 
 
-__extension Int(RowIndex):
+__extension SIMD(RowIndex):
     def idx(self, stmt: Statement) raises -> UInt:
         """Convert this index type to a UInt column index.
 
@@ -38,6 +38,7 @@ __extension Int(RowIndex):
         Raises:
             Error: If the index cannot be converted to a valid column index.
         """
+        comptime assert Self.length == 1, "RowIndex must be a scalar SIMD value (length == 1)."
         if self < 0 or UInt(self) >= stmt.column_count():
             raise Error("Invalid column index: ", self)
 

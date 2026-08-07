@@ -370,7 +370,7 @@ def _escape_double_quotes(s: StringSpan) -> String:
 # ===----------------------------------------------------------------------=== #
 
 
-def csv_connect[origin: Origin, //](
+def csv_connect[origin: ImmOrigin, //](
     db: VTabConnection,
     aux: MutExternalPointer[NoneType],
     module_name: String,
