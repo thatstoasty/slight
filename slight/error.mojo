@@ -1,10 +1,10 @@
 """Error handling."""
 from slight.api import sqlite_ffi
-from slight.inner_connection import InnerConnection
+from slight.c.types import MutExternalPointer, sqlite3_connection
 from slight.result import SQLite3Result
 
 
-def error_msg(db: InnerConnection, code: SQLite3Result) -> Optional[String]:
+def error_msg(db: MutExternalPointer[sqlite3_connection], code: SQLite3Result) -> Optional[String]:
     """Checks for the error message set in sqlite3, or what the description of the provided code is.
 
     Args:
@@ -14,19 +14,19 @@ def error_msg(db: InnerConnection, code: SQLite3Result) -> Optional[String]:
     Returns:
         An optional string slice containing the error message, or None if not found.
     """
-    if sqlite_ffi()[].errcode(db.db) != code:
+    if sqlite_ffi()[].errcode(db) != code:
         var ptr = sqlite_ffi()[].errstr(code.value)
         if not ptr:
             return None
         return String(unsafe_from_utf8_ptr=ptr.value())
 
-    var ptr = sqlite_ffi()[].errmsg(db.db)
+    var ptr = sqlite_ffi()[].errmsg(db)
     if not ptr:
         return None
     return String(unsafe_from_utf8_ptr=ptr.value())
 
 
-def raise_if_error(db: InnerConnection, code: SQLite3Result) raises:
+def raise_if_error(db: MutExternalPointer[sqlite3_connection], code: SQLite3Result) raises:
     """Raises if the SQLite error code is not `SQLITE_OK`.
 
     Args:
@@ -42,7 +42,7 @@ def raise_if_error(db: InnerConnection, code: SQLite3Result) raises:
     raise Error(error_from_sqlite_code(code, error_msg(db, code)))
 
 
-def decode_error(db: InnerConnection, code: SQLite3Result) -> Error:
+def decode_error(db: MutExternalPointer[sqlite3_connection], code: SQLite3Result) -> Error:
     """Returns an Error if the SQLite error code is not `SQLITE_OK`.
 
     Args:

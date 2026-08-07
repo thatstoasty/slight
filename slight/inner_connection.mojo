@@ -1,8 +1,10 @@
 """SQLite Inner DB Connection."""
 from std.ffi import c_char, c_int, CStringSlice
+from std.memory.alloc import Allocation, dealloc
 from std.pathlib import Path
 from slight.c.types import (
     MutExternalPointer,
+    sqlite3_module,
     AggFinalCallback,
     AggStepCallback,
     WindowInverseCallback,
@@ -81,6 +83,15 @@ from slight.vtab import (
 )
 
 
+def _free_module(var module: Allocation[sqlite3_module]):
+    """Free a `sqlite3_module` allocation owned by an `InnerConnection`.
+
+    Args:
+        module: The module allocation to free.
+    """
+    dealloc(module^)
+
+
 @fieldwise_init
 @explicit_destroy("InnerConnection must be explicitly destroyed. Use self.close() to destroy.")
 struct InnerConnection(Movable, Deinitable where False):
@@ -88,6 +99,12 @@ struct InnerConnection(Movable, Deinitable where False):
 
     var db: MutExternalPointer[sqlite3_connection]
     """A pointer to the underlying sqlite3 connection. This is managed by the InnerConnection and should not be accessed directly."""
+    var modules: List[Allocation[sqlite3_module]]
+    """Virtual table modules registered on this connection.
+
+    SQLite only borrows the module pointers passed to `sqlite3_create_module_v2`,
+    so the allocations are owned here and freed in `close()` once `sqlite3_close`
+    has unregistered them."""
 
     # TODO: Enable zVfs support in the future.
     def __init__(out self, var path: String, flags: OpenFlag) raises:
@@ -108,6 +125,7 @@ struct InnerConnection(Movable, Deinitable where False):
         if result != SQLite3Result.OK:
             raise Error(t"Could not open database: {String(result)}")
         self.db = ptr
+        self.modules = []
 
     def unsafe_ptr[
         origin: Origin, address_space: AddressSpace, //
@@ -147,10 +165,15 @@ struct InnerConnection(Movable, Deinitable where False):
     def close(deinit self) -> SQLite3Result:
         """Closes the underlying sqlite3 connection.
 
+        Closing the connection unregisters any virtual table modules registered
+        on it, so the module allocations are only freed afterwards.
+
         Returns:
             The SQLite3Result code from the close operation.
         """
-        return sqlite_ffi()[].close(self.db)
+        var result = sqlite_ffi()[].close(self.db)
+        self.modules^.deinit_with(_free_module)
+        return result
 
     def interrupt(self) -> None:
         """Interrupts the longest-running query currently executing on this
@@ -271,7 +294,7 @@ struct InnerConnection(Movable, Deinitable where False):
         Raises:
             Error: If the SQLite error code is not `SQLITE_OK`.
         """
-        raise_if_error(self, code)
+        raise_if_error(self.db, code)
 
     def error_msg(self, code: SQLite3Result) -> Optional[String]:
         """Checks for the error message set in sqlite3, or what the description of the provided code is.
@@ -282,7 +305,7 @@ struct InnerConnection(Movable, Deinitable where False):
         Returns:
             An optional string slice containing the error message, or None if not found.
         """
-        return error_msg(self, code)
+        return error_msg(self.db, code)
 
     def decode_error(self, code: SQLite3Result) -> Error:
         """Raises if the SQLite error code is not `SQLITE_OK`.
@@ -293,7 +316,7 @@ struct InnerConnection(Movable, Deinitable where False):
         Returns:
             Error: If the SQLite error code is not `SQLITE_OK`.
         """
-        return decode_error(self, code)
+        return decode_error(self.db, code)
 
     # TODO: V should be constrained to ToSQL, but I want to keep extensions private from users for now.
     def create_scalar_function[
@@ -596,13 +619,14 @@ struct InnerConnection(Movable, Deinitable where False):
         eof_fn: VTabEofFn[C],
         column_fn: VTabColumnFn[C],
         rowid_fn: VTabRowidFn[C],
-    ](self, module_name: StringSpan) -> SQLite3Result:
+    ](mut self, module_name: StringSpan) -> SQLite3Result:
         """Register a read-only virtual table module with this connection.
 
         Allocates a `sqlite3_module` on the heap, fills in all required and
         stub callbacks, then calls `sqlite3_create_module_v2` to register it.
-        The module pointer is automatically freed when the connection is closed
-        or the module is unregistered.
+        SQLite only borrows the module pointer, so the allocation is retained by
+        this connection and freed by `close()` after `sqlite3_close` has
+        unregistered it.
 
         Parameters:
             T: The user-provided virtual table state type.
@@ -632,7 +656,12 @@ struct InnerConnection(Movable, Deinitable where False):
             column_fn,
             rowid_fn,
         ]()
-        return sqlite_ffi()[].create_module(self.db, module_name, module)
+        # Register first, then take ownership. The allocation is retained even
+        # when registration fails, since SQLite is given a NULL destructor and
+        # so never frees it on the error path either.
+        var result = sqlite_ffi()[].create_module(self.db, module_name, module.unsafe_ptr())
+        self.modules.append(module^)
+        return result
 
     def remove_function(
         self,

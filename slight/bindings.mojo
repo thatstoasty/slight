@@ -42,7 +42,7 @@ from slight.c.types import (
 )
 from slight.result import SQLite3Result
 from slight.util import ptr_copy, CopyDestructible
-from slight.enums import TextEncoding
+from slight.enums import DestructorHint, TextEncoding
 from slight.functions import _default_destructor
 
 
@@ -3112,16 +3112,16 @@ struct sqlite3(Movable):
         Registers a virtual table module with a database connection. The module
         is identified by name and can be used to create virtual tables.
 
-        The module_ptr must remain valid for the lifetime of the database
-        connection. Pass it as the pClientData so it can be freed via the
-        default destructor when the connection is closed.
+        SQLite only borrows `module_ptr`; it must remain valid until the module
+        is unregistered by `sqlite3_close`. A NULL destructor is registered so
+        SQLite never frees it — the caller retains ownership and is responsible
+        for freeing the module after the connection is closed.
 
         Args:
             db: Database connection handle.
             module_name: Name to register the virtual table module under.
-            module_ptr: Pointer to the module implementation. This is also
-                passed as pClientData so it is freed when the module is
-                unregistered.
+            module_ptr: Pointer to the module implementation. Borrowed by
+                SQLite; ownership stays with the caller.
 
         Returns:
             SQLITE_OK on success, or an error code on failure.
@@ -3131,8 +3131,8 @@ struct sqlite3(Movable):
             db,
             name.as_c_string_slice().unsafe_ptr(),
             module_ptr,
-            module_ptr.unsafe_bitcast[NoneType](),
-            _default_destructor,
+            None,
+            DestructorHint.static_destructor(),
         )
 
     def declare_vtab(

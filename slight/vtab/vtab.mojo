@@ -665,16 +665,17 @@ def make_read_only_module[
     eof_fn: VTabEofFn[C],
     column_fn: VTabColumnFn[C],
     rowid_fn: VTabRowidFn[C],
-]() -> Pointer[sqlite3_module, MutUntrackedOrigin]:
+]() -> Allocation[sqlite3_module]:
     """Allocate and return a heap-allocated `sqlite3_module` for a read-only virtual table.
 
     The same callback is used for both xCreate and xConnect, making this an
     eponymous-style module that can be used with `CREATE VIRTUAL TABLE` and as
     a table-valued function.
 
-    The returned pointer must be passed to `Connection.create_module()`, which
-    also registers it as `pClientData` so SQLite automatically frees it via the
-    default destructor when the module is unregistered.
+    The returned allocation must be passed to `Connection.create_module()`, which
+    takes ownership of it. SQLite only borrows the module pointer, so the
+    allocation is kept alive by the connection and freed after `sqlite3_close`
+    has unregistered the module.
 
     Parameters:
         T: The user-provided virtual table state type.
@@ -691,8 +692,8 @@ def make_read_only_module[
     Returns:
         A heap-allocated `Allocation[sqlite3_module]`.
     """
-    var module_ptr = unsafe_alloc[sqlite3_module](1)
-    module_ptr.unsafe_offset(0).unsafe_write(
+    var module = alloc(Layout[sqlite3_module](count=1))
+    module.unsafe_ptr().unsafe_write(
         sqlite3_module(
             iVersion=c_int(3),
             xCreate=_vtab_xConnect[T, connect_fn],
@@ -721,4 +722,4 @@ def make_read_only_module[
             xIntegrity=_vtab_stub_integrity,
         )
     )
-    return module_ptr
+    return module^

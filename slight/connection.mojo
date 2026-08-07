@@ -1136,16 +1136,16 @@ struct Connection(Movable):
         eof_fn: VTabEofFn[C],
         column_fn: VTabColumnFn[C],
         rowid_fn: VTabRowidFn[C],
-    ](self, module_name: String) raises:
+    ](mut self, module_name: String) raises:
         """Register a read-only virtual table module with this connection.
 
         After registering, the module can be used with
         `CREATE VIRTUAL TABLE … USING module_name(…)` or as a table-valued
         function (e.g. `SELECT * FROM module_name(…)`).
 
-        The module lifetime is tied to the database connection. SQLite
-        automatically frees the internal `sqlite3_module` allocation when the
-        connection is closed or the module is explicitly unregistered.
+        The module lifetime is tied to the database connection. The internal
+        `sqlite3_module` allocation is owned by the connection and freed once
+        the connection has been closed and the module unregistered.
 
         Parameters:
             T: The user-provided virtual table state type.

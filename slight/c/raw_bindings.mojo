@@ -3337,14 +3337,13 @@ struct _sqlite3(Movable):
     def sqlite3_create_module_v2[
         name_origin: ImmOrigin,
         module_origin: MutOrigin,
-        client_data_origin: MutOrigin,
         //
     ](
         self,
         db: MutExternalPointer[sqlite3_connection],
         zName: ImmPointer[c_char, name_origin],
         p: MutPointer[sqlite3_module, module_origin],
-        pClientData: MutOpaquePointer[client_data_origin],
+        pClientData: Optional[MutExternalPointer[NoneType]],
         destructor_callback: ResultDestructorFn,
     ) -> c_int:
         """Register A Virtual Table Implementation.
@@ -3359,8 +3358,12 @@ struct _sqlite3(Movable):
             db: Database connection handle.
             zName: Name of the virtual table module.
             p: Pointer to the module implementation structure.
-            pClientData: User data pointer passed to module methods.
-            destructor_callback: Destructor for pClientData.
+            pClientData: User data pointer passed to module methods as `pAux`,
+                or None for no client data.
+            destructor_callback: Destructor invoked on pClientData when the
+                module is unregistered. Pass
+                `DestructorHint.static_destructor()` (a NULL callback) when the
+                caller retains ownership of pClientData.
 
         Returns:
             SQLITE_OK on success, or an error code on failure.
@@ -3370,7 +3373,7 @@ struct _sqlite3(Movable):
                 db,
                 zName.unsafe_origin_cast[MutUntrackedOrigin](),
                 p,
-                pClientData.unsafe_origin_cast[MutUntrackedOrigin](),
+                pClientData,
                 destructor_callback
             )
         except:
