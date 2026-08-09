@@ -8,7 +8,6 @@ See the official documentation for more information:
 - https://www.sqlite.org/c3ref/blob_open.html
 """
 
-from std.sys import stderr
 from slight.c.types import MutExternalPointer, sqlite3_blob
 from slight.connection import Connection
 

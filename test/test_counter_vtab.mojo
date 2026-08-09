@@ -42,13 +42,13 @@ struct CounterCursor(Movable):
     var done: Bool
 
 
-def counter_connect(
+def counter_connect[origin: ImmOrigin, //](
     db: VTabConnection,
     aux: MutExternalPointer[NoneType],
     module_name: String,
     database_name: String,
     table_name: String,
-    argv: Span[String, ...],
+    argv: Span[String, origin],
 ) raises -> VTabConnectResult[CounterVTab]:
     print("counter_connect called, argc =", len(argv))
     var n = 5

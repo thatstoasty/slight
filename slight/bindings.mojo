@@ -43,7 +43,6 @@ from slight.c.types import (
 from slight.result import SQLite3Result
 from slight.util import ptr_copy, CopyDestructible
 from slight.enums import DestructorHint, TextEncoding
-from slight.functions import _default_destructor
 
 
 struct sqlite3(Movable):
@@ -1867,7 +1866,7 @@ struct sqlite3(Movable):
         if not ptr:
             return None
         return StringSpan(
-            unsafe_from_utf8=Span(unsafe_ptr=ptr.take().unsafe_bitcast[Byte](), length=Int(self.lib.sqlite3_value_bytes(value)))
+            unsafe_from_utf8=Span(unsafe_ptr=ptr.take(), length=Int(self.lib.sqlite3_value_bytes(value)))
         )
 
     def value_bytes(self, value: MutExternalPointer[sqlite3_value]) -> SQLite3Result:

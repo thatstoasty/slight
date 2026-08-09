@@ -1,6 +1,5 @@
 """SQLite DB Connection."""
 from std.ffi import c_int
-from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
 from std.pathlib import Path
 from slight.busy import BusyHandlerFn
 from slight.api import sqlite_ffi
@@ -137,8 +136,6 @@ struct Connection(Movable):
 
     def __deinit__(deinit self):
         """Closes the connection when it is deleted."""
-        # if self.db:
-        #     _ = self^.close()
         _ = self^.close()
 
     def __enter__(var self) -> Self:
@@ -256,7 +253,6 @@ struct Connection(Movable):
 
         # If there is trailing SQL after the first statement that contains a valid SQL statement, raise an error.
         if tail > 0:
-            # TODO: Switch to grapheme slicing on next Mojo release.
             var tail_stmt, _ = self.db.prepare(String(sql[byte = Int(tail) :]))
             if tail_stmt:
                 raise Error(
@@ -767,7 +763,7 @@ struct Connection(Movable):
 
     def pragma_update[
         T: AnyType, //
-    ](self, pragma: StringSpan, value: T, schema: Optional[String] = None,) raises:
+    ](self, pragma: StringSpan, value: T, schema: Optional[String] = None) raises:
         """Set a new value to a pragma.
 
         Some pragmas will return the updated value which cannot be retrieved
@@ -1669,7 +1665,7 @@ struct Connection(Movable):
         row_id: Int64,
         *,
         var schema: String = "main"
-    ) raises -> Blob[origin_of(self), read_only=read_only]:
+    ) raises -> Blob[origin_of(self), read_only]:
         """Opens a BLOB for incremental I/O.
 
         This is more efficient than loading an entire large BLOB value into

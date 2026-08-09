@@ -8,7 +8,7 @@ from slight.functions import FunctionFlags
 from slight.hooks import UpdateOperation
 from slight.limits import Limit
 from slight.load_extension import ExtensionLoadGuard
-from slight.params import Dict, List, Params
+from slight.params import Dict, List, Array, Tuple, Params
 from slight.result import SQLite3Result
 from slight.row import Int, MappedRows, Row, RowIndex, Rows, String, StringSpan, UInt
 from slight.statement import Statement

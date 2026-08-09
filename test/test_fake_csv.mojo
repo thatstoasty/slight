@@ -39,13 +39,13 @@ struct FakeCursor(Movable):
     var eof: Bool
 
 
-def fake_connect(
+def fake_connect[origin: ImmOrigin, //](
     db: VTabConnection,
     aux: MutExternalPointer[NoneType],
     module_name: String,
     database_name: String,
     table_name: String,
-    argv: Span[String, ...],
+    argv: Span[String, origin],
 ) raises -> VTabConnectResult[FakeState]:
     print("fake_connect called, argc =", len(argv))
     var rows = List[List[String]]()

@@ -42,13 +42,13 @@ struct SimpleCursor(Movable):
     var done: Bool
 
 
-def simple_connect(
+def simple_connect[origin: ImmOrigin, //](
     db: VTabConnection,
     aux: MutExternalPointer[NoneType],
     module_name: String,
     database_name: String,
     table_name: String,
-    argv: Span[String, ...],
+    argv: Span[String, origin],
 ) raises -> VTabConnectResult[SimpleVTab]:
     print("simple_connect called")
     var items = List[String]()

@@ -57,17 +57,6 @@ struct AuthAction(Equatable, TrivialRegisterPassable, Writable):
     comptime FUNCTION = Self(31)
     """`SQLITE_FUNCTION`: A function is being invoked."""
 
-    def __eq__(self, other: Self) -> Bool:
-        """Test equality.
-
-        Args:
-            other: The other action code.
-
-        Returns:
-            True if both have the same value.
-        """
-        return self.value == other.value
-
 
 # ── Authorizer result codes ─────────────────────────────────────────────
 
@@ -86,17 +75,6 @@ struct AuthResult(Equatable, TrivialRegisterPassable, Writable):
     comptime IGNORE = Self(2)
     """`SQLITE_IGNORE`: Disallow the specific action but allow the SQL
     statement to continue (e.g. treat a denied column read as NULL)."""
-
-    def __eq__(self, other: Self) -> Bool:
-        """Test equality.
-
-        Args:
-            other: The other result code.
-
-        Returns:
-            True if both have the same value.
-        """
-        return self.value == other.value
 
 
 # ── Callback type ────────────────────────────────────────────────────────

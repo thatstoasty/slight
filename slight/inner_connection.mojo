@@ -63,7 +63,7 @@ from slight.functions import (
     _call_final_callback,
     _call_value_callback,
     _call_inverse_callback,
-    _default_destructor,
+    _typed_destructor,
 )
 from slight.flags import OpenFlag, PrepFlag
 from slight.functions import FunctionFlags
@@ -320,11 +320,11 @@ struct InnerConnection(Movable, Deinitable where False):
 
     # TODO: V should be constrained to ToSQL, but I want to keep extensions private from users for now.
     def create_scalar_function[
-        T: CopyDestructible,
+        P: CopyDestructible,
         V: MoveDestructible,
         //,
         x_func: ScalarUDF[V],
-    ](self, fn_name: StringSpan, n_arg: Int, flags: FunctionFlags, pApp: T) -> SQLite3Result:
+    ](self, fn_name: StringSpan, n_arg: Int, flags: FunctionFlags, pApp: P) -> SQLite3Result:
         """Attach a user-defined scalar function to a database connection.
 
         The function will remain available until the connection is closed or
@@ -338,7 +338,7 @@ struct InnerConnection(Movable, Deinitable where False):
         when the function is removed or when the connection is closed.
 
         Parameters:
-            T: The type of the application data to be passed to the callback.
+            P: The type of the application data to be passed to the callback.
             V: The return type of the scalar function, which must conform to `ToSQL`.
             x_func: The scalar function callback implementation.
 
@@ -356,7 +356,8 @@ struct InnerConnection(Movable, Deinitable where False):
         )
 
         # Copy data to the heap and pass a pointer to it as pApp.
-        # The data will be freed using the default destructor when the function is removed or when the connection is closed.
+        # The copy is destroyed and freed by `_typed_destructor[...]` when the
+        # function is removed or when the connection is closed.
         var pAppPtr = ptr_copy(pApp)
         return sqlite_ffi()[].create_scalar_function(
             self.db,
@@ -365,7 +366,7 @@ struct InnerConnection(Movable, Deinitable where False):
             flags.value,
             pAppPtr.unsafe_bitcast[NoneType](),
             _call_scalar_callback[x_func],
-            _default_destructor,
+            _typed_destructor[P],
         )
 
     def create_scalar_function[
@@ -442,7 +443,8 @@ struct InnerConnection(Movable, Deinitable where False):
         )
 
         # Copy data to the heap and pass a pointer to it as pApp.
-        # The data will be freed using the default destructor when the function is removed or when the connection is closed.
+        # The copy is destroyed and freed by `_typed_destructor[...]` when the
+        # function is removed or when the connection is closed.
         var pAppPtr = ptr_copy(pApp)
         return sqlite_ffi()[].create_aggregate_function(
             self.db,
@@ -452,7 +454,7 @@ struct InnerConnection(Movable, Deinitable where False):
             pAppPtr.unsafe_bitcast[NoneType](),
             _call_step_callback[init_fn, step_fn],
             _call_final_callback[final_fn],
-            _default_destructor,
+            _typed_destructor[P],
         )
 
     def create_aggregate_function[
@@ -543,7 +545,8 @@ struct InnerConnection(Movable, Deinitable where False):
         )
 
         # Copy data to the heap and pass a pointer to it as pApp.
-        # The data will be freed using the default destructor when the function is removed or when the connection is closed.
+        # The copy is destroyed and freed by `_typed_destructor[...]` when the
+        # function is removed or when the connection is closed.
         var pAppPtr = ptr_copy(pApp)
         return sqlite_ffi()[].create_window_function(
             self.db,
@@ -555,7 +558,7 @@ struct InnerConnection(Movable, Deinitable where False):
             _call_final_callback[final_fn],
             _call_value_callback[value_fn],
             _call_inverse_callback[inverse_fn],
-            _default_destructor,
+            _typed_destructor[P],
         )
 
     def create_window_function[
@@ -1032,7 +1035,7 @@ struct InnerConnection(Movable, Deinitable where False):
         sqlite_ffi()[].free(buf.unsafe_ptr().unsafe_bitcast[NoneType]())
         return data^
 
-    def deserialize(self, var data: List[Byte], var schema: String = "main", read_only: Bool = False) raises:
+    def deserialize(mut self, var data: List[Byte], var schema: String = "main", read_only: Bool = False) raises:
         """Deserializes a database from an in-memory byte buffer, replacing the
         current contents of the given schema.
 

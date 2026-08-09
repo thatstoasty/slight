@@ -26,7 +26,7 @@ from slight.c.types import (
 
 
 @fieldwise_init
-struct PrepFlag(TrivialRegisterPassable):
+struct PrepFlag(TrivialRegisterPassable, Writable):
     """Flags for preparing a SQLite statement."""
 
     var value: UInt32
@@ -55,7 +55,7 @@ struct PrepFlag(TrivialRegisterPassable):
 
 
 @fieldwise_init
-struct OpenFlag(TrivialRegisterPassable):
+struct OpenFlag(TrivialRegisterPassable, Writable):
     """Flags for opening a SQLite database connection.
 
     Defaults to READ_WRITE | CREATE | URI.

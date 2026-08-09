@@ -1,6 +1,7 @@
 """Tests for the query progress handler."""
 
 from std.ffi import _get_global
+from std.memory.alloc import unsafe_alloc
 from slight.c.types import MutExternalPointer
 from slight.connection import Connection
 from std.testing import TestSuite, assert_raises, assert_true
@@ -14,7 +15,7 @@ struct _ProgressState:
 
 
 def _init_progress_state() -> Optional[MutExternalPointer[NoneType]]:
-    var ptr = alloc[_ProgressState](1)
+    var ptr = unsafe_alloc[_ProgressState](1)
     ptr[] = _ProgressState()
     return ptr.unsafe_bitcast[NoneType]()
 

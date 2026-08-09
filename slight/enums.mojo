@@ -2,7 +2,7 @@
 from slight.c.types import ResultDestructorFn
 
 @fieldwise_init
-struct DataType(Equatable, TrivialRegisterPassable):
+struct DataType(Equatable, TrivialRegisterPassable, Writable):
     """Fundamental Datatypes.
 
     Every value in SQLite has one of five fundamental datatypes:
@@ -28,17 +28,6 @@ struct DataType(Equatable, TrivialRegisterPassable):
     comptime NULL = Self(5)
     """`SQLITE_NULL`: NULL."""
 
-    def __eq__(self, other: Self) -> Bool:
-        """Checks if this value is equal to `other`.
-
-        Args:
-            other: The other `DataType` to compare against.
-
-        Returns:
-            True if both `DataType` instances have the same value, False otherwise.
-        """
-        return self.value == other.value
-
     def __eq__(self, other: Int32) -> Bool:
         """Checks if this value is equal to a raw integer value.
 
@@ -52,7 +41,7 @@ struct DataType(Equatable, TrivialRegisterPassable):
 
 
 @fieldwise_init
-struct TextEncoding(Movable, TrivialRegisterPassable):
+struct TextEncoding(TrivialRegisterPassable, Writable):
     """Text Encodings.
 
     These constant define integer codes that represent the various
@@ -65,7 +54,7 @@ struct TextEncoding(Movable, TrivialRegisterPassable):
     """`SQLITE_UTF8`: UTF-8 encoding."""
 
 @fieldwise_init
-struct DestructorHint(Movable, TrivialRegisterPassable):
+struct DestructorHint(TrivialRegisterPassable, Writable):
     """If the destructor argument is `SQLITE_STATIC`, it means that the content pointer is constant
     and will never change. It does not need to be destroyed. The
     `SQLITE_TRANSIENT` value means that the content will likely change in

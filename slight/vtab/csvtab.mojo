@@ -757,7 +757,7 @@ def csv_rowid(cursor: MutExternalPointer[CsvCursor]) raises -> Int64:
 # ===----------------------------------------------------------------------=== #
 
 
-def load_module(conn: Connection) raises:
+def load_module(mut conn: Connection) raises:
     """Register the ``csv`` virtual table module with a database connection.
 
     After calling this function, the connection supports creating CSV virtual

@@ -40,7 +40,7 @@ def test_blob_write_modifies_data() raises:
         blob^.close()
 
     var check = db.blob_open("t", "data", 1)
-    result: List[Byte]
+    var result: List[Byte]
     try:
         result = check.read(len(original))
     finally:
@@ -90,7 +90,7 @@ def test_blob_write_to_read_only_fails() raises:
 
     # The row must be unchanged after the rejected write.
     var check = db.blob_open("t", "data", 1)
-    result: List[Byte]
+    var result: List[Byte]
     try:
         result = check.read(len(original))
     finally:

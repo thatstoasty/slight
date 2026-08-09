@@ -20,7 +20,7 @@ def test_path() raises:
     with Connection.open_in_memory() as db:
         assert_equal(db.path().value(), "")
 
-    db = Connection.open("file:dummy.db?mode=memory&cache=shared")
+    var db = Connection.open("file:dummy.db?mode=memory&cache=shared")
     assert_equal(db.path().value(), "")
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -198,9 +198,6 @@ def test_insert_bytes() raises:
     var db = Connection.open_in_memory()
     var example = "hello".as_bytes()
     
-    def get_int(r: Row) raises -> Int:
-        return r.get[Int](0)
-    
     db.execute_batch("CREATE TABLE foo(x BLOB)")
     assert_equal(db.execute("INSERT INTO foo(x) VALUES (?1)", [example]), 1)
 
@@ -267,9 +264,6 @@ def test_prepare_query() raises:
 
 def test_query_map() raises:
     var db = Connection.open_in_memory()
-
-    def get_string(r: Row) raises -> String:
-        return r.get[String](1)
     
     db.execute_batch("""CREATE TABLE foo(x INTEGER, y TEXT);
     INSERT INTO foo VALUES(4, 'hello');
@@ -297,9 +291,6 @@ struct Pair(Copyable, Defaultable, Writable):
         self.x = 0
         self.y = ""
 
-    def write_to(self, mut writer: Some[Writer]):
-        writer.write("Pair(x=", self.x, ", y=", self.y, ")")
-
 
 def test_mapped_rows_collect() raises:
     var db = Connection.open_in_memory()
@@ -308,11 +299,8 @@ def test_mapped_rows_collect() raises:
     INSERT INTO foo VALUES(2, 'b');
     INSERT INTO foo VALUES(3, 'c');""")
 
-    def get_string(r: Row) raises -> String:
-        return r.get[String](1)
-
     var stmt = db.prepare("SELECT x, y FROM foo ORDER BY x")
-    var results = stmt.query[get_string]().collect()
+    var results = stmt.query[lambda (r: Row) raises -> String: r.get[String](1)]().collect()
     assert_equal(len(results), 3)
     assert_equal(results[0], "a")
     assert_equal(results[1], "b")

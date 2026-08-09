@@ -1,6 +1,5 @@
 """SQLite Function Evaluation Context."""
 from std.ffi import c_int, CStringSlice
-from std.os import abort
 from slight.c.types import MutExternalPointer, sqlite3_connection, sqlite3_context, sqlite3_value, ResultDestructorFn
 from slight.api import sqlite_ffi
 from slight.types.value_ref import (
@@ -138,7 +137,7 @@ struct Context(Movable, Sized, Boolable):
         debug_assert(idx < len(self), "Argument index out of bounds")
         return sqlite_ffi()[].value_double(self.args[idx])
 
-    def get_text(self, idx: Int) raises -> Optional[CStringSlice[origin_of(self)]]:
+    def get_text(self, idx: Int) -> Optional[CStringSlice[origin_of(self)]]:
         """Returns the `idx`th argument as a CStringSlice.
 
         This calls `sqlite3_value_text` directly. The returned slice
@@ -150,9 +149,6 @@ struct Context(Movable, Sized, Boolable):
 
         Returns:
             The argument value as a CStringSlice.
-        
-        Raises:
-            Error: SQLite returned non UTF-8 text for the argument, which is not valid.
         """
         debug_assert(idx < len(self), "Argument index out of bounds")
         var text = sqlite_ffi()[].value_text(self.args[idx])
@@ -179,8 +175,7 @@ struct Context(Movable, Sized, Boolable):
             The argument value as a span of bytes.
         """
         debug_assert(idx < len(self), "Argument index out of bounds")
-        var value = self.args[idx]
-        var blob = sqlite_ffi()[].value_blob(value)
+        var blob = sqlite_ffi()[].value_blob(self.args[idx])
         if not blob:
             return None
 

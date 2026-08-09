@@ -45,30 +45,19 @@ struct CheckpointMode(Equatable, TrivialRegisterPassable, Writable):
     """This mode works the same way as `RESTART` with the addition that the
     WAL file is truncated to zero bytes upon successful completion."""
 
-    def __eq__(self, other: Self) -> Bool:
-        """Check if two values are equal.
-
-        Args:
-            other: The other value to compare against.
-
-        Returns:
-            True if the values are equal, False otherwise.
-        """
-        return self.value == other.value
-
     def write_to(self, mut writer: Some[Writer]):
         """Write a human-readable representation.
 
         Args:
             writer: The writer to write to.
         """
-        if self.value == Self.PASSIVE.value:
+        if self == Self.PASSIVE:
             writer.write("SQLITE_CHECKPOINT_PASSIVE")
-        elif self.value == Self.FULL.value:
+        elif self == Self.FULL:
             writer.write("SQLITE_CHECKPOINT_FULL")
-        elif self.value == Self.RESTART.value:
+        elif self == Self.RESTART:
             writer.write("SQLITE_CHECKPOINT_RESTART")
-        elif self.value == Self.TRUNCATE.value:
+        elif self == Self.TRUNCATE:
             writer.write("SQLITE_CHECKPOINT_TRUNCATE")
         else:
             writer.write(t"SQLITE_CHECKPOINT_UNKNOWN({self.value})")

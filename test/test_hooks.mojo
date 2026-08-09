@@ -1,6 +1,7 @@
 """Tests for commit, rollback, and update hooks."""
 
 from std.ffi import _get_global
+from std.memory.alloc import unsafe_alloc
 from slight.c.types import MutExternalPointer
 from slight.connection import Connection
 from slight.hooks import UpdateOperation
@@ -39,8 +40,8 @@ struct _HookState:
 
 
 def _init_hook_state() -> Optional[MutExternalPointer[NoneType]]:
-    var ptr = alloc[_HookState](1)
-    ptr[] = _HookState()
+    var ptr = unsafe_alloc[_HookState](1)
+    ptr.unsafe_write(_HookState())
     return ptr.unsafe_bitcast[NoneType]()
 
 

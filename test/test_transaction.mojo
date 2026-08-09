@@ -5,13 +5,6 @@ from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal,
 from slight import SIMD, Bool, Int, Params, Row, String
 
 
-comptime dummy_int: Int = 1
-
-# def insert(x: Int, conn: Pointer[Connection, _]) raises -> Int:
-#     """Insert a value into the foo table."""
-#     return conn[].execute("INSERT INTO foo VALUES(?1)", [x])
-
-
 def assert_current_sum(x: Int, conn: Connection) raises:
     """Assert that the sum of all values in foo equals x."""
     def get_int(r: Row) raises -> Int:

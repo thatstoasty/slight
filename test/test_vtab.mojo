@@ -53,13 +53,13 @@ struct GenerateSeriesCursor(Movable):
 
 # ---- xConnect / xCreate --------------------------------------------------
 
-def gs_connect(
+def gs_connect[origin: ImmOrigin, //](
     db: VTabConnection,
     aux: MutExternalPointer[NoneType],
     module_name: String,
     database_name: String,
     table_name: String,
-    argv: Span[String, ...],
+    argv: Span[String, origin],
 ) raises -> VTabConnectResult[GenerateSeriesVTab]:
     """Parse (start, stop, step) from module argv and declare the schema."""
     # argv[0] = module name, argv[1] = database name, argv[2+] = user args
@@ -100,18 +100,18 @@ def gs_best_index(
     """
     var n = Int(index_info[].nConstraint)
     for i in range(n):
-        if index_info[].aConstraint[i].usable == c_uchar(0):
+        if index_info[].aConstraint[unsafe_offset=i].usable == c_uchar(0):
             continue
-        var col = Int(index_info[].aConstraint[i].iColumn)
+        var col = Int(index_info[].aConstraint[unsafe_offset=i].iColumn)
         if col == 1:  # start
-            index_info[].aConstraintUsage[i].argvIndex = c_int(1)
-            index_info[].aConstraintUsage[i].omit = c_uchar(1)
+            index_info[].aConstraintUsage[unsafe_offset=i].argvIndex = c_int(1)
+            index_info[].aConstraintUsage[unsafe_offset=i].omit = c_uchar(1)
         elif col == 2:  # stop
-            index_info[].aConstraintUsage[i].argvIndex = c_int(2)
-            index_info[].aConstraintUsage[i].omit = c_uchar(1)
+            index_info[].aConstraintUsage[unsafe_offset=i].argvIndex = c_int(2)
+            index_info[].aConstraintUsage[unsafe_offset=i].omit = c_uchar(1)
         elif col == 3:  # step
-            index_info[].aConstraintUsage[i].argvIndex = c_int(3)
-            index_info[].aConstraintUsage[i].omit = c_uchar(1)
+            index_info[].aConstraintUsage[unsafe_offset=i].argvIndex = c_int(3)
+            index_info[].aConstraintUsage[unsafe_offset=i].omit = c_uchar(1)
     return False
 
 
@@ -140,11 +140,11 @@ def gs_filter(
     var stop: Int64 = cursor[].stop
     var step: Int64 = cursor[].step
     if argc > 0:
-        start = sqlite_ffi()[].value_int64(argv[0])
+        start = sqlite_ffi()[].value_int64(argv[unsafe_offset=0])
     if argc > 1:
-        stop = sqlite_ffi()[].value_int64(argv[1])
+        stop = sqlite_ffi()[].value_int64(argv[unsafe_offset=1])
     if argc > 2:
-        step = sqlite_ffi()[].value_int64(argv[2])
+        step = sqlite_ffi()[].value_int64(argv[unsafe_offset=2])
     if step <= 0:
         step = 1
     cursor[].start = start

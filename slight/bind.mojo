@@ -67,7 +67,7 @@ __extension SIMD(BindIndex):
         """
         # No validation - direct conversion
         comptime assert Self.length == 1, "Only SIMD vectors of size 1 can be used as a bind index."
-        return UInt(self._refine[self.dtype, 1]())
+        return UInt(self)
 
 
 __extension String(BindIndex):

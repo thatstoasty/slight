@@ -49,6 +49,36 @@ __extension List(Params):
             raise Error(t"Invalid parameter count: {index}, expected: {expected}")
 
 
+__extension Array(Params):
+    def bind(self, stmt: Statement) raises:
+        """Binds the parameters to the given statement.
+
+        Args:
+            self: Temporary docstring due to extension bug.
+            stmt: The statement to bind the parameters to.
+
+        Raises:
+            Error: If the parameters cannot be bound to the statement.
+        """
+        _constrained_conforms_to[
+            conforms_to(Self.T, ToSQL),
+            Parent=Self,
+            Element = Self.T,
+            ParentConformsTo="Params",
+            ElementConformsTo="ToSQL",
+        ]()
+
+        var expected = Int(stmt.stmt.bind_parameter_count())
+        var index = 0
+        for i in range(len(self)):
+            index += 1  # The leftmost SQL parameter has an index of 1.
+            if index > expected:
+                break
+            stmt.bind_parameter(self[i], UInt(index))
+        if index != expected:
+            raise Error(t"Invalid parameter count: {index}, expected: {expected}")
+
+
 __extension Dict(Params):
     def bind(self, stmt: Statement) raises:
         """Binds the parameters to the given statement.

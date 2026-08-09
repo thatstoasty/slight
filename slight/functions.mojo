@@ -10,7 +10,7 @@ from slight.util import CopyDestructible, MoveDestructible
 
 
 @fieldwise_init
-struct FunctionFlags(ImplicitlyCopyable):
+struct FunctionFlags(TrivialRegisterPassable, Writable):
     """Function Flags for `sqlite3_create_function`.
 
     See [sqlite3_create_function](https://sqlite.org/c3ref/create_function.html)
@@ -55,17 +55,30 @@ struct FunctionFlags(ImplicitlyCopyable):
         return Self(self.value | other.value)
 
 
-def _default_destructor(pApp: Optional[MutExternalPointer[NoneType]]) abi("C"):
-    """Default destructor for user-defined function application data.
+def _typed_destructor[
+    T: CopyDestructible
+](pApp: Optional[MutExternalPointer[NoneType]]) abi("C"):
+    """Destructor for user-defined function application data of type `T`.
 
-    This function is used as the destructor callback when creating user-defined functions
-    with application data. It checks if the provided pointer is valid and frees it if so.
+    Used as the destructor callback when creating user-defined functions with
+    application data. `ptr_copy` heap-copies a full `T` into the block that
+    SQLite hands back here, so the pointee's destructor must run before the
+    block is freed — otherwise any heap data owned by `T` (a `String`, `List`,
+    `Dict`, ...) is leaked.
+
+    This is parameterized on `T` so each instantiation knows the concrete type
+    to destroy; a single untyped `void*` destructor cannot do this correctly.
+
+    Parameters:
+        T: The type of the application data the pointer refers to.
 
     Args:
         pApp: A mutable external pointer to the application data.
     """
     if pApp:
-        pApp.value().unsafe_free()
+        var ptr = pApp.value().unsafe_bitcast[T]()
+        ptr.unsafe_deinit_pointee()
+        ptr.unsafe_free()
 
 
 # For scalar functions, SQLite requires xFunc to be non-NULL and

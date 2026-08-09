@@ -67,6 +67,19 @@ def _find_sqlite3_library() raises -> String:
         )
 
 
+# Typed NULL constants for optional C pointer arguments.
+#
+# `get_function[RetType]` infers each parameter's ABI from the argument passed at
+# the call site, so a bare `None` literal is `NoneType` and does NOT lower to a
+# null pointer — it silently corrupts the call. Always pass one of these instead
+# of `None` for a nullable pointer slot.
+comptime _NULL_C_STRING = Optional[ImmExternalPointer[c_char]](None)
+"""NULL `const char *`."""
+comptime _NULL_PTR = Optional[MutExternalPointer[NoneType]](None)
+"""NULL `void *`. Also used for null function-pointer slots, which are
+ABI-identical to a nullable `void *`."""
+
+
 @fieldwise_init
 struct _sqlite3(Movable):
     """SQLite3 C API binding struct.
@@ -738,7 +751,7 @@ struct _sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_set_authorizer")(db, None, None)
+            return self.lib.get_function[c_int]("sqlite3_set_authorizer")(db, _NULL_PTR, _NULL_PTR)
         except:
             os.abort("sqlite3_remove_authorizer: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -943,7 +956,7 @@ struct _sqlite3(Movable):
                 filename.unsafe_origin_cast[MutUntrackedOrigin](),
                 ppDb.unsafe_origin_cast[MutUntrackedOrigin](),
                 flags,
-                None
+                _NULL_C_STRING
             )
         except:
             os.abort("sqlite3_open_v2: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -1886,11 +1899,11 @@ struct _sqlite3(Movable):
                 zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
                 nArg,
                 eTextRep,
-                None,
-                None,
-                None,
-                None,
-                None
+                _NULL_PTR,
+                _NULL_PTR,
+                _NULL_PTR,
+                _NULL_PTR,
+                _NULL_PTR
             )
         except:
             os.abort("sqlite3_remove_function: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -1930,8 +1943,8 @@ struct _sqlite3(Movable):
                 eTextRep,
                 pApp.unsafe_origin_cast[MutUntrackedOrigin](),
                 xFunc,
-                None,
-                None,
+                _NULL_PTR,
+                _NULL_PTR,
                 destructor_callback
             )
         except:
@@ -1965,11 +1978,11 @@ struct _sqlite3(Movable):
                 zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
                 nArg,
                 eTextRep,
-                None,
+                _NULL_PTR,
                 xFunc,
-                None,
-                None,
-                None
+                _NULL_PTR,
+                _NULL_PTR,
+                _NULL_PTR
             )
         except:
             os.abort("sqlite3_create_scalar_function: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -2010,7 +2023,7 @@ struct _sqlite3(Movable):
                 nArg,
                 eTextRep,
                 pApp.unsafe_origin_cast[MutUntrackedOrigin](),
-                None,
+                _NULL_PTR,
                 xStep,
                 xFinal,
                 destructor_callback
@@ -2048,11 +2061,11 @@ struct _sqlite3(Movable):
                 zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
                 nArg,
                 eTextRep,
-                None,
-                None,
+                _NULL_PTR,
+                _NULL_PTR,
                 xStep,
                 xFinal,
-                None
+                _NULL_PTR
             )
         except:
             os.abort("sqlite3_create_aggregate_function: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -2140,12 +2153,12 @@ struct _sqlite3(Movable):
                 zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
                 nArg,
                 eTextRep,
-                None,
+                _NULL_PTR,
                 xStep,
                 xFinal,
                 xValue,
                 xInverse,
-                None
+                _NULL_PTR
             )
         except:
             os.abort("sqlite3_create_window_function: symbol not found in libsqlite3 (should have been validated in __init__)")

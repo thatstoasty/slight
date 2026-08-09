@@ -15,7 +15,7 @@ def _init_global() -> Optional[MutExternalPointer[NoneType]]:
 def _destroy_global(lib: Optional[MutExternalPointer[NoneType]]):
     if lib:
         var p = lib.value().unsafe_bitcast[sqlite3]()
-        unsafe_destroy_n(p, 1)
+        p.unsafe_deinit_pointee()
         p.unsafe_free()
 
 
