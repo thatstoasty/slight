@@ -118,9 +118,9 @@ __extension SIMD(ToSQL):
             A ValueRef containing the SQLite-compatible value.
         """
         comptime assert Self.length == 1, "Only SIMD vectors of size 1 can be converted to SQL parameters"
-        comptime if dtype in (DType.float16, DType.float32, DType.float64):
+        comptime if Self.dtype in (DType.float16, DType.float32, DType.float64):
             return ValueRef[origin_of(self)](SQLite3Real(Float64(self._refine[self.dtype, 1]())))
-        elif dtype in (
+        elif Self.dtype in (
             DType.int,
             DType.int8,
             DType.int16,

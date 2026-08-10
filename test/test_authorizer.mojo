@@ -62,7 +62,7 @@ def test_authorizer_ignores_column_read() raises:
     var stmt = db.prepare("SELECT secret FROM t WHERE id = 1")
     var saw_null = False
     for row in stmt.query():
-        saw_null = not row.get[Optional[ImmExternalStringSlice]](0)
+        saw_null = not row.get[Optional[String]](0)
     assert_equal(saw_null, True)
 
     db.clear_authorizer()

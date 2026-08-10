@@ -46,12 +46,6 @@ __extension String(FromSQL):
         self = Self(value.unsafe_as_string_slice())
 
 
-# __extension StringSpan(FromSQL):
-#     def __init__(out self, value: ValueRef[Self.origin]) raises:
-#         var val = value.as_string_slice()
-#         self = val
-
-
 __extension Bool(FromSQL):
     def __init__(out self, value: ValueRef) raises:
         """Initializes the type from a SQL value.
@@ -90,9 +84,24 @@ __extension SIMD(FromSQL):
             Error: If the value cannot be converted to the type.
         """
         comptime assert Self.length == 1, "Only SIMD vectors of size 1 can be constructed from SQL parameters"
-        comptime if dtype in (DType.float16, DType.float32, DType.float64):
-            self = Scalar[dtype](value.as_float64())
-        elif dtype in (
+        comptime float_types = [DType.float16, DType.float32, DType.float64]
+        comptime int_types = [
+            DType.int,
+            DType.int8,
+            DType.int16,
+            DType.int32,
+            DType.int64,
+            DType.uint,
+            DType.uint8,
+            DType.uint16,
+            DType.uint32,
+            DType.uint64,
+        ]
+        comptime assert (Self.dtype in int_types or Self.dtype in float_types), String("To construct a SIMD type from a ValueRef, it must be one of the int or float dtypes. Received: {Self.dtype}")
+
+        comptime if Self.dtype in (DType.float16, DType.float32, DType.float64):
+            self = Scalar[Self.dtype](value.as_float64())
+        elif Self.dtype in (
             DType.int,
             DType.int8,
             DType.int16,
@@ -104,7 +113,7 @@ __extension SIMD(FromSQL):
             DType.uint32,
             DType.uint64,
         ):
-            self = Scalar[dtype](value.as_int64())
+            self = Scalar[Self.dtype](value.as_int64())
         else:
             raise Error("InvalidColumnTypeError: Unsupported value type")
 

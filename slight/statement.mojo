@@ -14,7 +14,7 @@ from slight.row import MappedRows, Row, Rows, TypedRows, RowTransformFn
 from slight.types.from_sql import FromSQL
 from slight.types.to_sql import ToSQL
 from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
-from slight.util import as_byte, ColumnType
+from slight.util import as_byte, MoveDestructible
 from slight.enums import DataType, DestructorHint
 
 
@@ -516,7 +516,7 @@ struct Statement[conn: ImmOrigin](Movable):
     def query[
         P: AnyType,
         //,
-        T: ColumnType,
+        T: MoveDestructible,
     ](self, params: P = ()) raises -> TypedRows[Self.conn, origin_of(self), T]:
         """Executes the query and returns a mapped iterator that transforms each row.
 

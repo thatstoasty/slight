@@ -30,6 +30,7 @@ __extension List(Params):
         Raises:
             Error: If the parameters cannot be bound to the statement.
         """
+        comptime assert conforms_to(Self.T, ToSQL), String("The type, `T`, must implement the `ToSQL` trait.")
         _constrained_conforms_to[
             conforms_to(Self.T, ToSQL),
             Parent=Self,
@@ -60,6 +61,7 @@ __extension Array(Params):
         Raises:
             Error: If the parameters cannot be bound to the statement.
         """
+        comptime assert conforms_to(Self.T, ToSQL), String("The type, `T`, must implement the `ToSQL` trait.")
         _constrained_conforms_to[
             conforms_to(Self.T, ToSQL),
             Parent=Self,
@@ -90,6 +92,8 @@ __extension Dict(Params):
         Raises:
             Error: If the parameters cannot be bound to the statement.
         """
+        comptime assert conforms_to(Self.K, BindIndex), String("The type of the Key must implement the `BindIndex` trait.")
+        comptime assert conforms_to(Self.V, ToSQL), String("The type of the Value must implement the `ToSQL` trait.")
         _constrained_conforms_to[
             conforms_to(Self.K, BindIndex),
             Parent=Self,
@@ -106,7 +110,7 @@ __extension Dict(Params):
         ]()
 
         for kv in self.items():
-            stmt.bind_parameter(kv.value, trait_downcast[BindIndex](kv.key).bind_idx(stmt))
+            stmt.bind_parameter(kv.value, kv.key.bind_idx(stmt))
 
 
 __extension Tuple(Params):

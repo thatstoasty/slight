@@ -292,6 +292,12 @@ struct Pair(Copyable, Defaultable, Writable):
         self.y = ""
 
 
+@fieldwise_init
+struct TrivialPair(Copyable, Writable):
+    var x: Int
+    var y: Int
+
+
 def test_mapped_rows_collect() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""CREATE TABLE foo(x INTEGER, y TEXT);
@@ -320,6 +326,21 @@ def test_typed_rows_collect() raises:
     assert_equal(results[0].y, "a")
     assert_equal(results[1].x, 2)
     assert_equal(results[1].y, "b")
+
+
+def test_trivial_typed_rows_collect() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""CREATE TABLE foo(x INTEGER, y INTEGER);
+    INSERT INTO foo VALUES(1, 2);
+    INSERT INTO foo VALUES(3, 4);""")
+
+    var stmt = db.prepare("SELECT x, y FROM foo ORDER BY x")
+    var results = stmt.query[TrivialPair]().collect()
+    assert_equal(len(results), 2, "expected at least 2 results.")
+    assert_equal(results[0].x, 1)
+    assert_equal(results[0].y, 2)
+    assert_equal(results[1].x, 3)
+    assert_equal(results[1].y, 4)
 
 
 def test_query_row() raises:
@@ -617,5 +638,5 @@ def test_alter_table() raises:
 def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
     # var suite = TestSuite()
-    # suite.test[test_insert_bytes]()
+    # suite.test[test_trivial_typed_rows_collect]()
     # suite^.run()

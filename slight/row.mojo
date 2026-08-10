@@ -2,8 +2,8 @@
 from std.builtin.rebind import downcast
 from slight.types.from_sql import FromSQL
 from slight.statement import Statement
-from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
-from slight.util import ColumnType
+from slight.types.value_ref import ValueRef
+from slight.util import MoveDestructible
 
 
 trait RowIndex:
@@ -274,7 +274,7 @@ struct Rows[conn: ImmOrigin, statement: ImmOrigin](Copyable, Iterator):
         return MappedRows[transform[Self.conn, Self.statement]](self)
 
     def as_type[
-        T: ColumnType
+        T: MoveDestructible
     ](self,) -> TypedRows[Self.conn, Self.statement, T]:
         """Returns an iterator that transforms each row using the provided function.
 
@@ -356,7 +356,16 @@ struct MappedRows[
         return result^
 
 
-struct TypedRows[conn: ImmOrigin, statement: ImmOrigin, T: ColumnType](Copyable, Iterator):
+def __all_dtors_are_trivial[T: AnyType]() -> Bool:
+    comptime r = reflect[T]
+    comptime for i in range(r.field_count()):
+        comptime type = r.field_types()[i]
+        if not downcast[type, Deinitable].__del__is_trivial:
+            return False
+    return True
+
+
+struct TypedRows[conn: ImmOrigin, statement: ImmOrigin, T: MoveDestructible](Copyable, Iterator):
     """An iterator that transforms rows using a mapping function.
 
     Parameters:
@@ -391,31 +400,43 @@ struct TypedRows[conn: ImmOrigin, statement: ImmOrigin, T: ColumnType](Copyable,
         Raises:
             Error: If the transformation fails.
         """
-        comptime ReflectedT = reflect[Self.T]
-        comptime assert ReflectedT.is_struct(), "TypedRows can only transform to struct types."
+        comptime if conforms_to(Self.T, Defaultable):
+            result = Self.T()
+        else:
+            # If we use mark_initialized with a struct that has something like a pointer
+            # field that doesn't become initialized it will cause a crash if parsing fails.
+            comptime assert __all_dtors_are_trivial[Self.T](), (
+                "Cannot deserialize non-Defaultable struct containing fields with"
+                " non-trivial destructors"
+            )
+            __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(result))
+        
+        comptime r = reflect[Self.T]
+        comptime assert r.is_struct(), "TypedRows can only transform to struct types."
 
-        comptime field_count = ReflectedT.field_count()
-        comptime field_names = ReflectedT.field_names()
-        comptime field_types = ReflectedT.field_types()
+        comptime field_count = r.field_count()
+        comptime field_names = r.field_names()
+        comptime field_types = r.field_types()
 
         var column_count = self.rows.stmt[].column_count()
         if field_count != Int(column_count):
             raise Error(
                 (
-                    t"Field count mismatch: struct '{ReflectedT.name()}' has {Int(field_count)} fields, but query"
+                    t"Field count mismatch: struct '{r.name()}' has {Int(field_count)} fields, but query"
                     t" returned {Int(column_count)} columns."
                 ),
             )
 
-        result = Self.T()
         try:
             comptime for i in range(field_count):
                 comptime field_name = field_names[i]
                 comptime field_type = field_types[i]
-                comptime if not conforms_to(field_type, FromSQL) or not conforms_to(field_type, ColumnType):
-                    raise Error(t"Field '{field_name}' of struct '{ReflectedT.name()}' does not implement FromSQL.")
+                comptime assert (
+                    not conforms_to(field_type, FromSQL) or not conforms_to(field_type, MoveDestructible)
+                ), String(t"Field '{field_name}' of struct '{r.name()}' does not implement FromSQL.")
 
-                ref field = trait_downcast[ColumnType](__struct_field_ref(i, result))
+                ref field = __struct_field_ref(i, result)
+                comptime assert conforms_to(type_of(field), MoveDestructible), String(t"Field '{field_name}' of struct '{r.name()}' does not conform to `Movable & Deinitable`.")
                 field = row.get[type_of(field)](i)
         except e:
             # TODO: We capture and print the error here because an extension bug swallows errors.
