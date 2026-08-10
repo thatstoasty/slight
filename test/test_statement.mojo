@@ -126,7 +126,7 @@ def test_unbound_parameters_are_null() raises:
     var stmt = db.prepare("INSERT INTO test (x, y) VALUES (:x, :y)")
     _ = stmt.execute({":x": "one"})
     def get_value(r: Row) raises -> NoneType:
-        var result = r.get_string_slice(0)
+        var result = r.unsafe_get_string_slice(0)
         if not result:
             return
         raise Error("Expected NULL value!")

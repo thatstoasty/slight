@@ -11,7 +11,7 @@ See the official documentation for more information:
 
 
 @fieldwise_init
-struct Limit(Copyable, ImplicitlyCopyable, Movable, Writable, TrivialRegisterPassable):
+struct Limit(Writable, TrivialRegisterPassable):
     """Run-time limit categories for `Connection.limit()` and
     `Connection.set_limit()`.
 

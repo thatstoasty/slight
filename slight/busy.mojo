@@ -19,12 +19,12 @@ def _busy_handler_callback(
     and invokes it with the retry count.
 
     Args:
-        p_arg: Opaque pointer holding the user's `BusyHandlerFn`.
+        p_arg: Void pointer whose address value IS the `BusyHandlerFn` pointer.
         count: Number of times the busy handler has been invoked for this event.
 
     Returns:
         Non-zero to retry, zero to return SQLITE_BUSY.
     """
-    var fn_ptr = p_arg.unsafe_bitcast[BusyHandlerFn]()
-    var handler = fn_ptr[]
+    var fn_as_int = Int(p_arg)
+    var handler = Pointer(to=fn_as_int).unsafe_bitcast[BusyHandlerFn]()[]
     return c_int(handler(Int32(count)))

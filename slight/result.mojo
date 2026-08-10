@@ -35,7 +35,7 @@ from slight.c.types import (
 )
 
 
-struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, TrivialRegisterPassable, Writable):
+struct SQLite3Result(Equatable, Intable, TrivialRegisterPassable, Writable):
     """A wrapper around SQLite result codes that provides more descriptive error handling and utilities."""
 
     var value: Int32
@@ -121,17 +121,6 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, TrivialRegisterPass
             The integer value of the SQLite result code.
         """
         return Int(self.value)
-
-    def __eq__(self, other: Self) -> Bool:
-        """Checks if this SQLite3Result is equal to another SQLite3Result.
-
-        Args:
-            other: The other SQLite3Result to compare against.
-
-        Returns:
-            True if both SQLite3Result instances have the same result code value, False otherwise.
-        """
-        return self.value == other.value
 
     def __eq__(self, other: Int32) -> Bool:
         """Checks if this SQLite3Result is equal to a raw integer result code.

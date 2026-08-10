@@ -67,9 +67,9 @@ struct DestructorHint(TrivialRegisterPassable, Writable):
 
     var value: Int
     """Internal enum value."""
-    comptime STATIC = Self(0)
+    comptime STATIC = 0
     """`SQLITE_STATIC`: The content pointer is constant and will never change."""
-    comptime TRANSIENT = Self(-1)
+    comptime TRANSIENT = -1
     """`SQLITE_TRANSIENT`: The content will likely change in the near future and SQLite should make its own private copy of the content before returning."""
 
     # Why do I have to do this cursed conversion?
@@ -80,7 +80,7 @@ struct DestructorHint(TrivialRegisterPassable, Writable):
         Returns:
             A function pointer representing the `SQLITE_STATIC` destructor.
         """
-        return Pointer(to=Self.STATIC.value).unsafe_bitcast[ResultDestructorFn]()[]
+        return Pointer(to=Self.STATIC).unsafe_bitcast[ResultDestructorFn]()[]
 
     @staticmethod
     def transient_destructor() -> ResultDestructorFn:
@@ -89,4 +89,4 @@ struct DestructorHint(TrivialRegisterPassable, Writable):
         Returns:
             A function pointer representing the `SQLITE_TRANSIENT` destructor.
         """
-        return Pointer(to=Self.TRANSIENT.value).unsafe_bitcast[ResultDestructorFn]()[]
+        return Pointer(to=Self.TRANSIENT).unsafe_bitcast[ResultDestructorFn]()[]

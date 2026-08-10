@@ -41,7 +41,6 @@ from slight.c.types import (
     sqlite3_value,
 )
 from slight.result import SQLite3Result
-from slight.util import ptr_copy, CopyDestructible
 from slight.enums import DestructorHint, TextEncoding
 
 

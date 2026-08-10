@@ -43,7 +43,7 @@ __extension String(FromSQL):
         Raises:
             Error: If the value cannot be converted to the type.
         """
-        self = Self(value.as_string_slice())
+        self = Self(value.unsafe_as_string_slice())
 
 
 # __extension StringSpan(FromSQL):
@@ -121,4 +121,4 @@ __extension List(FromSQL):
         comptime assert Self.T == Byte, String(
             t"List can only be used with Byte type for `FromSQL`. {reflect[Self.T].name()} is not Byte."
         )
-        self = rebind_var[List[Self.T]](List[Byte](value.as_blob()))
+        self = rebind_var[List[Self.T]](List[Byte](value.unsafe_as_blob()))

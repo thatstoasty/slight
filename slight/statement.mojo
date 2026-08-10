@@ -176,39 +176,50 @@ struct Statement[conn: ImmOrigin](Movable):
         """
         return DataType(self.stmt.column_type(col))
 
-    def column_text(self, idx: UInt) raises -> StringSpan[origin_of(self)]:
-        """Returns the value of the specified column as a text string.
+    def unsafe_column_text(self, idx: UInt) raises -> StringSpan[origin_of(self)]:
+        """Returns the value of the specified column as a borrowed text string.
+
+        **Unsafe: the returned span borrows memory owned by SQLite.** SQLite
+        invalidates the underlying pointer on the *next* `step()`, `reset()` or
+        `finalize()` of this statement, and also when a different type accessor
+        is called for the same column. Reading the span afterwards is a
+        use-after-free, and the compiler will not catch it — the statement
+        origin used here is wider than the true "until the next step" bound.
+
+        Prefer `Row.get[String]()`, which returns an owned copy.
 
         Args:
             idx: The index of the column to retrieve.
 
         Returns:
-            The value of the specified column as a StringSpan.
+            The value of the specified column as a StringSpan borrowing SQLite memory.
 
         Raises:
             Error: If the column contains NULL data.
         """
-        var text = self.stmt.column_text(idx)
+        var text = self.stmt.unsafe_column_text(idx)
 
-        # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
         var c_str_slice = CStringSlice(unsafe_from_ptr=text.unsafe_ptr().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)]())
         return StringSpan(unsafe_from_utf8=c_str_slice)
 
-    def column_blob(self, idx: UInt) raises -> Span[Byte, origin_of(self)]:
-        """Returns the value of the specified column as binary data.
+    def unsafe_column_blob(self, idx: UInt) raises -> Span[Byte, origin_of(self)]:
+        """Returns the value of the specified column as borrowed binary data.
+
+        **Unsafe: the returned span borrows memory owned by SQLite.** See
+        `unsafe_column_text` for the full invalidation rules — the same ones
+        apply here. Prefer `Row.get[List[Byte]]()` for an owned copy.
 
         Args:
             idx: The index of the column to retrieve.
 
         Returns:
-            The value of the specified column as a Span of bytes.
+            The value of the specified column as a Span of bytes borrowing SQLite memory.
 
         Raises:
             Error: If the column contains NULL data or has negative length.
         """
-        var blob = self.stmt.column_blob(idx)
+        var blob = self.stmt.unsafe_column_blob(idx)
 
-        # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
         return Span(unsafe_ptr=blob.unsafe_ptr().unsafe_origin_cast[origin_of(self)](), length=len(blob))
 
     def value_ref(self, col: UInt) -> ValueRef[origin_of(self)]:
@@ -235,12 +246,12 @@ struct Statement[conn: ImmOrigin](Movable):
             # We should generally be fine and not hit the case where column_text or blob return None.
             # If the column is nullable, the data type will be NULL.
             try:
-                return ValueRef(SQLite3Text(self.column_text(col)))
+                return ValueRef(SQLite3Text(self.unsafe_column_text(col)))
             except e:
                 abort(String(e))
         elif DataType.BLOB == column_type:
             try:
-                return ValueRef(SQLite3Blob(self.column_blob(col)))
+                return ValueRef(SQLite3Blob(self.unsafe_column_blob(col)))
             except e:
                 abort(String(e))
         else:
@@ -378,33 +389,33 @@ struct Statement[conn: ImmOrigin](Movable):
         """
         self.connection[].raise_if_error(self.stmt.bind_double(index, value))
 
-    def bind_text(self, index: UInt, var value: String, destructor_callback: ResultDestructorFn) raises -> None:
+    def bind_text(self, index: UInt, var value: String) raises -> None:
         """Binds a text string value to the specified parameter.
 
         Args:
             index: The 1-based index of the parameter to bind.
             value: The string value to bind.
-            destructor_callback: The destructor function to call when SQLite is done with the text.
 
         Raises:
             Error: If the bind operation fails.
         """
-        self.connection[].raise_if_error(self.stmt.bind_text(index, value, destructor_callback))
+        # Enforce transient destructor so sqlite copies the data.
+        self.connection[].raise_if_error(self.stmt.bind_text(index, value, DestructorHint.transient_destructor()))
 
     def bind_blob[origin: ImmOrigin, //](
-        self, index: UInt, value: ImmSpan[Byte, origin], destructor_callback: ResultDestructorFn
+        self, index: UInt, value: ImmSpan[Byte, origin]
     ) raises -> None:
         """Binds a blob value to the specified parameter.
 
         Args:
             index: The 1-based index of the parameter to bind.
             value: The blob value to bind.
-            destructor_callback: The destructor function to call when SQLite is done with the blob.
 
         Raises:
             Error: If the bind operation fails.
         """
-        self.connection[].raise_if_error(self.stmt.bind_blob(index, value, destructor_callback))
+        # Enforce transient destructor so sqlite copies the data.
+        self.connection[].raise_if_error(self.stmt.bind_blob(index, value, DestructorHint.transient_destructor()))
 
     def parameter_index(self, var name: String) -> Optional[UInt]:
         """Returns the index of the parameter with the specified name.
@@ -438,13 +449,13 @@ struct Statement[conn: ImmOrigin](Movable):
             self.bind_null(index)
         elif value.isa[SQLite3Text[value.stmt]]():
             # TODO: Don't copy the string here if possible
-            self.bind_text(index, String(value[SQLite3Text[value.stmt]].value), DestructorHint.transient_destructor())
+            self.bind_text(index, String(value[SQLite3Text[value.stmt]].value))
         elif value.isa[SQLite3Integer]():
             self.bind_int64(index, value[SQLite3Integer].value)
         elif value.isa[SQLite3Real]():
             self.bind_double(index, value[SQLite3Real].value)
         elif value.isa[SQLite3Blob[value.stmt]]():
-            self.bind_blob(index, value[SQLite3Blob[value.stmt]].value, DestructorHint.transient_destructor())
+            self.bind_blob(index, value[SQLite3Blob[value.stmt]].value)
         else:
             raise Error("Unsupported parameter type")
 

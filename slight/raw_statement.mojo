@@ -46,14 +46,26 @@ struct RawStatement(Movable, Deinitable where False):
         """
         return sqlite_ffi()[].column_double(self.stmt, Int32(idx))
 
-    def column_text(self, idx: UInt) raises -> StringSpan[ImmUntrackedOrigin]:
-        """Returns the value of the specified column as a text string.
+    def unsafe_column_text(self, idx: UInt) raises -> StringSpan[origin_of(self)]:
+        """Returns the value of the specified column as a borrowed text string.
+
+        **Unsafe: the returned span borrows memory owned by SQLite.** SQLite
+        invalidates the underlying pointer on the *next* `step()`, `reset()` or
+        `finalize()` of this statement, and also when a different type accessor
+        is called for the same column (which may convert the value in place).
+        Reading the span after any of those is a use-after-free.
+
+        The returned origin is the statement's, because the true bound — "until
+        the next step" — is not expressible today, and Mojo does not currently
+        enforce borrow exclusivity. **The compiler will not catch misuse here.**
+        Copy the value (or use `Row.get[String]()`) before advancing the
+        statement.
 
         Args:
             idx: The index of the column to retrieve.
 
         Returns:
-            The value of the specified column as a StringSpan.
+            The value of the specified column as a StringSpan borrowing SQLite memory.
 
         Raises:
             Error: If the column contains NULL data.
@@ -62,17 +74,24 @@ struct RawStatement(Movable, Deinitable where False):
         if not text:
             raise Error("Unexpected SQLITE_TEXT column type with NULL data.")
 
-        # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
-        return StringSpan(unsafe_from_utf8=text.take())
+        return StringSpan(
+            unsafe_from_utf8=CStringSlice(
+                unsafe_from_ptr=text.take().unsafe_ptr().unsafe_origin_cast[origin_of(self)]()
+            )
+        )
 
-    def column_blob(self, idx: UInt) raises -> Span[Byte, origin_of(self)]:
-        """Returns the value of the specified column as binary data.
+    def unsafe_column_blob(self, idx: UInt) raises -> Span[Byte, origin_of(self)]:
+        """Returns the value of the specified column as borrowed binary data.
+
+        **Unsafe: the returned span borrows memory owned by SQLite.** See
+        `unsafe_column_text` for the full invalidation rules — the same ones
+        apply here. Copy the bytes before advancing the statement.
 
         Args:
             idx: The index of the column to retrieve.
 
         Returns:
-            The value of the specified column as a Span of bytes.
+            The value of the specified column as a Span of bytes borrowing SQLite memory.
 
         Raises:
             Error: If the column contains NULL data or has negative length.
@@ -85,7 +104,8 @@ struct RawStatement(Movable, Deinitable where False):
         if length < 0:
             raise Error("unexpected SQLITE_BLOB column type with negative length: ", length)
 
-        # Ptr should be valid for the lifetime of the statement. So we use that instead of external origin.
+        # Widest bound we can express: the statement. The real bound is "until
+        # the next step/reset/finalize or type conversion on this column".
         return Span(
             unsafe_ptr=ptr.value().unsafe_bitcast[Byte]().unsafe_origin_cast[origin_of(self)](),
             length=Int(length)
@@ -173,7 +193,7 @@ struct RawStatement(Movable, Deinitable where False):
         """
         return sqlite_ffi()[].bind_double(self.stmt, Int32(index), value)
 
-    def bind_text(self, index: UInt, var value: String, destructor_callback: ResultDestructorFn) -> SQLite3Result:
+    def bind_text(self, index: UInt, mut value: String, destructor_callback: ResultDestructorFn) -> SQLite3Result:
         """Binds a text string value to the specified parameter.
 
         Args:

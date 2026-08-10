@@ -723,11 +723,16 @@ struct InnerConnection(Movable, Deinitable where False):
             SQLITE_OK on success, or an error code on failure.
         """
         var fn_val = callback
-        var fn_ptr = Pointer(to=fn_val).unsafe_bitcast[NoneType]()
+        # Transmute: store def pointer VALUE as the void pointer address
+        # (same as Rust's `f as *mut c_void`). Taking the ADDRESS of `fn_val`
+        # here would hand SQLite a pointer into this frame, which dies on
+        # return — SQLite dereferences it later, from a dead stack slot.
+        var fn_as_int = Pointer(to=fn_val).unsafe_bitcast[Int]()[]
+        var ctx = MutExternalPointer[NoneType](unsafe_from_address=fn_as_int)
         return sqlite_ffi()[].busy_handler(
             self.db,
             _busy_handler_callback,
-            fn_ptr,
+            ctx,
         )
             
     def clear_busy_handler(self) -> SQLite3Result:

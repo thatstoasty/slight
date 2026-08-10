@@ -419,7 +419,7 @@ def _vtab_xConnect[
         box_ptr.unsafe_write(VTabBox[T](_base=vtab_base^, data=vtab_data^))
 
         # Write the vtab pointer back to SQLite.
-        ppVTab[] = box_ptr.unsafe_bitcast[sqlite3_vtab]().unsafe_origin_cast[MutUntrackedOrigin]()
+        ppVTab[] = box_ptr.unsafe_bitcast[sqlite3_vtab]()
         return SQLITE_OK
     except e:
         print("vtab xConnect error:", e)

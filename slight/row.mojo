@@ -109,6 +109,17 @@ comptime BoundRowTransformFn[T: Movable, conn: ImmOrigin, statement: ImmOrigin] 
 struct Row[conn: ImmOrigin, statement: ImmOrigin](Copyable, Writable):
     """Represents a single row in the result set of a SQL query.
 
+    A `Row` is only meaningful while the statement is positioned on it.
+    Advancing the iterator (or calling `reset()`/`finalize()`) moves the
+    statement to the next row and invalidates the SQLite-owned memory backing
+    the current one.
+
+    Prefer the owning accessors — `get[String]()`, `get[List[Byte]]()`,
+    `get[Int64]()`, and friends — which copy out of SQLite's buffers and stay
+    valid for as long as you hold them. The `unsafe_`-prefixed accessors return
+    spans that borrow SQLite memory directly; they avoid a copy but are only
+    valid until the next step, and the compiler does not enforce that.
+
     Parameters:
         conn: The connection that produced this row.
         statement: The statement that produced this row.
@@ -216,14 +227,23 @@ struct Row[conn: ImmOrigin, statement: ImmOrigin](Copyable, Writable):
 
         raise Error("InvalidColumnTypeError: column is not of type REAL")
 
-    def get_string_slice(self, idx: Some[RowIndex]) raises -> Optional[StringSpan[Self.conn]]:
-        """Gets a StringSpan value from the specified column.
+    def unsafe_get_string_slice(self, idx: Some[RowIndex]) raises -> Optional[StringSpan[Self.statement]]:
+        """Gets a borrowed StringSpan value from the specified column.
+
+        **Unsafe: the returned span borrows memory owned by SQLite.** SQLite
+        invalidates the underlying pointer on the *next* `step()`, `reset()` or
+        `finalize()` of the statement — which includes simply advancing to the
+        next row of this result set. Reading the span after that is a
+        use-after-free, and the compiler will not catch it: the origin is the
+        statement's, which is wider than the true "until the next step" bound.
+
+        Prefer `get[String]()`, which returns an owned copy that stays valid.
 
         Args:
             idx: The column index (0-based).
 
         Returns:
-            An Optional containing the StringSpan value, or None if the column is NULL.
+            An Optional containing a StringSpan borrowing SQLite memory, or None if the column is NULL.
 
         Raises:
             InvalidColumnIndexError: If the column index is out of bounds.
@@ -236,8 +256,8 @@ struct Row[conn: ImmOrigin, statement: ImmOrigin](Copyable, Writable):
         var value = self.stmt[].value_ref(i)
         if value.isa[SQLite3Null]():
             return None
-        elif value.isa[SQLite3Text[Self.conn]]():
-            return value[SQLite3Text[Self.conn]].value
+        elif value.isa[SQLite3Text[Self.statement]]():
+            return value[SQLite3Text[Self.statement]].value
 
         raise Error("InvalidColumnTypeError: column is not of type TEXT")
 

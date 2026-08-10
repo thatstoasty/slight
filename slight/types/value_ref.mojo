@@ -278,14 +278,19 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         """
         return self.value[T]
 
-    def as_string_slice(self) raises -> StringSpan[Self.stmt]:
-        """Convert the SQL value to its string representation.
+    def unsafe_as_string_slice(self) raises -> StringSpan[Self.stmt]:
+        """Convert the SQL value to a borrowed string slice.
 
-        This method provides a way to get a human-readable string representation
-        of the stored SQL value, regardless of its actual type.
+        **Unsafe: the returned span borrows memory owned by SQLite.** It is
+        only valid for the current row — SQLite invalidates the pointer on the
+        next `step()`, `reset()` or `finalize()` of the statement, and on a
+        type conversion of the same column. The compiler will not catch misuse:
+        the origin here is the statement's, which is wider than the real bound.
+
+        Copy into an owned `String` before advancing the statement.
 
         Returns:
-            A String representing the SQL value.
+            A StringSpan borrowing SQLite memory for the current row.
 
         Raises:
             Error: If the value is not of type TEXT.
@@ -295,14 +300,15 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type TEXT")
 
-    def as_string_slice_or_null(self) raises -> Optional[StringSpan[Self.stmt]]:
-        """Convert the SQL value to its string representation.
+    def unsafe_as_string_slice_or_null(self) raises -> Optional[StringSpan[Self.stmt]]:
+        """Convert the SQL value to a borrowed string slice, or None if NULL.
 
-        This method provides a way to get a human-readable string representation
-        of the stored SQL value, regardless of its actual type.
+        **Unsafe: the returned span borrows memory owned by SQLite.** See
+        `unsafe_as_string_slice` for the full invalidation rules — the same
+        ones apply here.
 
         Returns:
-            A String representing the SQL value, or None if the value is NULL.
+            A StringSpan borrowing SQLite memory, or None if the value is NULL.
 
         Raises:
             Error: If the value is not of type TEXT or NULL.
@@ -386,8 +392,14 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type REAL")
 
-    def as_blob(self) raises -> Span[Byte, Self.stmt]:
+    def unsafe_as_blob(self) raises -> Span[Byte, Self.stmt]:
         """Convert the SQL value to its BLOB representation.
+
+        **Unsafe: the returned span borrows memory owned by SQLite.** It is
+        only valid for the current row — SQLite invalidates the pointer on the
+        next `step()`, `reset()` or `finalize()` of the statement, and on a
+        type conversion of the same column. The compiler will not catch misuse.
+        Prefer `Row.get[List[Byte]]()` for an owned copy.
 
         This method provides a way to get the binary data representation
         of the stored SQL value, if it is of type BLOB.
@@ -403,8 +415,14 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type BLOB")
 
-    def as_blob_or_null(self) raises -> Optional[Span[Byte, Self.stmt]]:
+    def unsafe_as_blob_or_null(self) raises -> Optional[Span[Byte, Self.stmt]]:
         """Convert the SQL value to its BLOB representation.
+
+        **Unsafe: the returned span borrows memory owned by SQLite.** It is
+        only valid for the current row — SQLite invalidates the pointer on the
+        next `step()`, `reset()` or `finalize()` of the statement, and on a
+        type conversion of the same column. The compiler will not catch misuse.
+        Prefer `Row.get[List[Byte]]()` for an owned copy.
 
         This method provides a way to get the binary data representation
         of the stored SQL value, if it is of type BLOB.
@@ -422,8 +440,14 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type BLOB")
 
-    def as_bytes(self) raises -> Span[Byte, Self.stmt]:
+    def unsafe_as_bytes(self) raises -> Span[Byte, Self.stmt]:
         """Convert the SQL value to a byte representation.
+
+        **Unsafe: the returned span borrows memory owned by SQLite.** It is
+        only valid for the current row — SQLite invalidates the pointer on the
+        next `step()`, `reset()` or `finalize()` of the statement, and on a
+        type conversion of the same column. The compiler will not catch misuse.
+        Prefer `Row.get[List[Byte]]()` for an owned copy.
 
         This method provides a way to get byte data for either BLOB or TEXT SQL values.
 
@@ -440,8 +464,14 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
 
         raise Error("InvalidColumnTypeError: value is not of type BLOB or TEXT")
 
-    def as_bytes_or_null(self) raises -> Optional[Span[Byte, Self.stmt]]:
+    def unsafe_as_bytes_or_null(self) raises -> Optional[Span[Byte, Self.stmt]]:
         """Convert the SQL value to a byte representation.
+
+        **Unsafe: the returned span borrows memory owned by SQLite.** It is
+        only valid for the current row — SQLite invalidates the pointer on the
+        next `step()`, `reset()` or `finalize()` of the statement, and on a
+        type conversion of the same column. The compiler will not catch misuse.
+        Prefer `Row.get[List[Byte]]()` for an owned copy.
 
         This method provides a way to get byte data for either BLOB or TEXT SQL values.
 
