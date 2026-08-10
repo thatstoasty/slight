@@ -114,11 +114,14 @@ struct Row[conn: ImmOrigin, statement: ImmOrigin](Copyable, Writable):
     statement to the next row and invalidates the SQLite-owned memory backing
     the current one.
 
-    Prefer the owning accessors — `get[String]()`, `get[List[Byte]]()`,
-    `get[Int64]()`, and friends — which copy out of SQLite's buffers and stay
-    valid for as long as you hold them. The `unsafe_`-prefixed accessors return
-    spans that borrow SQLite memory directly; they avoid a copy but are only
-    valid until the next step, and the compiler does not enforce that.
+    Use `get[T]()` — `get[String]()`, `get[List[Byte]]()`, `get[Int64]()`,
+    `get[Optional[Int64]]()` for nullable columns — which copies out of
+    SQLite's buffers and stays valid for as long as you hold it.
+
+    `get_ref()` is the zero-copy escape hatch: it returns a `ValueRef`
+    borrowing SQLite memory, valid only while the statement stays on this row.
+    The compiler does not enforce that bound, which is why its accessors are
+    `unsafe_`-prefixed.
 
     Parameters:
         conn: The connection that produced this row.
@@ -142,150 +145,31 @@ struct Row[conn: ImmOrigin, statement: ImmOrigin](Copyable, Writable):
             writer.write(self.stmt[].value_ref(i))
         writer.write_string(")")
 
-    def get_int64(self, idx: Some[RowIndex]) raises -> Optional[Int]:
-        """Gets an Int64 value from the specified column.
+    def get_ref(self, idx: Some[RowIndex]) raises -> type_of(self.stmt[].value_ref(0)):
+        """Gets a borrowed `ValueRef` view of the specified column.
+
+        This is the zero-copy escape hatch. The returned `ValueRef` borrows
+        memory owned by SQLite: it is only valid while the statement stays on
+        the current row. Its `unsafe_*` accessors document the exact
+        invalidation rules.
+
+        For almost all uses prefer `get[T]()`, which copies the value out and
+        stays valid independently of the statement.
 
         Args:
             idx: The column index (0-based).
 
         Returns:
-            An Optional containing the Int value, or None if the column is NULL.
+            A `ValueRef` borrowing the column's value for the current row.
 
         Raises:
             InvalidColumnIndexError: If the column index is out of bounds.
-            InvalidColumnTypeError: If the column does not contain an integer.
-        """
-        var i = idx.idx(self.stmt[])
-        if i >= self.stmt[].column_count():
-            raise Error("Invalid column index: ", i)
-
-        var value = self.stmt[].value_ref(i)
-        if value.isa[SQLite3Null]():
-            return None
-        elif value.isa[SQLite3Integer]():
-            return Int(value[SQLite3Integer].value)
-        raise Error("InvalidColumnTypeError: column is not of type INTEGER")
-
-    def get_int(self, idx: Some[RowIndex]) raises -> Optional[Int]:
-        """Gets an Int value from the specified column.
-
-        Args:
-            idx: The column index (0-based).
-
-        Returns:
-            An Optional containing the Int value, or None if the column is NULL.
-
-        Raises:
-            InvalidColumnIndexError: If the column index is out of bounds.
-            InvalidColumnTypeError: If the column does not contain an integer.
-        """
-        var result = self.get_int64(idx)
-        if result:
-            return Int(result.value())
-        return None
-
-    def get_bool(self, idx: Some[RowIndex]) raises -> Optional[Bool]:
-        """Gets a UInt value from the specified column.
-
-        Args:
-            idx: The column index (0-based).
-
-        Returns:
-            An Optional containing the UInt value, or None if the column is NULL.
-
-        Raises:
-            InvalidColumnIndexError: If the column index is out of bounds.
-            InvalidColumnTypeError: If the column does not contain an integer.
-        """
-        var result = self.get_int64(idx)
-        if result:
-            return True if result.value() == 1 else False
-        return None
-
-    def get_float64(self, idx: Some[RowIndex]) raises -> Optional[Float64]:
-        """Gets a Float64 value from the specified column.
-
-        Args:
-            idx: The column index (0-based).
-
-        Returns:
-            An Optional containing the Float64 value, or None if the column is NULL.
-
-        Raises:
-            InvalidColumnIndexError: If the column index is out of bounds.
-            InvalidColumnTypeError: If the column does not contain a real number.
         """
         var i = idx.idx(self.stmt[])
         if i >= self.stmt[].column_count():
             raise Error("InvalidColumnIndexError: column index out of bounds: ", i)
 
-        var value = self.stmt[].value_ref(i)
-        if value.isa[SQLite3Null]():
-            return None
-        elif value.isa[SQLite3Real]():
-            return Float64(value[SQLite3Real].value)
-
-        raise Error("InvalidColumnTypeError: column is not of type REAL")
-
-    def unsafe_get_string_slice(self, idx: Some[RowIndex]) raises -> Optional[StringSpan[Self.statement]]:
-        """Gets a borrowed StringSpan value from the specified column.
-
-        **Unsafe: the returned span borrows memory owned by SQLite.** SQLite
-        invalidates the underlying pointer on the *next* `step()`, `reset()` or
-        `finalize()` of the statement — which includes simply advancing to the
-        next row of this result set. Reading the span after that is a
-        use-after-free, and the compiler will not catch it: the origin is the
-        statement's, which is wider than the true "until the next step" bound.
-
-        Prefer `get[String]()`, which returns an owned copy that stays valid.
-
-        Args:
-            idx: The column index (0-based).
-
-        Returns:
-            An Optional containing a StringSpan borrowing SQLite memory, or None if the column is NULL.
-
-        Raises:
-            InvalidColumnIndexError: If the column index is out of bounds.
-            InvalidColumnTypeError: If the column does not contain text.
-        """
-        var i = idx.idx(self.stmt[])
-        if i >= self.stmt[].column_count():
-            raise Error("InvalidColumnIndexError: column index out of bounds: ", i)
-
-        var value = self.stmt[].value_ref(i)
-        if value.isa[SQLite3Null]():
-            return None
-        elif value.isa[SQLite3Text[Self.statement]]():
-            return value[SQLite3Text[Self.statement]].value
-
-        raise Error("InvalidColumnTypeError: column is not of type TEXT")
-
-    # TODO: Parameter inference breaks if I try to put RowIndex first in the parameter list.
-    # TODO: Re-enable when exposing users to extensions is less buggy and more ergonomic.
-    # def get[S: FromSQL, I: RowIndex](self, idx: I) raises -> S:
-    #     """Gets a value of type S from the specified column using generic type conversion.
-
-    #     This is a generic method that can retrieve values of any supported type,
-    #     making the API more ergonomic by eliminating the need for type-specific methods.
-
-    #     Parameters:
-    #         S: The type to convert the column value to. Supported types are:
-    #            Int, SIMD types (Int8/UInt8 to Int64/UInt64, Float16 to Float64, Int), String, Bool, and NoneType.
-    #         I: The type used to specify the column index (0-based). Can be Int, UInt, String, or StringSpan.
-
-    #     Args:
-    #         idx: The column index (0-based).
-
-    #     Returns:
-    #         An Optional containing the value of type T, or None if the column is NULL.
-
-    #     Raises:
-    #         InvalidColumnIndexError: If the column index is out of bounds.
-    #         Error: If the column value cannot be converted to type T.
-    #     """
-    #     var i = idx.idx(self.stmt[])
-    #     return S(self.stmt[].value_ref(i))
+        return self.stmt[].value_ref(i)
 
     def get[S: Movable, I: AnyType](self, idx: I) raises -> S:
         """Gets a value of type S from the specified column using generic type conversion.

@@ -1,5 +1,6 @@
 from slight.connection import Connection
 from slight.row import Row
+from slight.types.value_ref import SQLite3Null
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 
@@ -126,8 +127,9 @@ def test_unbound_parameters_are_null() raises:
     var stmt = db.prepare("INSERT INTO test (x, y) VALUES (:x, :y)")
     _ = stmt.execute({":x": "one"})
     def get_value(r: Row) raises -> NoneType:
-        var result = r.unsafe_get_string_slice(0)
-        if not result:
+        # Exercises the get_ref() zero-copy escape hatch.
+        var result = r.get_ref(0)
+        if result.isa[SQLite3Null]():
             return
         raise Error("Expected NULL value!")
 

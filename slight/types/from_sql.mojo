@@ -62,7 +62,8 @@ __extension Bool(FromSQL):
         Raises:
             Error: If the value cannot be converted to the type.
         """
-        self = value.as_int64() == 1
+        # SQLite has no boolean storage class: any non-zero INTEGER is true.
+        self = value.as_int64() != 0
 
 
 __extension NoneType(FromSQL):
