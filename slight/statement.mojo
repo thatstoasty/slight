@@ -237,21 +237,21 @@ struct Statement[conn: ImmOrigin](Movable):
         # data requested via this function is not null.
         var column_type = self.column_type(col)
         if DataType.NULL == column_type:
-            return ValueRef[origin_of(self)](SQLite3Null())
+            return SQLite3Null()
         elif DataType.INTEGER == column_type:
-            return ValueRef[origin_of(self)](SQLite3Integer(self.stmt.column_int64(col)))
+            return SQLite3Integer(self.stmt.column_int64(col))
         elif DataType.FLOAT == column_type:
-            return ValueRef[origin_of(self)](SQLite3Real(self.stmt.column_double(col)))
+            return SQLite3Real(self.stmt.column_double(col))
         elif DataType.TEXT == column_type:
             # We should generally be fine and not hit the case where column_text or blob return None.
             # If the column is nullable, the data type will be NULL.
             try:
-                return ValueRef(SQLite3Text(self.unsafe_column_text(col)))
+                return SQLite3Text(self.unsafe_column_text(col))
             except e:
                 abort(String(e))
         elif DataType.BLOB == column_type:
             try:
-                return ValueRef(SQLite3Blob(self.unsafe_column_blob(col)))
+                return SQLite3Blob(self.unsafe_column_blob(col))
             except e:
                 abort(String(e))
         else:
