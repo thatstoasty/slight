@@ -2,15 +2,10 @@
 from std.ffi import c_int, CStringSlice
 from slight.c.types import MutExternalPointer, sqlite3_connection, sqlite3_context, sqlite3_value, ResultDestructorFn
 from slight.api import sqlite_ffi
-from slight.types.value_ref import (
-    ValueRef,
-    SQLite3Null,
-    SQLite3Integer,
-    SQLite3Real,
-    SQLite3Text,
-    SQLite3Blob,
-)
+from slight.types import value_ref, value
+from slight.types.value_ref import ValueRef
 from slight.enums import DataType, DestructorHint, TextEncoding
+from slight.types.to_sql import Borrowed, Owned, ToSqlOutput
 
 
 @fieldwise_init
@@ -323,23 +318,56 @@ struct Context(Movable, Sized, Boolable):
         Args:
             result: The ValueRef containing the value to set as the function result.
         """
-        if result.isa[SQLite3Null]():
+        if result.isa[value_ref.Null]():
             self.result_null()
-        elif result.isa[SQLite3Integer]():
-            self.result_int64(result[SQLite3Integer].value)
-        elif result.isa[SQLite3Real]():
-            self.result_double(result[SQLite3Real].value)
-        elif result.isa[SQLite3Text[origin_of(result)]]():
-            self.result_text(String(result[SQLite3Text[origin_of(result)]].value))
-        elif result.isa[SQLite3Blob[origin_of(result)]]():
-            ref value = result[SQLite3Blob[origin_of(result)]].value
+        elif result.isa[value_ref.Integer]():
+            self.result_int64(result[value_ref.Integer].value)
+        elif result.isa[value_ref.Real]():
+            self.result_double(result[value_ref.Real].value)
+        elif result.isa[value_ref.Text[origin_of(result)]]():
+            self.result_text(String(result[value_ref.Text[origin_of(result)]].value))
+        elif result.isa[value_ref.Blob[origin_of(result)]]():
+            ref value = result[value_ref.Blob[origin_of(result)]].value
             if len(value) == 0:
                 self.result_zero_blob(0)
             else:
-                self.result_blob(result[SQLite3Blob[origin_of(result)]].value)
+                self.result_blob(result[value_ref.Blob[origin_of(result)]].value)
         else:
             self.result_error("Unsupported return type from function.")
         return
+
+    def set_result_output(self, output: ToSqlOutput[_]):
+        """Set the function result from a `ToSqlOutput`.
+
+        Handles both arms: a `Borrowed` value is forwarded to `set_result`,
+        while an `Owned` value has its payload read directly. Every
+        result-setting call below copies into SQLite, so the owned buffers may
+        be released as soon as this returns.
+
+        Args:
+            output: The `ToSqlOutput` produced by a `ToSQL` conversion.
+        """
+        if output.isa[Owned]():
+            ref owned = output[Owned].data
+            if owned.isa[value.Null]():
+                self.result_null()
+            elif owned.isa[value.Integer]():
+                self.result_int64(owned[value.Integer].value)
+            elif owned.isa[value.Real]():
+                self.result_double(owned[value.Real].value)
+            elif owned.isa[value.Text]():
+                self.result_text(owned[value.Text].value.copy())
+            elif owned.isa[value.Blob]():
+                ref b = owned[value.Blob].value
+                if len(b) == 0:
+                    self.result_zero_blob(0)
+                else:
+                    self.result_blob(Span(b))
+            else:
+                self.result_error("Unsupported return type from function.")
+            return
+
+        self.set_result(output[Borrowed[origin_of(output)]].data)
 
     # ===------------------------------------------------------------------=== #
     # Aggregate Helpers

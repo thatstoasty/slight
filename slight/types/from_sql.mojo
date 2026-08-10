@@ -1,4 +1,4 @@
-from slight.types.value_ref import ValueRef, SQLite3Null
+from slight.types.value_ref import ValueRef, Null
 from std.builtin.rebind import downcast
 
 
@@ -27,7 +27,7 @@ __extension Optional(FromSQL):
             reflect[Self.T].name(),
             " does not implement `FromSQL`.",
         )
-        if value.isa[SQLite3Null]():
+        if value.isa[Null]():
             self = Optional[Self.T](None)
         else:
             self = Optional[Self.T](downcast[Self.T, FromSQL](value))

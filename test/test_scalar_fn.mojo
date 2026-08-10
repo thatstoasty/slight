@@ -2,7 +2,7 @@ from slight.connection import Connection
 from slight.context import Context
 from slight.functions import FunctionFlags
 from slight.row import Row
-from slight.types.value_ref import SQLite3Null, SQLite3Blob, ValueRef
+from slight.types.value_ref import Null, Blob, ValueRef
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 
@@ -224,10 +224,10 @@ def test_varargs_function() raises:
 def blob_len(ctx: Context) raises -> Int:
     """Return the length of a blob argument, or 0 if NULL."""
     var raw = ctx.get_raw(0)
-    if raw.isa[SQLite3Null]():
+    if raw.isa[Null]():
         return 0
-    if raw.isa[SQLite3Blob[origin_of(raw)]]():
-        return len(raw[SQLite3Blob[origin_of(raw)]].value)
+    if raw.isa[Blob[origin_of(raw)]]():
+        return len(raw[Blob[origin_of(raw)]].value)
     return 0
 
 

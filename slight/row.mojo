@@ -431,9 +431,9 @@ struct TypedRows[conn: ImmOrigin, statement: ImmOrigin, T: MoveDestructible](Cop
             comptime for i in range(field_count):
                 comptime field_name = field_names[i]
                 comptime field_type = field_types[i]
-                comptime assert (
-                    not conforms_to(field_type, FromSQL) or not conforms_to(field_type, MoveDestructible)
-                ), String(t"Field '{field_name}' of struct '{r.name()}' does not implement FromSQL.")
+                comptime assert conforms_to(field_type, FromSQL), String(
+                    t"Field '{field_name}' of struct '{r.name()}' does not implement FromSQL."
+                )
 
                 ref field = __struct_field_ref(i, result)
                 comptime assert conforms_to(type_of(field), MoveDestructible), String(t"Field '{field_name}' of struct '{r.name()}' does not conform to `Movable & Deinitable`.")

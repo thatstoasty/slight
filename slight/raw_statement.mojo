@@ -193,19 +193,30 @@ struct RawStatement(Movable, Deinitable where False):
         """
         return sqlite_ffi()[].bind_double(self.stmt, Int32(index), value)
 
-    def bind_text(self, index: UInt, mut value: String, destructor_callback: ResultDestructorFn) -> SQLite3Result:
+    def bind_text[
+        origin: ImmOrigin, //
+    ](self, index: UInt, value: StringSpan[origin], destructor_callback: ResultDestructorFn) -> SQLite3Result:
         """Binds a text string value to the specified parameter.
+
+        The text is borrowed, not copied: SQLite is given a pointer and an
+        explicit byte count, so `value` need not be NUL-terminated. Whether
+        SQLite takes its own copy is decided by `destructor_callback`
+        (`SQLITE_TRANSIENT` copies; `SQLITE_STATIC` does not and requires the
+        caller to keep the buffer alive).
+
+        Parameters:
+            origin: The origin of the borrowed text.
 
         Args:
             index: The 1-based index of the parameter to bind.
-            value: The string value to bind.
+            value: The string value to bind. Need not be NUL-terminated.
             destructor_callback: The destructor function to call when SQLite is done with the text.
 
         Returns:
             The SQLite result code from binding the text value.
         """
         return sqlite_ffi()[].bind_text64(
-            self.stmt, Int32(index), value, UInt64(value.byte_length()), TextEncoding.UTF8, destructor_callback
+            self.stmt, Int32(index), value, UInt64(len(value.as_bytes())), TextEncoding.UTF8, destructor_callback
         )
 
     def bind_blob[origin: ImmOrigin, //](self, index: UInt, value: Span[Byte, origin], destructor_callback: ResultDestructorFn) -> SQLite3Result:

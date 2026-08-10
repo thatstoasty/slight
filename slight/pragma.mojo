@@ -5,8 +5,8 @@ as well as helper methods for common pragma operations.
 """
 
 from slight.c.types import SQLITE_MISUSE
-from slight.types.to_sql import ToSQL
-from slight.types.value_ref import SQLite3Integer, SQLite3Real, SQLite3Text
+from slight.types.to_sql import Borrowed, Owned, ToSQL
+from slight.types import value, value_ref
 
 
 struct Sql(Movable, Writable):
@@ -90,14 +90,14 @@ struct Sql(Movable, Writable):
         else:
             self.wrap_and_escape(s, '"')
 
-    def push_value[T: AnyType, //](mut self, value: T) raises:
+    def push_value[T: AnyType, //](mut self, val: T) raises:
         """Push a parameter value to the buffer.
 
         Parameters:
             T: The type of the parameter value.
 
         Args:
-            value: The parameter value to push.
+            val: The parameter value to push.
 
         Raises:
             Error: If the value type is unsupported.
@@ -105,14 +105,28 @@ struct Sql(Movable, Writable):
         comptime assert conforms_to(T, ToSQL), String(
             t"`value` must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
-        var sql = value.to_sql()
+        var output = val.to_sql()
 
-        if sql.isa[SQLite3Integer]():
-            self.push_int(Int(sql[SQLite3Integer].value))
-        elif sql.isa[SQLite3Real]():
-            self.push_real(sql[SQLite3Real].value)
-        elif sql.isa[SQLite3Text[sql.stmt]]():
-            self.push_string_literal(sql[SQLite3Text[sql.stmt]].value)
+        comptime value_origin = origin_of(val)
+        if output.isa[Owned]():
+            ref owned = output[Owned].data
+            if owned.isa[value.Integer]():
+                self.push_int(Int(owned[value.Integer].value))
+            elif owned.isa[value.Real]():
+                self.push_real(owned[value.Real].value)
+            elif owned.isa[value.Text]():
+                self.push_string_literal(owned[value.Text].value)
+            else:
+                raise Error(SQLITE_MISUSE, " Unsupported parameter type for pragma value")
+            return
+
+        ref sql = output[Borrowed[value_origin]].data
+        if sql.isa[value_ref.Integer]():
+            self.push_int(Int(sql[value_ref.Integer].value))
+        elif sql.isa[value_ref.Real]():
+            self.push_real(sql[value_ref.Real].value)
+        elif sql.isa[value_ref.Text[value_origin]]():
+            self.push_string_literal(sql[value_ref.Text[value_origin]].value)
         else:
             raise Error(SQLITE_MISUSE, " Unsupported parameter type for pragma value")
 

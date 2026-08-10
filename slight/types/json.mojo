@@ -34,11 +34,11 @@
 # from slight.types.from_sql import FromSQL
 # from slight.types.to_sql import ToSQL
 # from slight.types.value_ref import (
-#     SQLite3Blob,
-#     SQLite3Integer,
-#     SQLite3Null,
-#     SQLite3Real,
-#     SQLite3Text,
+#     Blob,
+#     Integer,
+#     Null,
+#     Real,
+#     Text,
 #     ValueRef,
 # )
 
@@ -55,17 +55,17 @@
 #                 directly bound. Use `emberjson.to_string(value)` first.
 #         """
 #         if self.is_null():
-#             return ValueRef[origin_of(self)](SQLite3Null())
+#             return ValueRef[origin_of(self)](Null())
 #         elif self.is_int():
-#             return ValueRef[origin_of(self)](SQLite3Integer(self.int()))
+#             return ValueRef[origin_of(self)](Integer(self.int()))
 #         elif self.is_uint():
-#             return ValueRef[origin_of(self)](SQLite3Integer(Int64(self.uint())))
+#             return ValueRef[origin_of(self)](Integer(Int64(self.uint())))
 #         elif self.is_float():
-#             return ValueRef[origin_of(self)](SQLite3Real(self.float()))
+#             return ValueRef[origin_of(self)](Real(self.float()))
 #         elif self.is_string():
-#             return ValueRef[origin_of(self)](SQLite3Text(self.string()))
+#             return ValueRef[origin_of(self)](Text(self.string()))
 #         elif self.is_bool():
-#             return ValueRef[origin_of(self)](SQLite3Integer(Int64(Int(self.bool()))))
+#             return ValueRef[origin_of(self)](Integer(Int64(Int(self.bool()))))
 #         else:
 #             raise Error(
 #                 "ToSQLError: JSON Object and Array cannot be directly bound as SQL parameters. "
@@ -83,15 +83,15 @@
 #         Raises:
 #             Error: If the TEXT or BLOB value is not valid JSON.
 #         """
-#         if value.isa[SQLite3Null]():
+#         if value.isa[Null]():
 #             self = Self(None)
-#         elif value.isa[SQLite3Integer]():
+#         elif value.isa[Integer]():
 #             self = Self(value.as_int64())
-#         elif value.isa[SQLite3Real]():
+#         elif value.isa[Real]():
 #             self = Self(value.as_float64())
-#         elif value.isa[SQLite3Text[value.stmt]]():
+#         elif value.isa[Text[value.stmt]]():
 #             self = Self(parse_string=String(value.as_string_slice()))
-#         elif value.isa[SQLite3Blob[value.stmt]]():
+#         elif value.isa[Blob[value.stmt]]():
 #             self = Self(parse_bytes=value.as_blob())
 #         else:
 #             raise Error("InvalidColumnTypeError: Unsupported ValueRef type for JSON Value conversion")

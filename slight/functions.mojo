@@ -3,7 +3,7 @@ from std.ffi import c_int
 from std.memory.alloc import unsafe_alloc
 from std.sys import size_of
 from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
-from slight.types.to_sql import ToSQL
+from slight.types.to_sql import ToSQL, ToSqlOutput
 from slight.types.value_ref import ValueRef
 from slight.context import Context
 from slight.util import CopyDestructible, MoveDestructible
@@ -129,15 +129,15 @@ def _call_scalar_callback[
         context.result_error(t"Error in scalar function: {e}")
         return
     
-    var result: ValueRef[origin_of(fn_result)]
+    var result: ToSqlOutput[origin_of(fn_result)]
     try:
         result = fn_result.to_sql()
     except e:
         context.result_error(t"Error converting result to SQL: {e}")
         return
-    
+
     # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
-    context.set_result(result)
+    context.set_result_output(result)
 
 
 comptime AggregateInitUDF[A: MoveDestructible] = def(mut ctx: Context) raises thin -> A
@@ -244,7 +244,7 @@ def _call_final_callback[
         context.result_error(t"Error in aggregate final function: {e}")
         return
 
-    var result: ValueRef[origin_of(finalize_result)]
+    var result: ToSqlOutput[origin_of(finalize_result)]
     try:
         result = finalize_result.to_sql()
     except e:
@@ -253,7 +253,7 @@ def _call_final_callback[
 
     # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
     # ToSQL is implemented on most of the important stdlib types.
-    context.set_result(result)
+    context.set_result_output(result)
 
 
 comptime WindowAggregateValueUDF[A: CopyDestructible, T: MoveDestructible] = def(acc: Optional[A]) raises thin -> T
@@ -306,7 +306,7 @@ def _call_value_callback[
         context.result_error(t"Error in window function value callback: {e}")
         return
 
-    var result: ValueRef[origin_of(value_result)]
+    var result: ToSqlOutput[origin_of(value_result)]
     try:
         result = value_result.to_sql()
     except e:
@@ -315,7 +315,7 @@ def _call_value_callback[
 
     # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
     # ToSQL is implemented on most of the important stdlib types.
-    context.set_result(result)
+    context.set_result_output(result)
 
 
 def _call_inverse_callback[

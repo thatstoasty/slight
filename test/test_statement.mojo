@@ -1,6 +1,6 @@
 from slight.connection import Connection
 from slight.row import Row
-from slight.types.value_ref import SQLite3Null
+from slight.types.value_ref import Null
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 
@@ -113,11 +113,19 @@ struct TestStruct(Defaultable, Movable):
 def test_query_as_type_named() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""CREATE TABLE test (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, flag INTEGER);
-    INSERT INTO test(id, name) VALUES (1, "one");""")
+    INSERT INTO test(id, name, flag) VALUES (1, "one", 7);""")
 
-    var stmt = db.prepare("SELECT id FROM test where name = :name")
+    # Select every column the struct declares: a narrower SELECT makes the
+    # field-count check fail, which currently ends iteration silently and would
+    # make this test vacuous.
+    var stmt = db.prepare("SELECT id, name, flag FROM test where name = :name")
+    var seen = 0
     for row in stmt.query[T=TestStruct]({":name": "one"}):
+        seen += 1
         assert_equal(row.id, 1)
+        assert_equal(row.name, "one")
+        assert_equal(row.flag, 7)
+    assert_equal(seen, 1)
 
 
 def test_unbound_parameters_are_null() raises:
@@ -129,7 +137,7 @@ def test_unbound_parameters_are_null() raises:
     def get_value(r: Row) raises -> NoneType:
         # Exercises the get_ref() zero-copy escape hatch.
         var result = r.get_ref(0)
-        if result.isa[SQLite3Null]():
+        if result.isa[Null]():
             return
         raise Error("Expected NULL value!")
 

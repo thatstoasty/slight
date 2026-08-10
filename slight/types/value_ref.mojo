@@ -5,14 +5,14 @@ from slight.api import sqlite_ffi
 from slight.enums import DataType
 
 
-trait SQLType(Copyable):
-    """A marker trait for types that represent SQL values."""
+trait SQLRefType(Copyable):
+    """A marker trait for types that represent SQL ValueRef types."""
 
     pass
 
 
 @fieldwise_init
-struct SQLite3Null(SQLType):
+struct Null(SQLRefType):
     """Represents a SQL NULL value.
 
     This is a zero-sized struct that represents the absence of a value
@@ -23,7 +23,7 @@ struct SQLite3Null(SQLType):
     pass
 
 
-struct SQLite3Integer(SQLType):
+struct Integer(SQLRefType):
     """Represents a SQL INTEGER value.
 
     This struct wraps a 64-bit signed integer value as used by SQLite.
@@ -35,7 +35,7 @@ struct SQLite3Integer(SQLType):
 
     @implicit
     def __init__(out self, value: Int64):
-        """Initialize a `SQLite3Integer` with the given `Int64` value.
+        """Initialize a `Integer` with the given `Int64` value.
 
         Args:
             value: The value to wrap.
@@ -44,7 +44,7 @@ struct SQLite3Integer(SQLType):
 
     @implicit
     def __init__(out self, value: Int):
-        """Initialize a `SQLite3Integer` with the given `Int` value.
+        """Initialize a `Integer` with the given `Int` value.
 
         Args:
             value: The value to wrap.
@@ -52,7 +52,7 @@ struct SQLite3Integer(SQLType):
         self.value = Int64(value)
 
 
-struct SQLite3Real(SQLType):
+struct Real(SQLRefType):
     """Represents a SQL REAL (floating-point) value.
 
     This struct wraps a 64-bit floating-point value as used by SQLite.
@@ -64,7 +64,7 @@ struct SQLite3Real(SQLType):
 
     @implicit
     def __init__(out self, value: Float64):
-        """Initialize a `SQLite3Real` with the given `Float64` value.
+        """Initialize a `Real` with the given `Float64` value.
 
         Args:
             value: The value to wrap.
@@ -72,7 +72,7 @@ struct SQLite3Real(SQLType):
         self.value = value
 
 
-struct SQLite3Text[stmt: ImmOrigin](SQLType):
+struct Text[stmt: ImmOrigin](SQLRefType):
     """Represents a SQL TEXT value.
 
     This struct wraps a text string value from SQLite. The text is stored
@@ -88,7 +88,7 @@ struct SQLite3Text[stmt: ImmOrigin](SQLType):
 
     @implicit
     def __init__(out self, value: StringSpan[Self.stmt]):
-        """Initialize a `SQLite3Text` with the given `StringSpan` value.
+        """Initialize a `Text` with the given `StringSpan` value.
 
         Args:
             value: The text value to wrap.
@@ -96,7 +96,7 @@ struct SQLite3Text[stmt: ImmOrigin](SQLType):
         self.value = value
 
 
-struct SQLite3Blob[stmt: ImmOrigin](SQLType):
+struct Blob[stmt: ImmOrigin](SQLRefType):
     """Represents a SQL BLOB (binary large object) value.
 
     This struct wraps binary data from SQLite. The data is stored as a Span
@@ -112,7 +112,7 @@ struct SQLite3Blob[stmt: ImmOrigin](SQLType):
 
     @implicit
     def __init__(out self, value: Span[Byte, Self.stmt]):
-        """Initialize a `SQLite3Blob` with the given `Span` value.
+        """Initialize a `Blob` with the given `Span` value.
 
         Args:
             value: The blob value to wrap.
@@ -127,52 +127,52 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         stmt: The origin of the statement that owns the value memory.
     """
 
-    comptime _type = Variant[SQLite3Null, SQLite3Integer, SQLite3Real, SQLite3Text[Self.stmt], SQLite3Blob[Self.stmt]]
+    comptime _type = Variant[Null, Integer, Real, Text[Self.stmt], Blob[Self.stmt]]
     var value: Self._type
     """The actual value stored in the variant."""
 
     @implicit
-    def __init__(out self, var value: SQLite3Null):
+    def __init__(out self, var value: Null):
         """Initialize a ValueRef with a NULL value.
 
         Args:
-            value: The SQLite3Null value to store.
+            value: The Null value to store.
         """
         self.value = value^
 
     @implicit
-    def __init__(out self, var value: SQLite3Integer):
+    def __init__(out self, var value: Integer):
         """Initialize a ValueRef with an INTEGER value.
 
         Args:
-            value: The SQLite3Integer value to store.
+            value: The Integer value to store.
         """
         self.value = value^
 
     @implicit
-    def __init__(out self, var value: SQLite3Real):
+    def __init__(out self, var value: Real):
         """Initialize a ValueRef with a REAL (floating-point) value.
 
         Args:
-            value: The SQLite3Real value to store.
+            value: The Real value to store.
         """
         self.value = value^
 
     @implicit
-    def __init__(out self, var value: SQLite3Text[Self.stmt]):
+    def __init__(out self, var value: Text[Self.stmt]):
         """Initialize a ValueRef with a TEXT value.
 
         Args:
-            value: The SQLite3Text value to store.
+            value: The Text value to store.
         """
         self.value = value^
 
     @implicit
-    def __init__(out self, var value: SQLite3Blob[Self.stmt]):
+    def __init__(out self, var value: Blob[Self.stmt]):
         """Initialize a ValueRef with a BLOB value.
 
         Args:
-            value: The SQLite3Blob value to store.
+            value: The Blob value to store.
         """
         self.value = value^
     
@@ -191,21 +191,21 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         var value_type = sqlite_ffi()[].value_type(value)
 
         if DataType.NULL == value_type:
-            return Self(SQLite3Null())
+            return Self(Null())
         elif DataType.INTEGER == value_type:
-            return Self(SQLite3Integer(sqlite_ffi()[].value_int64(value)))
+            return Self(Integer(sqlite_ffi()[].value_int64(value)))
         elif DataType.FLOAT == value_type:
-            return Self(SQLite3Real(sqlite_ffi()[].value_double(value)))
+            return Self(Real(sqlite_ffi()[].value_double(value)))
         elif DataType.TEXT == value_type:
             var text = sqlite_ffi()[].value_text(value)
             if not text:
-                return Self(SQLite3Null())
-            return Self(SQLite3Text(text.value()))
+                return Self(Null())
+            return Self(Text(text.value()))
         elif DataType.BLOB == value_type:
             var blob = sqlite_ffi()[].value_blob(value)
             if not blob:
-                return Self(SQLite3Null())
-            return Self(SQLite3Blob(blob.value()))
+                return Self(Null())
+            return Self(Blob(blob.value()))
         else:
             abort("[UNREACHABLE] sqlite3_value_type returned an invalid value")
 
@@ -215,16 +215,16 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         Args:
             value: The ValueRef to copy.
         """
-        if value.isa[SQLite3Null]():
-            self.value = value[SQLite3Null].copy()
-        elif value.isa[SQLite3Integer]():
-            self.value = value[SQLite3Integer].copy()
-        elif value.isa[SQLite3Real]():
-            self.value = value[SQLite3Real].copy()
-        elif value.isa[SQLite3Text[Self.stmt]]():
-            self.value = value[SQLite3Text[Self.stmt]].copy()
-        elif value.isa[SQLite3Blob[Self.stmt]]():
-            self.value = value[SQLite3Blob[Self.stmt]].copy()
+        if value.isa[Null]():
+            self.value = value[Null].copy()
+        elif value.isa[Integer]():
+            self.value = value[Integer].copy()
+        elif value.isa[Real]():
+            self.value = value[Real].copy()
+        elif value.isa[Text[Self.stmt]]():
+            self.value = value[Text[Self.stmt]].copy()
+        elif value.isa[Blob[Self.stmt]]():
+            self.value = value[Blob[Self.stmt]].copy()
         else:
             abort("UNREACHABLE: invalid variant type for ValueRef initialization")
 
@@ -237,21 +237,21 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         Args:
             writer: The writer to which the string representation will be written.
         """
-        if self.isa[SQLite3Null]():
+        if self.isa[Null]():
             writer.write_string("NULL")
-        elif self.isa[SQLite3Integer]():
-            writer.write(self[SQLite3Integer].value)
-        elif self.isa[SQLite3Real]():
-            writer.write(self[SQLite3Real].value)
-        elif self.isa[SQLite3Text[Self.stmt]]():
-            writer.write("'", self[SQLite3Text[Self.stmt]].value, "'")
-        elif self.isa[SQLite3Blob[Self.stmt]]():
+        elif self.isa[Integer]():
+            writer.write(self[Integer].value)
+        elif self.isa[Real]():
+            writer.write(self[Real].value)
+        elif self.isa[Text[Self.stmt]]():
+            writer.write("'", self[Text[Self.stmt]].value, "'")
+        elif self.isa[Blob[Self.stmt]]():
             # TODO: Improve blob representation
             writer.write("BLOB(")
-            writer.write(len(self[SQLite3Blob[Self.stmt]].value))
+            writer.write(len(self[Blob[Self.stmt]].value))
             writer.write(" bytes)")
 
-    def isa[T: SQLType](self) -> Bool:
+    def isa[T: SQLRefType](self) -> Bool:
         """Check if the value is of the specified type T.
 
         This method allows runtime type checking of the stored SQL value.
@@ -264,7 +264,7 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         """
         return self.value.isa[T]()
 
-    def __getitem_param__[T: SQLType](self) -> ref[origin_of(self.value)._get_owned_interior["value"]] T:
+    def __getitem_param__[T: SQLRefType](self) -> ref[origin_of(self.value)._get_owned_interior["value"]] T:
         """Get the value as the specified type T.
 
         This method provides type-safe access to the stored SQL value. The type T
@@ -295,8 +295,8 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         Raises:
             Error: If the value is not of type TEXT.
         """
-        if self.isa[SQLite3Text[Self.stmt]]():
-            return self[SQLite3Text[Self.stmt]].value
+        if self.isa[Text[Self.stmt]]():
+            return self[Text[Self.stmt]].value
 
         raise Error("InvalidColumnTypeError: value is not of type TEXT")
 
@@ -313,9 +313,9 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         Raises:
             Error: If the value is not of type TEXT or NULL.
         """
-        if self.isa[SQLite3Text[Self.stmt]]():
-            return self[SQLite3Text[Self.stmt]].value
-        elif self.isa[SQLite3Null]():
+        if self.isa[Text[Self.stmt]]():
+            return self[Text[Self.stmt]].value
+        elif self.isa[Null]():
             return None
 
         raise Error("InvalidColumnTypeError: value is not of type TEXT")
@@ -332,8 +332,8 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         Raises:
             Error: If the value is not of type INTEGER.
         """
-        if self.isa[SQLite3Integer]():
-            return self[SQLite3Integer].value
+        if self.isa[Integer]():
+            return self[Integer].value
 
         raise Error("InvalidColumnTypeError: value is not of type INTEGER")
 
@@ -349,9 +349,9 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         Raises:
             Error: If the value is not of type INTEGER or NULL.
         """
-        if self.isa[SQLite3Integer]():
-            return self[SQLite3Integer].value
-        elif self.isa[SQLite3Null]():
+        if self.isa[Integer]():
+            return self[Integer].value
+        elif self.isa[Null]():
             return None
 
         raise Error("InvalidColumnTypeError: value is not of type INTEGER")
@@ -368,8 +368,8 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         Raises:
             Error: If the value is not of type REAL.
         """
-        if self.isa[SQLite3Real]():
-            return self[SQLite3Real].value
+        if self.isa[Real]():
+            return self[Real].value
 
         raise Error("InvalidColumnTypeError: value is not of type REAL")
 
@@ -385,9 +385,9 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         Raises:
             Error: If the value is not of type REAL or NULL.
         """
-        if self.isa[SQLite3Real]():
-            return self[SQLite3Real].value
-        elif self.isa[SQLite3Null]():
+        if self.isa[Real]():
+            return self[Real].value
+        elif self.isa[Null]():
             return None
 
         raise Error("InvalidColumnTypeError: value is not of type REAL")
@@ -410,8 +410,8 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         Raises:
             Error: If the value is not of type BLOB.
         """
-        if self.isa[SQLite3Blob[Self.stmt]]():
-            return self[SQLite3Blob[Self.stmt]].value
+        if self.isa[Blob[Self.stmt]]():
+            return self[Blob[Self.stmt]].value
 
         raise Error("InvalidColumnTypeError: value is not of type BLOB")
 
@@ -433,9 +433,9 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         Raises:
             Error: If the value is not of type BLOB or NULL.
         """
-        if self.isa[SQLite3Blob[Self.stmt]]():
-            return self[SQLite3Blob[Self.stmt]].value
-        elif self.isa[SQLite3Null]():
+        if self.isa[Blob[Self.stmt]]():
+            return self[Blob[Self.stmt]].value
+        elif self.isa[Null]():
             return None
 
         raise Error("InvalidColumnTypeError: value is not of type BLOB")
@@ -457,10 +457,10 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         Raises:
             Error: If the value is not of type BLOB or TEXT.
         """
-        if self.isa[SQLite3Blob[Self.stmt]]():
-            return self[SQLite3Blob[Self.stmt]].value
-        if self.isa[SQLite3Text[Self.stmt]]():
-            return self[SQLite3Text[Self.stmt]].value.as_bytes()
+        if self.isa[Blob[Self.stmt]]():
+            return self[Blob[Self.stmt]].value
+        if self.isa[Text[Self.stmt]]():
+            return self[Text[Self.stmt]].value.as_bytes()
 
         raise Error("InvalidColumnTypeError: value is not of type BLOB or TEXT")
 
@@ -481,11 +481,11 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         Raises:
             Error: If the value is not of type BLOB, TEXT, or NULL.
         """
-        if self.isa[SQLite3Blob[Self.stmt]]():
-            return self[SQLite3Blob[Self.stmt]].value
-        if self.isa[SQLite3Text[Self.stmt]]():
-            return self[SQLite3Text[Self.stmt]].value.as_bytes()
-        elif self.isa[SQLite3Null]():
+        if self.isa[Blob[Self.stmt]]():
+            return self[Blob[Self.stmt]].value
+        if self.isa[Text[Self.stmt]]():
+            return self[Text[Self.stmt]].value.as_bytes()
+        elif self.isa[Null]():
             return None
 
         raise Error("InvalidColumnTypeError: value is not of type BLOB or TEXT")

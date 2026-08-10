@@ -12,7 +12,8 @@ from slight.params import Dict, List, Array, Tuple, Params
 from slight.result import SQLite3Result
 from slight.row import Int, MappedRows, Row, RowIndex, Rows, String, StringSpan, UInt
 from slight.statement import Statement
-from slight.types.value_ref import ValueRef, SQLite3Null, SQLite3Blob, SQLite3Integer, SQLite3Real, SQLite3Text
+from slight.types.value_ref import ValueRef
+from slight.types.value import Value
 from slight.types.from_sql import SIMD, Bool, FromSQL, Int, List, NoneType, Optional, String
 from slight.types.to_sql import SIMD, Bool, Int, List, NoneType, Optional, Span, String, ToSQL
 from slight.trace import (

@@ -979,11 +979,13 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_bind_null(pStmt, idx)
 
-    def bind_text64(
+    def bind_text64[
+        origin: ImmOrigin, //
+    ](
         self,
         pStmt: Optional[MutExternalPointer[sqlite3_stmt]],
         idx: c_int,
-        mut value: String,
+        value: StringSpan[origin],
         n: UInt64,
         encoding: TextEncoding,
         destructor_callback: ResultDestructorFn,
@@ -994,10 +996,17 @@ struct sqlite3(Movable):
         The parameter is identified by its index (1-based). This version accepts
         a 64-bit length value for strings larger than 2GB.
 
+        `value` does **not** need to be NUL-terminated: SQLite uses the explicit
+        byte count `n` and ignores anything past it. Taking a borrowed span here
+        (rather than an owned `String`) avoids a copy at every call site.
+
+        Parameters:
+            origin: The origin of the borrowed text.
+
         Args:
             pStmt: Prepared statement.
             idx: Index of the parameter (1-based).
-            value: The text string to bind.
+            value: The text to bind. Need not be NUL-terminated.
             n: Number of bytes in the string.
             encoding: Text encoding (SQLITE_UTF8, SQLITE_UTF16, etc.).
             destructor_callback: Destructor callback for the string data.
@@ -1006,7 +1015,7 @@ struct sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         return self.lib.sqlite3_bind_text64(
-            pStmt, idx, value.as_c_string_slice().unsafe_ptr(), n, encoding.value, destructor_callback
+            pStmt, idx, value.unsafe_ptr().unsafe_bitcast[c_char](), n, encoding.value, destructor_callback
         )
 
     def bind_pointer[

@@ -12,8 +12,9 @@ from slight.raw_statement import RawStatement
 from slight.result import SQLite3Result
 from slight.row import MappedRows, Row, Rows, TypedRows, RowTransformFn
 from slight.types.from_sql import FromSQL
-from slight.types.to_sql import ToSQL
-from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, ValueRef
+from slight.types.to_sql import Borrowed, Owned, ToSQL, ToSqlOutput
+from slight.types import value, value_ref
+from slight.types.value_ref import ValueRef
 from slight.util import as_byte, MoveDestructible
 from slight.enums import DataType, DestructorHint
 
@@ -237,21 +238,21 @@ struct Statement[conn: ImmOrigin](Movable):
         # data requested via this function is not null.
         var column_type = self.column_type(col)
         if DataType.NULL == column_type:
-            return SQLite3Null()
+            return value_ref.Null()
         elif DataType.INTEGER == column_type:
-            return SQLite3Integer(self.stmt.column_int64(col))
+            return value_ref.Integer(self.stmt.column_int64(col))
         elif DataType.FLOAT == column_type:
-            return SQLite3Real(self.stmt.column_double(col))
+            return value_ref.Real(self.stmt.column_double(col))
         elif DataType.TEXT == column_type:
             # We should generally be fine and not hit the case where column_text or blob return None.
             # If the column is nullable, the data type will be NULL.
             try:
-                return SQLite3Text(self.unsafe_column_text(col))
+                return value_ref.Text(self.unsafe_column_text(col))
             except e:
                 abort(String(e))
         elif DataType.BLOB == column_type:
             try:
-                return SQLite3Blob(self.unsafe_column_blob(col))
+                return value_ref.Blob(self.unsafe_column_blob(col))
             except e:
                 abort(String(e))
         else:
@@ -389,12 +390,22 @@ struct Statement[conn: ImmOrigin](Movable):
         """
         self.connection[].raise_if_error(self.stmt.bind_double(index, value))
 
-    def bind_text(self, index: UInt, var value: String) raises -> None:
+    def bind_text[
+        origin: ImmOrigin, //
+    ](self, index: UInt, value: StringSpan[origin]) raises -> None:
         """Binds a text string value to the specified parameter.
+
+        The text is borrowed rather than copied on the Mojo side; SQLite is
+        given a pointer and an explicit byte count, so `value` need not be
+        NUL-terminated. A transient destructor is used, so SQLite takes its own
+        copy and `value` may be freed as soon as this returns.
+
+        Parameters:
+            origin: The origin of the borrowed text.
 
         Args:
             index: The 1-based index of the parameter to bind.
-            value: The string value to bind.
+            value: The string value to bind. Need not be NUL-terminated.
 
         Raises:
             Error: If the bind operation fails.
@@ -444,18 +455,38 @@ struct Statement[conn: ImmOrigin](Movable):
         comptime assert conforms_to(T, ToSQL), String(
             "`parameter` must conform to `ToSQL` trait. ", reflect[T].name(), " does not implement `ToSQL`."
         )
-        var value = parameter.to_sql()
-        if value.isa[SQLite3Null]():
+        var output = parameter.to_sql()
+
+        if output.isa[Owned]():
+            # The value was computed by `to_sql` and owns its buffers. Binding
+            # is transient, so SQLite copies before `owned` is dropped here.
+            ref owned = output[Owned].data
+            if owned.isa[value.Null]():
+                self.bind_null(index)
+            elif owned.isa[value.Text]():
+                self.bind_text(index, owned[value.Text].value)
+            elif owned.isa[value.Integer]():
+                self.bind_int64(index, owned[value.Integer].value)
+            elif owned.isa[value.Real]():
+                self.bind_double(index, owned[value.Real].value)
+            elif owned.isa[value.Blob]():
+                self.bind_blob(index, Span(owned[value.Blob].value))
+            else:
+                raise Error("Unsupported parameter type")
+            return
+
+        comptime param_origin = origin_of(parameter)
+        ref value = output[Borrowed[param_origin]].data
+        if value.isa[value_ref.Null]():
             self.bind_null(index)
-        elif value.isa[SQLite3Text[value.stmt]]():
-            # TODO: Don't copy the string here if possible
-            self.bind_text(index, String(value[SQLite3Text[value.stmt]].value))
-        elif value.isa[SQLite3Integer]():
-            self.bind_int64(index, value[SQLite3Integer].value)
-        elif value.isa[SQLite3Real]():
-            self.bind_double(index, value[SQLite3Real].value)
-        elif value.isa[SQLite3Blob[value.stmt]]():
-            self.bind_blob(index, value[SQLite3Blob[value.stmt]].value)
+        elif value.isa[value_ref.Text[param_origin]]():
+            self.bind_text(index, value[value_ref.Text[param_origin]].value)
+        elif value.isa[value_ref.Integer]():
+            self.bind_int64(index, value[value_ref.Integer].value)
+        elif value.isa[value_ref.Real]():
+            self.bind_double(index, value[value_ref.Real].value)
+        elif value.isa[value_ref.Blob[param_origin]]():
+            self.bind_blob(index, value[value_ref.Blob[param_origin]].value)
         else:
             raise Error("Unsupported parameter type")
 
