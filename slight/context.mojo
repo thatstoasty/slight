@@ -5,7 +5,7 @@ from slight.api import sqlite_ffi
 from slight.types import value_ref, value
 from slight.types.value_ref import ValueRef
 from slight.enums import DataType, DestructorHint, TextEncoding
-from slight.types.to_sql import Borrowed, Owned, ToSqlOutput
+from slight.types.to_sql import ToSqlOutput
 
 
 @fieldwise_init
@@ -100,7 +100,7 @@ struct Context(Movable, Sized, Boolable):
             A ValueRef containing the argument's value with its appropriate type.
         """
         debug_assert(idx < len(self), "Argument index out of bounds")
-        return ValueRef[origin_of(self)].from_value(self.args[idx])
+        return ValueRef[origin_of(self)](self.args[idx])
 
     def get_int64(self, idx: Int) -> Int64:
         """Returns the `idx`th argument as an Int64.
@@ -339,16 +339,16 @@ struct Context(Movable, Sized, Boolable):
     def set_result_output(self, output: ToSqlOutput[_]):
         """Set the function result from a `ToSqlOutput`.
 
-        Handles both arms: a `Borrowed` value is forwarded to `set_result`,
-        while an `Owned` value has its payload read directly. Every
+        Handles both arms: a borrowed `ValueRef` is forwarded to `set_result`,
+        while an owned `Value` has its payload read directly. Every
         result-setting call below copies into SQLite, so the owned buffers may
         be released as soon as this returns.
 
         Args:
             output: The `ToSqlOutput` produced by a `ToSQL` conversion.
         """
-        if output.isa[Owned]():
-            ref owned = output[Owned].data
+        if output.isa[value.Value]():
+            ref owned = output[value.Value]
             if owned.isa[value.Null]():
                 self.result_null()
             elif owned.isa[value.Integer]():
@@ -367,7 +367,7 @@ struct Context(Movable, Sized, Boolable):
                 self.result_error("Unsupported return type from function.")
             return
 
-        self.set_result(output[Borrowed[origin_of(output)]].data)
+        self.set_result(output[ValueRef[origin_of(output)]])
 
     # ===------------------------------------------------------------------=== #
     # Aggregate Helpers

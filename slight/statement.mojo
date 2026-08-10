@@ -12,7 +12,7 @@ from slight.raw_statement import RawStatement
 from slight.result import SQLite3Result
 from slight.row import MappedRows, Row, Rows, TypedRows, RowTransformFn
 from slight.types.from_sql import FromSQL
-from slight.types.to_sql import Borrowed, Owned, ToSQL, ToSqlOutput
+from slight.types.to_sql import ToSQL, ToSqlOutput
 from slight.types import value, value_ref
 from slight.types.value_ref import ValueRef
 from slight.util import as_byte, MoveDestructible
@@ -457,10 +457,10 @@ struct Statement[conn: ImmOrigin](Movable):
         )
         var output = parameter.to_sql()
 
-        if output.isa[Owned]():
+        if output.isa[value.Value]():
             # The value was computed by `to_sql` and owns its buffers. Binding
             # is transient, so SQLite copies before `owned` is dropped here.
-            ref owned = output[Owned].data
+            ref owned = output[value.Value]
             if owned.isa[value.Null]():
                 self.bind_null(index)
             elif owned.isa[value.Text]():
@@ -476,17 +476,17 @@ struct Statement[conn: ImmOrigin](Movable):
             return
 
         comptime param_origin = origin_of(parameter)
-        ref value = output[Borrowed[param_origin]].data
-        if value.isa[value_ref.Null]():
+        ref borrowed = output[ValueRef[param_origin]]
+        if borrowed.isa[value_ref.Null]():
             self.bind_null(index)
-        elif value.isa[value_ref.Text[param_origin]]():
-            self.bind_text(index, value[value_ref.Text[param_origin]].value)
-        elif value.isa[value_ref.Integer]():
-            self.bind_int64(index, value[value_ref.Integer].value)
-        elif value.isa[value_ref.Real]():
-            self.bind_double(index, value[value_ref.Real].value)
-        elif value.isa[value_ref.Blob[param_origin]]():
-            self.bind_blob(index, value[value_ref.Blob[param_origin]].value)
+        elif borrowed.isa[value_ref.Text[param_origin]]():
+            self.bind_text(index, borrowed[value_ref.Text[param_origin]].value)
+        elif borrowed.isa[value_ref.Integer]():
+            self.bind_int64(index, borrowed[value_ref.Integer].value)
+        elif borrowed.isa[value_ref.Real]():
+            self.bind_double(index, borrowed[value_ref.Real].value)
+        elif borrowed.isa[value_ref.Blob[param_origin]]():
+            self.bind_blob(index, borrowed[value_ref.Blob[param_origin]].value)
         else:
             raise Error("Unsupported parameter type")
 

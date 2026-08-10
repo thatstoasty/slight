@@ -5,7 +5,7 @@ from slight.api import sqlite_ffi
 from slight.enums import DataType
 
 
-trait SQLRefType(Copyable):
+trait SQLRefType(ImplicitlyCopyable, Writable):
     """A marker trait for types that represent SQL ValueRef types."""
 
     pass
@@ -20,7 +20,8 @@ struct Null(SQLRefType):
     handling and can be copied and moved efficiently.
     """
 
-    pass
+    def write_to(self, mut writer: Some[Writer]):
+        writer.write("NULL")
 
 
 struct Integer(SQLRefType):
@@ -50,6 +51,9 @@ struct Integer(SQLRefType):
             value: The value to wrap.
         """
         self.value = Int64(value)
+    
+    def write_to(self, mut writer: Some[Writer]):
+        writer.write(self.value)
 
 
 struct Real(SQLRefType):
@@ -70,6 +74,9 @@ struct Real(SQLRefType):
             value: The value to wrap.
         """
         self.value = value
+    
+    def write_to(self, mut writer: Some[Writer]):
+        writer.write(self.value)
 
 
 struct Text[stmt: ImmOrigin](SQLRefType):
@@ -94,6 +101,9 @@ struct Text[stmt: ImmOrigin](SQLRefType):
             value: The text value to wrap.
         """
         self.value = value
+    
+    def write_to(self, mut writer: Some[Writer]):
+        writer.write(self.value)
 
 
 struct Blob[stmt: ImmOrigin](SQLRefType):
@@ -118,9 +128,15 @@ struct Blob[stmt: ImmOrigin](SQLRefType):
             value: The blob value to wrap.
         """
         self.value = value
+    
+    def write_to(self, mut writer: Some[Writer]):
+        # TODO: Improve blob representation
+        writer.write("BLOB(")
+        writer.write(len(self.value))
+        writer.write(" bytes)")
 
 
-struct ValueRef[stmt: ImmOrigin](Movable, Writable):
+struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
     """A non-owning dynamic type value. Typically, the memory backing this value is var by SQLite.
 
     Parameters:
@@ -130,6 +146,25 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
     comptime _type = Variant[Null, Integer, Real, Text[Self.stmt], Blob[Self.stmt]]
     var value: Self._type
     """The actual value stored in the variant."""
+
+    def __init__(out self, value: Self._type):
+        """Initialize a ValueRef by copying another ValueRef.
+
+        Args:
+            value: The ValueRef to copy.
+        """
+        if value.isa[Null]():
+            self.value = value[Null]
+        elif value.isa[Integer]():
+            self.value = value[Integer]
+        elif value.isa[Real]():
+            self.value = value[Real]
+        elif value.isa[Text[Self.stmt]]():
+            self.value = value[Text[Self.stmt]]
+        elif value.isa[Blob[Self.stmt]]():
+            self.value = value[Blob[Self.stmt]]
+        else:
+            abort("UNREACHABLE: invalid variant type for ValueRef initialization")
 
     @implicit
     def __init__(out self, var value: Null):
@@ -176,80 +211,38 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
         """
         self.value = value^
     
-    @staticmethod
-    def from_value(value: MutExternalPointer[sqlite3_value]) -> Self:
+    def __init__(out self, value: MutExternalPointer[sqlite3_value]):
         """Returns the `idx`th argument as a `ValueRef`.
 
-        This reads the type and value from the raw sqlite3_value pointer.
+        This reads the type and value from the raw `sqlite3_value` pointer.
+        Blob and Text types reference SQLite owned data and may be invalidated.
 
         Args:
             value: A pointer to the sqlite3_value representing the SQL value.
 
         Returns:
-            A ValueRef containing the argument's value with its appropriate type.
+            A `ValueRef` containing the argument's value with its appropriate type.
         """
         var value_type = sqlite_ffi()[].value_type(value)
 
         if DataType.NULL == value_type:
-            return Self(Null())
+            return Null()
         elif DataType.INTEGER == value_type:
-            return Self(Integer(sqlite_ffi()[].value_int64(value)))
+            return Integer(sqlite_ffi()[].value_int64(value))
         elif DataType.FLOAT == value_type:
-            return Self(Real(sqlite_ffi()[].value_double(value)))
+            return Real(sqlite_ffi()[].value_double(value))
         elif DataType.TEXT == value_type:
             var text = sqlite_ffi()[].value_text(value)
             if not text:
-                return Self(Null())
+                return Null()
             return Self(Text(text.value()))
         elif DataType.BLOB == value_type:
             var blob = sqlite_ffi()[].value_blob(value)
             if not blob:
-                return Self(Null())
+                return Null()
             return Self(Blob(blob.value()))
         else:
             abort("[UNREACHABLE] sqlite3_value_type returned an invalid value")
-
-    def __init__(out self, value: Self._type):
-        """Initialize a ValueRef by copying another ValueRef.
-
-        Args:
-            value: The ValueRef to copy.
-        """
-        if value.isa[Null]():
-            self.value = value[Null].copy()
-        elif value.isa[Integer]():
-            self.value = value[Integer].copy()
-        elif value.isa[Real]():
-            self.value = value[Real].copy()
-        elif value.isa[Text[Self.stmt]]():
-            self.value = value[Text[Self.stmt]].copy()
-        elif value.isa[Blob[Self.stmt]]():
-            self.value = value[Blob[Self.stmt]].copy()
-        else:
-            abort("UNREACHABLE: invalid variant type for ValueRef initialization")
-
-    def write_to(self, mut writer: Some[Writer]):
-        """Write the string representation of the SQL value to the given writer.
-
-        This method provides a way to serialize the SQL value into a human-readable
-        format, suitable for logging or debugging purposes.
-
-        Args:
-            writer: The writer to which the string representation will be written.
-        """
-        if self.isa[Null]():
-            writer.write_string("NULL")
-        elif self.isa[Integer]():
-            writer.write(self[Integer].value)
-        elif self.isa[Real]():
-            writer.write(self[Real].value)
-        elif self.isa[Text[Self.stmt]]():
-            writer.write("'", self[Text[Self.stmt]].value, "'")
-        elif self.isa[Blob[Self.stmt]]():
-            # TODO: Improve blob representation
-            writer.write("BLOB(")
-            writer.write(len(self[Blob[Self.stmt]].value))
-            writer.write(" bytes)")
 
     def isa[T: SQLRefType](self) -> Bool:
         """Check if the value is of the specified type T.
@@ -277,6 +270,21 @@ struct ValueRef[stmt: ImmOrigin](Movable, Writable):
             A reference to the value cast to type T.
         """
         return self.value[T]
+    
+    def write_to(self, mut writer: Some[Writer]):
+        """Write the string representation of the SQL value to the given writer.
+
+        This method provides a way to serialize the SQL value into a human-readable
+        format, suitable for logging or debugging purposes.
+
+        Args:
+            writer: The writer to which the string representation will be written.
+        """
+        comptime for i in range(len(self._type.Ts)):
+            comptime T = self._type.Ts[i]
+            if self.value.isa[T]():
+                comptime assert conforms_to(T, Writable)
+                writer.write(self.value[T])
 
     def unsafe_as_string_slice(self) raises -> StringSpan[Self.stmt]:
         """Convert the SQL value to a borrowed string slice.

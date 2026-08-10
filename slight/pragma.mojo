@@ -5,7 +5,7 @@ as well as helper methods for common pragma operations.
 """
 
 from slight.c.types import SQLITE_MISUSE
-from slight.types.to_sql import Borrowed, Owned, ToSQL
+from slight.types.to_sql import ToSQL
 from slight.types import value, value_ref
 
 
@@ -108,8 +108,8 @@ struct Sql(Movable, Writable):
         var output = val.to_sql()
 
         comptime value_origin = origin_of(val)
-        if output.isa[Owned]():
-            ref owned = output[Owned].data
+        if output.isa[value.Value]():
+            ref owned = output[value.Value]
             if owned.isa[value.Integer]():
                 self.push_int(Int(owned[value.Integer].value))
             elif owned.isa[value.Real]():
@@ -120,7 +120,7 @@ struct Sql(Movable, Writable):
                 raise Error(SQLITE_MISUSE, " Unsupported parameter type for pragma value")
             return
 
-        ref sql = output[Borrowed[value_origin]].data
+        ref sql = output[value_ref.ValueRef[value_origin]]
         if sql.isa[value_ref.Integer]():
             self.push_int(Int(sql[value_ref.Integer].value))
         elif sql.isa[value_ref.Real]():

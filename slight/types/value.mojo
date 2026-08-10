@@ -12,7 +12,7 @@ implementation returns to choose between borrowing and owning.
 from std.utils import Variant
 
 
-trait SQLType(Copyable):
+trait SQLType(Copyable, Writable):
     """A marker trait for types that represent SQL Value types."""
 
     pass
@@ -22,7 +22,8 @@ trait SQLType(Copyable):
 struct Null(SQLType):
     """An owned SQL NULL value."""
 
-    pass
+    def write_to(self, mut writer: Some[Writer]):
+        writer.write("NULL")
 
 
 @fieldwise_init
@@ -32,6 +33,9 @@ struct Integer(SQLType):
     var value: Int64
     """The underlying integer value."""
 
+    def write_to(self, mut writer: Some[Writer]):
+        writer.write(self.value)
+
 
 @fieldwise_init
 struct Real(SQLType):
@@ -39,6 +43,9 @@ struct Real(SQLType):
 
     var value: Float64
     """The underlying floating-point value."""
+
+    def write_to(self, mut writer: Some[Writer]):
+        writer.write(self.value)
 
 
 @fieldwise_init
@@ -48,6 +55,9 @@ struct Text(SQLType):
     var value: String
     """The underlying text, owned by this struct."""
 
+    def write_to(self, mut writer: Some[Writer]):
+        writer.write(self.value)
+
 
 @fieldwise_init
 struct Blob(SQLType):
@@ -55,6 +65,12 @@ struct Blob(SQLType):
 
     var value: List[Byte]
     """The underlying bytes, owned by this struct."""
+
+    def write_to(self, mut writer: Some[Writer]):
+        # TODO: Improve blob representation
+        writer.write("BLOB(")
+        writer.write(len(self.value))
+        writer.write(" bytes)")
 
 
 struct Value(Copyable, Writable):
@@ -146,16 +162,9 @@ struct Value(Copyable, Writable):
         Args:
             writer: The writer to which the string representation will be written.
         """
-        if self.isa[Null]():
-            writer.write_string("NULL")
-        elif self.isa[Integer]():
-            writer.write(self[Integer].value)
-        elif self.isa[Real]():
-            writer.write(self[Real].value)
-        elif self.isa[Text]():
-            writer.write("'", self[Text].value, "'")
-        elif self.isa[Blob]():
-            # TODO: Improve blob representation
-            writer.write("BLOB(")
-            writer.write(len(self[Blob].value))
-            writer.write(" bytes)")
+        comptime for i in range(len(self._type.Ts)):
+            comptime T = self._type.Ts[i]
+            if self.value.isa[T]():
+                comptime assert conforms_to(T, Writable)
+                writer.write(self.value[T])
+                return
