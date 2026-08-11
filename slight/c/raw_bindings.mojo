@@ -476,7 +476,7 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_threadsafe: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_close(self, connection: MutExternalPointer[sqlite3_connection]) -> c_int:
+    def sqlite3_close[origin: MutOrigin, //](self, connection: MutPointer[sqlite3_connection, origin]) -> c_int:
         """Closing A Database Connection.
 
         ^The `sqlite3_close()` and `sqlite3_close_v2()` routines are destructors
@@ -543,7 +543,7 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_config: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_db_config(self, db: MutExternalPointer[sqlite3_connection], op: c_int) -> c_int:
+    def sqlite3_db_config[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], op: c_int) -> c_int:
         """Configure Database Connection Options.
 
         The sqlite3_db_config() interface is used to make configuration
@@ -568,7 +568,7 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_db_config: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_extended_result_codes(self, db: MutExternalPointer[sqlite3_connection], onoff: c_int) -> c_int:
+    def sqlite3_extended_result_codes[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], onoff: c_int) -> c_int:
         """Enable Or Disable Extended Result Codes.
 
         The sqlite3_extended_result_codes() routine enables or disables the
@@ -595,7 +595,7 @@ struct _sqlite3(Movable):
                 "sqlite3_extended_result_codes: symbol not found in libsqlite3 (should have been validated in __init__)"
             )
 
-    def sqlite3_last_insert_rowid(self, db: MutExternalPointer[sqlite3_connection]) -> Int64:
+    def sqlite3_last_insert_rowid[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> Int64:
         """Last Insert Rowid.
 
         Each entry in most SQLite tables has a unique 64-bit signed integer key
@@ -616,7 +616,7 @@ struct _sqlite3(Movable):
                 "sqlite3_last_insert_rowid: symbol not found in libsqlite3 (should have been validated in __init__)"
             )
 
-    def sqlite3_changes(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
+    def sqlite3_changes[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Count The Number of Rows Modified.
 
         This function returns the number of rows modified, inserted or deleted
@@ -634,7 +634,7 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_changes: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_changes64(self, db: MutExternalPointer[sqlite3_connection]) -> Int64:
+    def sqlite3_changes64[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> Int64:
         """Count The Number of Rows Modified (64-bit).
 
         This function works the same as sqlite3_changes() except that it
@@ -659,7 +659,7 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_changes64: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_total_changes(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
+    def sqlite3_total_changes[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Count The Total Number of Rows Modified.
 
         This function returns the total number of rows inserted, modified or
@@ -682,7 +682,7 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_total_changes: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_total_changes64(self, db: MutExternalPointer[sqlite3_connection]) -> Int64:
+    def sqlite3_total_changes64[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> Int64:
         """Count The Total Number of Rows Modified (64-bit).
 
         This function works the same as sqlite3_total_changes() except that it
@@ -707,7 +707,7 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_total_changes64: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_interrupt(self, db: MutExternalPointer[sqlite3_connection]):
+    def sqlite3_interrupt[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]):
         """Interrupt A Long-Running Query.
 
         This routine causes any pending database operation to abort and
@@ -729,7 +729,7 @@ struct _sqlite3(Movable):
         except:
             pass
 
-    def sqlite3_is_interrupted(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
+    def sqlite3_is_interrupted[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Test To See If An Interrupt Is Pending.
 
         This routine returns 1 if sqlite3_interrupt() has been called
@@ -751,11 +751,9 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_is_interrupted: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_busy_handler[
-        arg_origin: MutOrigin
-    ](
+    def sqlite3_busy_handler[conn_origin: MutOrigin, arg_origin: MutOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         callback: BusyHandlerCallbackFn,
         arg: MutOpaquePointer[arg_origin],
     ) -> c_int:
@@ -780,12 +778,12 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_busy_handler")(
-                db, callback, arg.unsafe_origin_cast[MutUntrackedOrigin]()
+                db, callback, arg
             )
         except:
             os.abort("sqlite3_busy_handler: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_busy_timeout(self, db: MutExternalPointer[sqlite3_connection], ms: c_int) -> c_int:
+    def sqlite3_busy_timeout[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], ms: c_int) -> c_int:
         """Set A Busy Timeout.
 
         This routine sets a busy handler that sleeps for a specified amount of
@@ -862,11 +860,10 @@ struct _sqlite3(Movable):
             os.abort("sqlite3_msize: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_set_authorizer[
-        userdata_origin: MutOrigin,
-        //,
+        userdata_origin: MutOrigin, conn_origin: MutOrigin, //,
         auth_callback: AuthCallbackFn,
     ](
-        self, db: MutExternalPointer[sqlite3_connection], pUserData: Optional[MutOpaquePointer[userdata_origin]]
+        self, db: MutPointer[sqlite3_connection, conn_origin], pUserData: Optional[MutOpaquePointer[userdata_origin]]
     ) -> c_int:
         """Compile-Time Authorization Callbacks.
 
@@ -889,15 +886,15 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        var user_data = Optional[MutExternalPointer[NoneType]](
-            pUserData.value().unsafe_origin_cast[MutUntrackedOrigin]()
+        var user_data = Optional[Pointer[NoneType, userdata_origin]](
+            pUserData.value()
         ) if pUserData else None
         try:
             return self.lib.get_function[c_int]("sqlite3_set_authorizer")(db, auth_callback, user_data)
         except:
             os.abort("sqlite3_set_authorizer: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_remove_authorizer(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
+    def sqlite3_remove_authorizer[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Compile-Time Authorization Callbacks.
 
         This routine registers an authorizer callback with a particular database
@@ -919,11 +916,9 @@ struct _sqlite3(Movable):
                 "sqlite3_remove_authorizer: symbol not found in libsqlite3 (should have been validated in __init__)"
             )
 
-    def sqlite3_trace[
-        arg_origin: MutOrigin
-    ](
+    def sqlite3_trace[conn_origin: MutOrigin, arg_origin: MutOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         xTrace: TraceCallbackFn,
         pArg: MutOpaquePointer[arg_origin],
     ) -> Optional[MutExternalPointer[NoneType]]:
@@ -945,16 +940,14 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_trace")(
-                db, xTrace, pArg.unsafe_origin_cast[MutUntrackedOrigin]()
+                db, xTrace, pArg
             )
         except:
             os.abort("sqlite3_trace: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_profile[
-        arg_origin: MutOrigin
-    ](
+    def sqlite3_profile[conn_origin: MutOrigin, arg_origin: MutOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         xProfile: ProfileCallbackFn,
         pArg: MutOpaquePointer[arg_origin],
     ) -> Optional[MutExternalPointer[NoneType]]:
@@ -975,14 +968,14 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_profile")(
-                db, xProfile, pArg.unsafe_origin_cast[MutUntrackedOrigin]()
+                db, xProfile, pArg
             )
         except:
             os.abort("sqlite3_profile: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_trace_v2(
+    def sqlite3_trace_v2[conn_origin: MutOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         uMask: c_uint,
         xCallback: TraceV2CallbackFn,
         pCtx: Optional[MutExternalPointer[NoneType]],
@@ -1009,11 +1002,9 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_trace_v2: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_progress_handler[
-        arg_origin: MutOrigin
-    ](
+    def sqlite3_progress_handler[conn_origin: MutOrigin, arg_origin: MutOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         nOps: c_int,
         xProgress: QueryProgressCallbackFn,
         pArg: MutOpaquePointer[arg_origin],
@@ -1035,19 +1026,17 @@ struct _sqlite3(Movable):
         """
         try:
             self.lib.get_function[NoneType]("sqlite3_progress_handler")(
-                db, nOps, xProgress, pArg.unsafe_origin_cast[MutUntrackedOrigin]()
+                db, nOps, xProgress, pArg
             )
         except:
             pass
 
-    def sqlite3_open_v2[
-        filename_origin: ImmOrigin,
+    def sqlite3_open_v2[conn_origin: MutOrigin, filename_origin: ImmOrigin,
         db_origin: MutOrigin,
-        vfs_origin: ImmOrigin,
-    ](
+        vfs_origin: ImmOrigin, //](
         self,
         filename: ImmPointer[c_char, filename_origin],
-        ppDb: MutPointer[MutExternalPointer[sqlite3_connection], db_origin],
+        ppDb: MutPointer[MutPointer[sqlite3_connection, conn_origin], db_origin],
         flags: c_int,
         zVfs: ImmPointer[c_char, vfs_origin],
     ) -> c_int:
@@ -1080,21 +1069,19 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_open_v2")(
-                filename.unsafe_origin_cast[MutUntrackedOrigin](),
-                ppDb.unsafe_origin_cast[MutUntrackedOrigin](),
+                filename,
+                ppDb,
                 flags,
-                zVfs.unsafe_origin_cast[MutUntrackedOrigin](),
+                zVfs,
             )
         except:
             os.abort("sqlite3_open_v2: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_open_v2[
-        filename_origin: ImmOrigin,
-        db_origin: MutOrigin,
-    ](
+    def sqlite3_open_v2[conn_origin: MutOrigin, filename_origin: ImmOrigin,
+        db_origin: MutOrigin, //](
         self,
         filename: ImmPointer[c_char, filename_origin],
-        ppDb: MutPointer[MutExternalPointer[sqlite3_connection], db_origin],
+        ppDb: MutPointer[MutPointer[sqlite3_connection, conn_origin], db_origin],
         flags: c_int,
     ) -> c_int:
         """Open A Database Connection with specified flags. VFS is set to default by passing None.
@@ -1125,15 +1112,15 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_open_v2")(
-                filename.unsafe_origin_cast[MutUntrackedOrigin](),
-                ppDb.unsafe_origin_cast[MutUntrackedOrigin](),
+                filename,
+                ppDb,
                 flags,
                 _NULL_C_STRING,
             )
         except:
             os.abort("sqlite3_open_v2: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_errcode(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
+    def sqlite3_errcode[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Retrieve the most recent error code for a database connection.
 
         This function returns the numeric result code or extended result code
@@ -1152,7 +1139,7 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_errcode: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_extended_errcode(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
+    def sqlite3_extended_errcode[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Retrieve the most recent extended error code for a database connection.
 
         This function returns the extended result code for the most recent
@@ -1173,7 +1160,7 @@ struct _sqlite3(Movable):
                 "sqlite3_extended_errcode: symbol not found in libsqlite3 (should have been validated in __init__)"
             )
 
-    def sqlite3_errmsg(self, db: MutExternalPointer[sqlite3_connection]) -> Optional[ImmExternalPointer[c_char]]:
+    def sqlite3_errmsg[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> Optional[ImmExternalPointer[c_char]]:
         """Retrieve the English-language error message for the most recent error.
 
         This function returns a pointer to a UTF-8 encoded error message
@@ -1212,7 +1199,7 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_errstr: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_error_offset(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
+    def sqlite3_error_offset[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Get byte offset of SQL error.
 
         This function returns the byte offset into the SQL text of the most
@@ -1232,7 +1219,7 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_error_offset: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_limit(self, db: MutExternalPointer[sqlite3_connection], id: c_int, newVal: c_int) -> c_int:
+    def sqlite3_limit[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], id: c_int, newVal: c_int) -> c_int:
         """Set or retrieve run-time limits on database connection.
 
         This function allows applications to impose limits on various
@@ -1267,10 +1254,10 @@ struct _sqlite3(Movable):
             os.abort("sqlite3_limit: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_prepare_v2[
-        sql_origin: ImmOrigin, stmt_origin: MutOrigin, tail_origin1: ImmOrigin, tail_origin2: MutOrigin, //
+        sql_origin: ImmOrigin, stmt_origin: MutOrigin, tail_origin1: ImmOrigin, tail_origin2: MutOrigin, conn_origin: MutOrigin, //
     ](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zSql: ImmPointer[c_char, sql_origin],
         nByte: c_int,
         ppStmt: MutPointer[MutExternalPointer[sqlite3_stmt], stmt_origin],
@@ -1294,24 +1281,16 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        # var temp_tail = pzTail[].unsafe_origin_cast[ImmUntrackedOrigin]()
-        # return self._fn_sqlite3_prepare_v2(
-        #     db,
-        #     zSql.unsafe_origin_cast[MutUntrackedOrigin](),
-        #     nByte,
-        #     ppStmt.unsafe_origin_cast[MutUntrackedOrigin](),
-        #     Pointer(to=temp_tail).unsafe_origin_cast[MutUntrackedOrigin]()
-        # )
         try:
             return self.lib.get_function[c_int]("sqlite3_prepare_v2")(db, zSql, nByte, ppStmt, pzTail)
         except:
             os.abort("sqlite3_prepare_v2: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_prepare_v3[
-        sql_origin: ImmOrigin, stmt_origin: MutOrigin, tail_origin: MutOrigin, //
+        sql_origin: ImmOrigin, stmt_origin: MutOrigin, tail_origin: MutOrigin, conn_origin: MutOrigin, //
     ](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zSql: ImmPointer[c_char, sql_origin],
         nByte: c_int,
         prepFlags: c_uint,
@@ -1341,16 +1320,6 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        # var temp_tail = pzTail[].unsafe_origin_cast[ImmUntrackedOrigin]()
-        # return self._fn_sqlite3_prepare_v3(
-        #     db,
-        #     zSql.unsafe_origin_cast[MutUntrackedOrigin](),
-        #     nByte,
-        #     prepFlags,
-        #     ppStmt.unsafe_origin_cast[MutUntrackedOrigin](),
-        #     Pointer(to=temp_tail).unsafe_origin_cast[MutUntrackedOrigin]()
-        #     # pzTail.unsafe_origin_cast[MutUntrackedOrigin]()
-        # )
         try:
             return self.lib.get_function[c_int]("sqlite3_prepare_v3")(db, zSql, nByte, prepFlags, ppStmt, pzTail)
         except:
@@ -1480,7 +1449,7 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_bind_blob64")(
-                pStmt, idx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback
+                pStmt, idx, value, n, destructor_callback
             )
         except:
             os.abort("sqlite3_bind_blob64: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -1575,7 +1544,7 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_bind_text64")(
-                pStmt, idx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback, encoding
+                pStmt, idx, value, n, destructor_callback, encoding
             )
         except:
             os.abort("sqlite3_bind_text64: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -1612,8 +1581,8 @@ struct _sqlite3(Movable):
             return self.lib.get_function[c_int]("sqlite3_bind_pointer")(
                 pStmt,
                 idx,
-                value.unsafe_origin_cast[MutUntrackedOrigin](),
-                typeStr.unsafe_origin_cast[MutUntrackedOrigin](),
+                value,
+                typeStr,
                 destructor_callback,
             )
         except:
@@ -1705,7 +1674,7 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_bind_parameter_index")(
-                pStmt, zName.unsafe_origin_cast[MutUntrackedOrigin]()
+                pStmt, zName
             )
         except:
             os.abort(
@@ -2080,11 +2049,9 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_reset: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_remove_function[
-        fn_name_origin: ImmOrigin,
-    ](
+    def sqlite3_remove_function[conn_origin: MutOrigin, fn_name_origin: ImmOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: ImmPointer[c_char, fn_name_origin],
         nArg: c_int,
     ) -> c_int:
@@ -2106,7 +2073,7 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_create_function_v2")(
                 db,
-                zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
+                zFunctionName,
                 nArg,
                 eTextRep,
                 _NULL_PTR,
@@ -2118,12 +2085,10 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_remove_function: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_create_scalar_function[
-        fn_name_origin: ImmOrigin,
-        app_origin: MutOrigin,
-    ](
+    def sqlite3_create_scalar_function[conn_origin: MutOrigin, fn_name_origin: ImmOrigin,
+        app_origin: MutOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: ImmPointer[c_char, fn_name_origin],
         nArg: c_int,
         eTextRep: c_int,
@@ -2148,10 +2113,10 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_create_function_v2")(
                 db,
-                zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
+                zFunctionName,
                 nArg,
                 eTextRep,
-                pApp.unsafe_origin_cast[MutUntrackedOrigin](),
+                pApp,
                 xFunc,
                 _NULL_PTR,
                 _NULL_PTR,
@@ -2163,11 +2128,9 @@ struct _sqlite3(Movable):
                 " __init__)"
             )
 
-    def sqlite3_create_scalar_function[
-        fn_name_origin: ImmOrigin,
-    ](
+    def sqlite3_create_scalar_function[conn_origin: MutOrigin, fn_name_origin: ImmOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: ImmPointer[c_char, fn_name_origin],
         nArg: c_int,
         eTextRep: c_int,
@@ -2188,7 +2151,7 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_create_function_v2")(
                 db,
-                zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
+                zFunctionName,
                 nArg,
                 eTextRep,
                 _NULL_PTR,
@@ -2203,12 +2166,10 @@ struct _sqlite3(Movable):
                 " __init__)"
             )
 
-    def sqlite3_create_aggregate_function[
-        fn_name_origin: ImmOrigin,
-        app_origin: MutOrigin,
-    ](
+    def sqlite3_create_aggregate_function[conn_origin: MutOrigin, fn_name_origin: ImmOrigin,
+        app_origin: MutOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: ImmPointer[c_char, fn_name_origin],
         nArg: c_int,
         eTextRep: c_int,
@@ -2235,10 +2196,10 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_create_function_v2")(
                 db,
-                zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
+                zFunctionName,
                 nArg,
                 eTextRep,
-                pApp.unsafe_origin_cast[MutUntrackedOrigin](),
+                pApp,
                 _NULL_PTR,
                 xStep,
                 xFinal,
@@ -2250,11 +2211,9 @@ struct _sqlite3(Movable):
                 " __init__)"
             )
 
-    def sqlite3_create_aggregate_function[
-        fn_name_origin: ImmOrigin,
-    ](
+    def sqlite3_create_aggregate_function[conn_origin: MutOrigin, fn_name_origin: ImmOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: ImmPointer[c_char, fn_name_origin],
         nArg: c_int,
         eTextRep: c_int,
@@ -2284,12 +2243,10 @@ struct _sqlite3(Movable):
                 " __init__)"
             )
 
-    def sqlite3_create_window_function[
-        fn_name_origin: ImmOrigin,
-        app_origin: MutOrigin,
-    ](
+    def sqlite3_create_window_function[conn_origin: MutOrigin, fn_name_origin: ImmOrigin,
+        app_origin: MutOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: ImmPointer[c_char, fn_name_origin],
         nArg: c_int,
         eTextRep: c_int,
@@ -2320,10 +2277,10 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_create_window_function")(
                 db,
-                zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
+                zFunctionName,
                 nArg,
                 eTextRep,
-                pApp.unsafe_origin_cast[MutUntrackedOrigin](),
+                pApp,
                 xStep,
                 xFinal,
                 xValue,
@@ -2336,11 +2293,9 @@ struct _sqlite3(Movable):
                 " __init__)"
             )
 
-    def sqlite3_create_window_function[
-        fn_name_origin: ImmOrigin,
-    ](
+    def sqlite3_create_window_function[conn_origin: MutOrigin, fn_name_origin: ImmOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: ImmPointer[c_char, fn_name_origin],
         nArg: c_int,
         eTextRep: c_int,
@@ -2367,7 +2322,7 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_create_window_function")(
                 db,
-                zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
+                zFunctionName,
                 nArg,
                 eTextRep,
                 _NULL_PTR,
@@ -2486,7 +2441,7 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_memory_alarm")(
-                callback, arg.unsafe_origin_cast[MutUntrackedOrigin](), n
+                callback, arg, n
             )
         except:
             os.abort("sqlite3_memory_alarm: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -2780,7 +2735,7 @@ struct _sqlite3(Movable):
         """
         try:
             self.lib.get_function[NoneType]("sqlite3_set_auxdata")(
-                ctx, N, data.unsafe_origin_cast[MutUntrackedOrigin](), destructor_callback
+                ctx, N, data, destructor_callback
             )
         except:
             pass
@@ -2809,7 +2764,7 @@ struct _sqlite3(Movable):
         """
         try:
             self.lib.get_function[NoneType]("sqlite3_result_blob64")(
-                ctx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback
+                ctx, value, n, destructor_callback
             )
         except:
             pass
@@ -2846,7 +2801,7 @@ struct _sqlite3(Movable):
         """
         try:
             self.lib.get_function[NoneType]("sqlite3_result_error")(
-                ctx, msg.unsafe_origin_cast[MutUntrackedOrigin](), n
+                ctx, msg, n
             )
         except:
             pass
@@ -2954,7 +2909,7 @@ struct _sqlite3(Movable):
         """
         try:
             self.lib.get_function[NoneType]("sqlite3_result_text64")(
-                ctx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback, encoding
+                ctx, value, n, destructor_callback, encoding
             )
         except:
             pass
@@ -3002,8 +2957,8 @@ struct _sqlite3(Movable):
         try:
             self.lib.get_function[NoneType]("sqlite3_result_pointer")(
                 ctx,
-                ptr.unsafe_origin_cast[MutUntrackedOrigin](),
-                typeStr.unsafe_origin_cast[MutUntrackedOrigin](),
+                ptr,
+                typeStr,
                 destructor_callback,
             )
         except:
@@ -3042,10 +2997,10 @@ struct _sqlite3(Movable):
             pass
 
     def sqlite3_create_collation_v2[
-        name_origin: ImmOrigin, arg_origin: MutOrigin, //
+        name_origin: ImmOrigin, arg_origin: MutOrigin, conn_origin: MutOrigin, //
     ](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zName: ImmPointer[c_char, name_origin],
         eTextRep: c_int,
         pArg: MutOpaquePointer[arg_origin],
@@ -3077,9 +3032,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_create_collation_v2")(
                 db,
-                zName.unsafe_origin_cast[MutUntrackedOrigin](),
+                zName,
                 eTextRep,
-                pArg.unsafe_origin_cast[MutUntrackedOrigin](),
+                pArg,
                 xCompare,
                 destructor_callback,
             )
@@ -3089,11 +3044,10 @@ struct _sqlite3(Movable):
             )
 
     def sqlite3_collation_needed[
-        arg_origin: MutOrigin,
-        //,
+        arg_origin: MutOrigin, conn_origin: MutOrigin, //,
     ](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         pArg: MutOpaquePointer[arg_origin],
         callback: CollationNeededCallbackFn,
     ) -> c_int:
@@ -3115,7 +3069,7 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_collation_needed")(
-                db, pArg.unsafe_origin_cast[MutUntrackedOrigin](), callback
+                db, pArg, callback
             )
         except:
             os.abort(
@@ -3185,17 +3139,28 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_stmt_status: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_table_column_metadata(
+    def sqlite3_table_column_metadata[
+        db_origin: ImmOrigin,
+        table_origin: ImmOrigin,
+        column_origin: ImmOrigin,
+        type_origin: ImmOrigin,
+        type_ptr_origin: MutOrigin,
+        col_seq_origin: ImmOrigin,
+        col_seq_ptr_origin: MutOrigin,
+        null_origin: MutOrigin,
+        pk_origin: MutOrigin,
+        auto_origin: MutOrigin, conn_origin: MutOrigin, //
+    ](
         self,
-        db: MutExternalPointer[sqlite3_connection],
-        zDbName: Optional[ImmExternalPointer[c_char]],
-        zTableName: ImmExternalPointer[c_char],
-        zColumnName: Optional[ImmExternalPointer[c_char]],
-        pzDataType: MutExternalPointer[Optional[ImmExternalPointer[c_char]]],
-        pzCollSeq: MutExternalPointer[Optional[ImmExternalPointer[c_char]]],
-        pNotNull: Optional[MutExternalPointer[c_int]],
-        pPrimaryKey: Optional[MutExternalPointer[c_int]],
-        pAutoinc: Optional[MutExternalPointer[c_int]],
+        db: MutPointer[sqlite3_connection, conn_origin],
+        zDbName: Optional[Pointer[c_char, db_origin]],
+        zTableName: Pointer[c_char, table_origin],
+        zColumnName: Optional[Pointer[c_char, column_origin]],
+        pzDataType: MutPointer[Optional[Pointer[c_char, type_origin]], type_ptr_origin],
+        pzCollSeq: MutPointer[Optional[Pointer[c_char, col_seq_origin]], col_seq_ptr_origin],
+        pNotNull: Optional[Pointer[c_int, null_origin]],
+        pPrimaryKey: Optional[Pointer[c_int, pk_origin]],
+        pAutoinc: Optional[Pointer[c_int, auto_origin]],
     ) -> c_int:
         """Extract Metadata About A Column Of A Table.
 
@@ -3221,17 +3186,6 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        # return self._fn_sqlite3_table_column_metadata(
-        #     db,
-        #     zDbName.unsafe_origin_cast[MutUntrackedOrigin](),
-        #     zTableName.unsafe_origin_cast[MutUntrackedOrigin](),
-        #     zColumnName.unsafe_origin_cast[MutUntrackedOrigin](),
-        #     pzDataType.unsafe_origin_cast[MutUntrackedOrigin](),
-        #     pzCollSeq.unsafe_origin_cast[MutUntrackedOrigin](),
-        #     pNotNull.unsafe_origin_cast[MutUntrackedOrigin](),
-        #     pPrimaryKey.unsafe_origin_cast[MutUntrackedOrigin](),
-        #     pAutoinc.unsafe_origin_cast[MutUntrackedOrigin]()
-        # )
         try:
             return self.lib.get_function[c_int]("sqlite3_table_column_metadata")(
                 db, zDbName, zTableName, zColumnName, pzDataType, pzCollSeq, pNotNull, pPrimaryKey, pAutoinc
@@ -3241,14 +3195,13 @@ struct _sqlite3(Movable):
                 "sqlite3_table_column_metadata: symbol not found in libsqlite3 (should have been validated in __init__)"
             )
 
-    def sqlite3_load_extension[
-        file_origin: ImmOrigin,
-        err_msg_origin: MutOrigin,
-    ](
+    def sqlite3_load_extension[conn_origin: MutOrigin, file_origin: ImmOrigin,
+        proc_origin: ImmOrigin,
+        err_msg_origin: MutOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zFile: ImmPointer[c_char, file_origin],
-        zProc: Optional[ImmExternalPointer[c_char]],
+        zProc: Optional[ImmPointer[c_char, proc_origin]],
         pzErrMsg: MutPointer[Optional[MutExternalPointer[c_char]], err_msg_origin],
     ) -> c_int:
         """Load An Extension.
@@ -3271,13 +3224,13 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        # return self._fn_sqlite3_load_extension(db, zFile.unsafe_origin_cast[MutUntrackedOrigin](), zProc.unsafe_origin_cast[MutUntrackedOrigin](), pzErrMsg.unsafe_origin_cast[MutUntrackedOrigin]())
+        # return self._fn_sqlite3_load_extension(db, zFile, zProc, pzErrMsg)
         try:
             return self.lib.get_function[c_int]("sqlite3_load_extension")(db, zFile, zProc, pzErrMsg)
         except:
             os.abort("sqlite3_load_extension: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_enable_load_extension(self, db: MutExternalPointer[sqlite3_connection], onoff: c_int) -> c_int:
+    def sqlite3_enable_load_extension[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], onoff: c_int) -> c_int:
         """Enable Or Disable Extension Loading.
 
         This routine enables or disables the sqlite3_load_extension() interface.
@@ -3298,7 +3251,7 @@ struct _sqlite3(Movable):
                 "sqlite3_enable_load_extension: symbol not found in libsqlite3 (should have been validated in __init__)"
             )
 
-    def sqlite3_get_autocommit(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
+    def sqlite3_get_autocommit[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Test For Auto-Commit Mode.
 
         This routine returns non-zero if the database connection is in
@@ -3335,8 +3288,8 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_db_handle: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_db_name(
-        self, db: MutExternalPointer[sqlite3_connection], N: c_int
+    def sqlite3_db_name[conn_origin: MutOrigin, //](
+        self, db: MutPointer[sqlite3_connection, conn_origin], N: c_int
     ) -> Optional[ImmExternalPointer[c_char]]:
         """Return The Schema Name For A Database.
 
@@ -3358,8 +3311,8 @@ struct _sqlite3(Movable):
             os.abort("sqlite3_db_name: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_db_filename[
-        origin: ImmOrigin, //
-    ](self, db: MutExternalPointer[sqlite3_connection], zDbName: ImmPointer[c_char, origin]) -> Optional[
+        origin: ImmOrigin, conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], zDbName: ImmPointer[c_char, origin]) -> Optional[
         ImmExternalPointer[c_char]
     ]:
         """Return The Filename For A Database.
@@ -3378,14 +3331,14 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[Optional[ImmExternalPointer[c_char]]]("sqlite3_db_filename")(
-                db, zDbName.unsafe_origin_cast[MutUntrackedOrigin]()
+                db, zDbName
             )
         except:
             os.abort("sqlite3_db_filename: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_db_readonly[
-        origin: ImmOrigin, //
-    ](self, db: MutExternalPointer[sqlite3_connection], zDbName: ImmPointer[c_char, origin]) -> c_int:
+        origin: ImmOrigin, conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], zDbName: ImmPointer[c_char, origin]) -> c_int:
         """Determine If A Database Is Read-Only.
 
         This routine returns 1 if the database is read-only, 0 if it is
@@ -3401,14 +3354,14 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_db_readonly")(
-                db, zDbName.unsafe_origin_cast[MutUntrackedOrigin]()
+                db, zDbName
             )
         except:
             os.abort("sqlite3_db_readonly: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_txn_state[
-        origin: ImmOrigin, //
-    ](self, db: MutExternalPointer[sqlite3_connection], zSchema: ImmPointer[c_char, origin]) -> c_int:
+        origin: ImmOrigin, conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], zSchema: ImmPointer[c_char, origin]) -> c_int:
         """Determine The Transaction State Of A Database.
 
         This routine returns the current transaction state of schema zSchema
@@ -3426,13 +3379,13 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_txn_state")(
-                db, zSchema.unsafe_origin_cast[MutUntrackedOrigin]()
+                db, zSchema
             )
         except:
             os.abort("sqlite3_txn_state: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_next_stmt(
-        self, pDb: MutExternalPointer[sqlite3_connection], pStmt: Optional[MutExternalPointer[sqlite3_stmt]]
+    def sqlite3_next_stmt[conn_origin: MutOrigin, //](
+        self, pDb: MutPointer[sqlite3_connection, conn_origin], pStmt: Optional[MutExternalPointer[sqlite3_stmt]]
     ) -> Optional[MutExternalPointer[sqlite3_stmt]]:
         """Find The Next Prepared Statement.
 
@@ -3454,9 +3407,9 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_next_stmt: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_update_hook(
+    def sqlite3_update_hook[conn_origin: MutOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         xCallback: Optional[MutExternalPointer[UpdateHookCallbackFn]],
         pArg: Optional[MutExternalPointer[NoneType]],
     ) -> None:
@@ -3480,9 +3433,9 @@ struct _sqlite3(Movable):
         except:
             pass
 
-    def sqlite3_commit_hook(
+    def sqlite3_commit_hook[conn_origin: MutOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         xCallback: Optional[MutExternalPointer[CommitHookCallbackFn]],
         pArg: Optional[MutExternalPointer[NoneType]],
     ) -> Optional[MutExternalPointer[NoneType]]:
@@ -3510,9 +3463,9 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_commit_hook: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_rollback_hook(
+    def sqlite3_rollback_hook[conn_origin: MutOrigin, //](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         xCallback: Optional[MutExternalPointer[RollbackHookCallbackFn]],
         pArg: Optional[MutExternalPointer[NoneType]],
     ) -> Optional[MutExternalPointer[NoneType]]:
@@ -3558,7 +3511,7 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_auto_extension: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_db_release_memory(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
+    def sqlite3_db_release_memory[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Release Memory Used By A Database Connection.
 
         This routine attempts to free as much heap memory as possible from
@@ -3595,7 +3548,7 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_cancel_auto_extension")(
-                xEntryPoint.unsafe_origin_cast[MutUntrackedOrigin]()
+                xEntryPoint
             )
         except:
             os.abort(
@@ -3621,10 +3574,10 @@ struct _sqlite3(Movable):
             )
 
     def sqlite3_create_module_v2[
-        name_origin: ImmOrigin, module_origin: MutOrigin, //
+        name_origin: ImmOrigin, module_origin: MutOrigin, conn_origin: MutOrigin, //
     ](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zName: ImmPointer[c_char, name_origin],
         p: MutPointer[sqlite3_module, module_origin],
         pClientData: Optional[MutExternalPointer[NoneType]],
@@ -3654,7 +3607,7 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_create_module_v2")(
-                db, zName.unsafe_origin_cast[MutUntrackedOrigin](), p, pClientData, destructor_callback
+                db, zName, p, pClientData, destructor_callback
             )
         except:
             os.abort(
@@ -3662,10 +3615,10 @@ struct _sqlite3(Movable):
             )
 
     def sqlite3_blob_open[
-        db_origin: ImmOrigin, table_origin: ImmOrigin, column_origin: ImmOrigin, blob_origin: MutOrigin, //
+        db_origin: ImmOrigin, table_origin: ImmOrigin, column_origin: ImmOrigin, blob_origin: MutOrigin, conn_origin: MutOrigin, //
     ](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zDb: ImmPointer[c_char, db_origin],
         zTable: ImmPointer[c_char, table_origin],
         zColumn: ImmPointer[c_char, column_origin],
@@ -3698,12 +3651,12 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_blob_open")(
                 db,
-                zDb.unsafe_origin_cast[MutUntrackedOrigin](),
-                zTable.unsafe_origin_cast[MutUntrackedOrigin](),
-                zColumn.unsafe_origin_cast[MutUntrackedOrigin](),
+                zDb,
+                zTable,
+                zColumn,
                 iRow,
                 flags,
-                ppBlob.unsafe_origin_cast[MutUntrackedOrigin](),
+                ppBlob,
             )
         except:
             os.abort("sqlite3_blob_open: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -3785,7 +3738,7 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_blob_read")(
-                pBlob, Z.unsafe_origin_cast[MutUntrackedOrigin](), N, iOffset
+                pBlob, Z, N, iOffset
             )
         except:
             os.abort("sqlite3_blob_read: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -3811,16 +3764,16 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_blob_write")(
-                pBlob, z.unsafe_origin_cast[MutUntrackedOrigin](), n, iOffset
+                pBlob, z, n, iOffset
             )
         except:
             os.abort("sqlite3_blob_write: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_file_control[
-        db_name_origin: ImmOrigin, arg_origin: MutOrigin, //
+        db_name_origin: ImmOrigin, arg_origin: MutOrigin, conn_origin: MutOrigin, //
     ](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zDbName: ImmPointer[c_char, db_name_origin],
         op: c_int,
         pArg: MutOpaquePointer[arg_origin],
@@ -3844,18 +3797,18 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_file_control")(
-                db, zDbName.unsafe_origin_cast[MutUntrackedOrigin](), op, pArg.unsafe_origin_cast[MutUntrackedOrigin]()
+                db, zDbName, op, pArg
             )
         except:
             os.abort("sqlite3_file_control: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_backup_init[
-        dest_name_origin: ImmOrigin, source_name_origin: ImmOrigin, //
+        dest_name_origin: ImmOrigin, source_name_origin: ImmOrigin, dest_origin: MutOrigin, source_origin: MutOrigin, //
     ](
         self,
-        pDest: MutExternalPointer[sqlite3_connection],
+        pDest: MutPointer[sqlite3_connection, dest_origin],
         zDestName: ImmPointer[c_char, dest_name_origin],
-        pSource: MutExternalPointer[sqlite3_connection],
+        pSource: MutPointer[sqlite3_connection, source_origin],
         zSourceName: ImmPointer[c_char, source_name_origin],
     ) -> Optional[MutExternalPointer[sqlite3_backup]]:
         """Initialize A Backup Operation.
@@ -3877,9 +3830,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[Optional[MutExternalPointer[sqlite3_backup]]]("sqlite3_backup_init")(
                 pDest,
-                zDestName.unsafe_origin_cast[MutUntrackedOrigin](),
+                zDestName,
                 pSource,
-                zSourceName.unsafe_origin_cast[MutUntrackedOrigin](),
+                zSourceName,
             )
         except:
             os.abort("sqlite3_backup_init: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -3964,10 +3917,10 @@ struct _sqlite3(Movable):
             )
 
     def sqlite3_unlock_notify[
-        arg_origin: MutOrigin, //
+        arg_origin: MutOrigin, conn_origin: MutOrigin, //
     ](
         self,
-        pBlocked: MutExternalPointer[sqlite3_connection],
+        pBlocked: MutPointer[sqlite3_connection, conn_origin],
         xNotify: UnlockNotifyCallbackFn,
         pNotifyArg: MutOpaquePointer[arg_origin],
     ) -> c_int:
@@ -3991,7 +3944,7 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_unlock_notify")(
-                pBlocked, xNotify, pNotifyArg.unsafe_origin_cast[MutUntrackedOrigin]()
+                pBlocked, xNotify, pNotifyArg
             )
         except:
             os.abort("sqlite3_unlock_notify: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -4009,15 +3962,15 @@ struct _sqlite3(Movable):
             zFormat: Printf-style format string.
         """
         try:
-            self.lib.get_function[NoneType]("sqlite3_log")(iErrCode, zFormat.unsafe_origin_cast[MutUntrackedOrigin]())
+            self.lib.get_function[NoneType]("sqlite3_log")(iErrCode, zFormat)
         except:
             pass
 
     def sqlite3_wal_hook[
-        arg_origin: MutOrigin, //
+        arg_origin: MutOrigin, conn_origin: MutOrigin, //
     ](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         xCallback: WALHookCallbackFn,
         pArg: MutOpaquePointer[arg_origin],
     ) -> Optional[MutExternalPointer[NoneType]]:
@@ -4038,12 +3991,12 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_wal_hook")(
-                db, xCallback, pArg.unsafe_origin_cast[MutUntrackedOrigin]()
+                db, xCallback, pArg
             )
         except:
             os.abort("sqlite3_wal_hook: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_wal_autocheckpoint(self, db: MutExternalPointer[sqlite3_connection], N: c_int) -> c_int:
+    def sqlite3_wal_autocheckpoint[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], N: c_int) -> c_int:
         """Configure Automatic Checkpointing.
 
         This routine configures automatic checkpointing of the write-ahead log.
@@ -4065,8 +4018,8 @@ struct _sqlite3(Movable):
                 "sqlite3_wal_autocheckpoint: symbol not found in libsqlite3 (should have been validated in __init__)"
             )
 
-    def sqlite3_wal_checkpoint(
-        self, db: MutExternalPointer[sqlite3_connection], zDb: Optional[ImmExternalPointer[c_char]] = None
+    def sqlite3_wal_checkpoint[db_origin: ImmOrigin, conn_origin: MutOrigin, //](
+        self, db: MutPointer[sqlite3_connection, conn_origin], zDb: Optional[ImmPointer[c_char, db_origin]]
     ) -> c_int:
         """Checkpoint A Database.
 
@@ -4088,11 +4041,11 @@ struct _sqlite3(Movable):
             os.abort("sqlite3_wal_checkpoint: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_wal_checkpoint_v2[
-        log_origin: MutOrigin, checkpoint_origin: MutOrigin, //
+        log_origin: MutOrigin, db_origin: ImmOrigin, checkpoint_origin: MutOrigin, conn_origin: MutOrigin, //
     ](
         self,
-        db: MutExternalPointer[sqlite3_connection],
-        zDb: Optional[ImmExternalPointer[c_char]],
+        db: MutPointer[sqlite3_connection, conn_origin],
+        zDb: Optional[ImmPointer[c_char, db_origin]],
         eMode: c_int,
         pnLog: MutPointer[c_int, log_origin],
         pnCkpt: MutPointer[c_int, checkpoint_origin],
@@ -4125,15 +4078,15 @@ struct _sqlite3(Movable):
                 db,
                 zDb,
                 eMode,
-                pnLog.unsafe_origin_cast[MutUntrackedOrigin](),
-                pnCkpt.unsafe_origin_cast[MutUntrackedOrigin](),
+                pnLog,
+                pnCkpt,
             )
         except:
             os.abort(
                 "sqlite3_wal_checkpoint_v2: symbol not found in libsqlite3 (should have been validated in __init__)"
             )
 
-    def sqlite3_vtab_config(self, db: MutExternalPointer[sqlite3_connection], op: c_int) -> c_int:
+    def sqlite3_vtab_config[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], op: c_int) -> c_int:
         """Configure Virtual Table Behavior.
 
         This interface is used to configure virtual table implementations.
@@ -4154,7 +4107,7 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_vtab_config: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_vtab_on_conflict(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
+    def sqlite3_vtab_on_conflict[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Determine The Virtual Table Conflict Policy.
 
         This function may only be called from within a call to the xUpdate
@@ -4239,8 +4192,8 @@ struct _sqlite3(Movable):
             os.abort("sqlite3_vtab_distinct: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_declare_vtab[
-        sql_origin: ImmOrigin, //
-    ](self, db: MutExternalPointer[sqlite3_connection], zSQL: ImmPointer[c_char, sql_origin],) -> c_int:
+        sql_origin: ImmOrigin, conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], zSQL: ImmPointer[c_char, sql_origin],) -> c_int:
         """Declare The Schema Of A Virtual Table.
 
         This interface is used within the xCreate or xConnect methods of
@@ -4263,7 +4216,7 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_declare_vtab: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_db_cacheflush(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
+    def sqlite3_db_cacheflush[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Flush Cached Database Pages.
 
         This routine attempts to flush any dirty pages in the database cache
@@ -4285,11 +4238,10 @@ struct _sqlite3(Movable):
 
     def sqlite3_serialize[
         schema_origin: ImmOrigin,
-        size_origin: MutOrigin,
-        //,
+        size_origin: MutOrigin, conn_origin: MutOrigin, //,
     ](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zSchema: ImmPointer[c_char, schema_origin],
         piSize: MutPointer[Int64, size_origin],
         mFlags: c_uint,
@@ -4317,18 +4269,18 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[Optional[MutExternalPointer[c_uchar]]]("sqlite3_serialize")(
                 db,
-                zSchema.unsafe_origin_cast[MutUntrackedOrigin](),
-                piSize.unsafe_origin_cast[MutUntrackedOrigin](),
+                zSchema,
+                piSize,
                 mFlags,
             )
         except:
             os.abort("sqlite3_serialize: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_deserialize[
-        schema_origin: ImmOrigin, data_origin: MutOrigin, //
+        schema_origin: ImmOrigin, data_origin: MutOrigin, conn_origin: MutOrigin, //
     ](
         self,
-        db: MutExternalPointer[sqlite3_connection],
+        db: MutPointer[sqlite3_connection, conn_origin],
         zSchema: ImmPointer[c_char, schema_origin],
         pData: MutPointer[c_uchar, data_origin],
         szDb: Int64,
@@ -4359,8 +4311,8 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_deserialize")(
                 db,
-                zSchema.unsafe_origin_cast[MutUntrackedOrigin](),
-                pData.unsafe_origin_cast[MutUntrackedOrigin](),
+                zSchema,
+                pData,
                 szDb,
                 szBuf,
                 mFlags,

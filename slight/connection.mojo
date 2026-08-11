@@ -1,6 +1,7 @@
 """SQLite DB Connection."""
 from std.ffi import c_int
 from std.pathlib import Path
+from slight.c.types import sqlite3_blob, sqlite3_connection, MutExternalPointer
 from slight.busy import BusyHandlerFn
 from slight.api import sqlite_ffi
 from slight.backup import Backup
@@ -149,6 +150,20 @@ struct Connection(Movable):
             The connection itself.
         """
         return self^
+    
+    def unsafe_ptr[
+        origin: Origin, address_space: AddressSpace, //
+    ](ref[origin, address_space] self) -> Pointer[sqlite3_connection, origin, address_space=address_space]:
+        """Retrieves a pointer to the underlying memory.
+
+        Parameters:
+            origin: The origin of the `InnerConnection`.
+            address_space: The `AddressSpace` of the `InnerConnection`.
+
+        Returns:
+            The pointer to the underlying memory.
+        """
+        return self.db.unsafe_ptr().unsafe_origin_cast[origin]()
 
     def raise_if_error(self, code: SQLite3Result) raises:
         """Raises if the SQLite error code is not `SQLITE_OK`.
@@ -1693,4 +1708,12 @@ struct Connection(Movable):
         Raises:
             Error: If the BLOB could not be opened.
         """
-        return Blob[read_only=read_only](Pointer(to=self), table, column, row_id, schema=schema^)
+        var ppBlob = MutExternalPointer[sqlite3_blob].unsafe_dangling()
+        var flags: c_int = 0 if read_only else 1
+        var ppBlob_ptr = Pointer(to=ppBlob)
+        self.raise_if_error(
+            sqlite_ffi()[].blob_open(
+                self.unsafe_ptr(), schema, table, column, row_id, flags, ppBlob_ptr
+            )
+        )
+        return Blob[read_only=read_only](Pointer(to=self), ppBlob)

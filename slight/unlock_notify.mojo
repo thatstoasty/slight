@@ -41,7 +41,7 @@ def _unlock_notify_cb(
         flag_ptr[] = True
 
 
-def is_locked(db: MutExternalPointer[sqlite3_connection], rc: SQLite3Result) -> Bool:
+def is_locked[conn_origin: ImmOrigin, //](db: ImmPointer[sqlite3_connection, conn_origin], rc: SQLite3Result) -> Bool:
     """Check whether a result code indicates shared-cache lock contention.
 
     Args:
@@ -56,8 +56,8 @@ def is_locked(db: MutExternalPointer[sqlite3_connection], rc: SQLite3Result) -> 
     return rc.value & 0xFF == SQLITE_LOCKED and sqlite_ffi()[].extended_errcode(db) == SQLite3Result.LOCKED_SHAREDCACHE
 
 
-def wait_for_unlock_notify(
-    db: MutExternalPointer[sqlite3_connection],
+def wait_for_unlock_notify[conn_origin: ImmOrigin, //](
+    db: ImmPointer[sqlite3_connection, conn_origin],
 ) -> SQLite3Result:
     """Block until an unlock-notify callback fires, then return SQLITE_OK.
 

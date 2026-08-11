@@ -8,10 +8,13 @@ See the official documentation for more information:
 - https://www.sqlite.org/c3ref/blob_open.html
 """
 
+from std.ffi import c_int
+from slight.api import sqlite_ffi
 from slight.c.types import MutExternalPointer, sqlite3_blob
 from slight.connection import Connection
 
 
+@fieldwise_init
 @explicit_destroy("You must call `.close()` to close the BLOB before the `Blob` is destroyed.")
 struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Deinitable where False, Movable, Sized):
     """A handle for incremental BLOB I/O, allowing a BLOB value to be read
@@ -42,35 +45,28 @@ struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Deinitable where Fa
     ```
     """
 
-    var conn: Pointer[Connection, Self.conn_origin]
+    var _conn: Pointer[Connection, Self.conn_origin]
     """A pointer to the connection that opened this BLOB."""
-    var handle: MutExternalPointer[sqlite3_blob]
+    var _handle: MutExternalPointer[sqlite3_blob]
     """The underlying BLOB handle."""
 
-    def __init__(
-        out self,
-        conn: Pointer[Connection, Self.conn_origin],
-        var table: String,
-        var column: String,
-        row_id: Int64,
-        *,
-        var schema: String = "main",
-    ) raises:
-        """Opens a BLOB for incremental I/O.
+    def unsafe_ptr[
+        origin: Origin, address_space: AddressSpace, //
+    ](ref[origin, address_space] self) -> Pointer[sqlite3_blob, origin, address_space=address_space]:
+        """Retrieves a pointer to the underlying memory.
 
-        Args:
-            conn: A pointer to the connection to open the BLOB on.
-            table: Name of the table containing the BLOB.
-            column: Name of the column containing the BLOB.
-            row_id: Row ID of the row containing the BLOB.
-            schema: Name of the database schema containing the table
-                (e.g. "main").
+        Parameters:
+            origin: The origin of the `SQLiteMallocString`.
+            address_space: The `AddressSpace` of the `SQLiteMallocString`.
 
-        Raises:
-            Error: If the BLOB could not be opened.
+        Returns:
+            The pointer to the underlying memory.
         """
-        self.conn = conn
-        self.handle = conn[].db.blob_open(table^, column^, row_id, read_only=Self.read_only, schema=schema^)
+        return (
+            self._handle.unsafe_mut_cast[origin.mut]()
+            .unsafe_origin_cast[origin]()
+            .unsafe_address_space_cast[address_space]()
+        )
 
     def __len__(self) -> Int:
         """Returns the size of the BLOB in bytes.
@@ -78,7 +74,7 @@ struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Deinitable where Fa
         Returns:
             The size of the BLOB in bytes.
         """
-        return self.conn[].db.blob_bytes(self.handle)
+        return Int(sqlite_ffi()[].blob_bytes(self.unsafe_ptr()))
 
     def read(self, mut buffer: List[Byte], offset: Int = 0) raises:
         """Reads data from the BLOB incrementally into `buffer`.
@@ -92,7 +88,14 @@ struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Deinitable where Fa
         Raises:
             Error: If the underlying SQLite call fails.
         """
-        self.conn[].db.blob_read(self.handle, buffer, offset)
+        self._conn[].raise_if_error(
+            sqlite_ffi()[].blob_read(
+                self.unsafe_ptr(),
+                buffer.unsafe_ptr().unsafe_bitcast[NoneType](),
+                c_int(len(buffer)),
+                c_int(offset)
+            )
+        )
 
     def read(self, n: Int, offset: Int = 0) raises -> List[Byte]:
         """Reads `n` bytes of data from the BLOB, starting at `offset`.
@@ -127,9 +130,16 @@ struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Deinitable where Fa
         Raises:
             Error: If the underlying SQLite call fails.
         """
-        self.conn[].db.blob_write(self.handle, data, offset)
+        self._conn[].raise_if_error(
+            sqlite_ffi()[].blob_write(
+                self.unsafe_ptr(),
+                data.unsafe_ptr().unsafe_bitcast[NoneType](),
+                c_int(len(data)),
+                c_int(offset),
+            )
+        )
 
-    def reopen(self, row_id: Int64) raises:
+    def reopen(mut self, row_id: Int64) raises:
         """Moves this BLOB handle to point to a different row of the same
         database table.
 
@@ -142,7 +152,9 @@ struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Deinitable where Fa
         Raises:
             Error: If the underlying SQLite call fails.
         """
-        self.conn[].db.blob_reopen(self.handle, row_id)
+        self._conn[].raise_if_error(
+            sqlite_ffi()[].blob_reopen(self.unsafe_ptr(), row_id)
+        )
 
     def close(deinit self) raises:
         """Closes the BLOB handle, committing any changes made via `write()`.
@@ -150,5 +162,6 @@ struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Deinitable where Fa
         Raises:
             Error: If the underlying SQLite call fails.
         """
-        var rc = self.conn[].db.blob_close(self.handle)
-        self.conn[].raise_if_error(rc)
+        self._conn[].raise_if_error(
+            sqlite_ffi()[].blob_close(self.unsafe_ptr())
+        )
