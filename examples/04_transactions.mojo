@@ -67,7 +67,7 @@ def example_transaction_rollback() raises:
             (9999.0, "Alice")
         )
         print("Inside transaction (before rollback):")
-        print_account_balances(tx)
+        print_account_balances(tx.conn[])
         # tx.rollback() is implicit when exiting without commit
 
     print("After rolled back transaction (changes discarded):")
@@ -95,13 +95,13 @@ def example_savepoints() raises:
         # First operation: Add oranges
         _ = tx.execute("INSERT INTO inventory VALUES (?1, ?2)", ("Oranges", 50))
         print("\nAfter adding Oranges:")
-        print_inventory(tx)
+        print_inventory(tx.conn[])
 
         # Savepoint for a risky operation
         with tx.savepoint() as sp:
             _ = sp.execute("UPDATE inventory SET quantity = ?1 WHERE item = ?2", (0, "Apples"))
             print("\nInside savepoint (set Apples to 0):")
-            print_inventory(sp)
+            print_inventory(sp.conn[])
             # Oops! We don't want to zero out apples, rollback this savepoint
             sp.rollback()
 
@@ -110,7 +110,7 @@ def example_savepoints() raises:
             sp.commit()
 
         print("\nAfter savepoint (Apples reduced by 10 instead of zeroed):")
-        print_inventory(tx)
+        print_inventory(tx.conn[])
 
         tx.commit()
 

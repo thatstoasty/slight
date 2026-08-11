@@ -53,7 +53,7 @@ def main() raises:
     # For convenience, we can call it directly on the Connection which will
     # prepare the statement for us internally. Connections cannot return row iterators, because
     # results are tied to the lifetime of the statement, so we have to use one_row for single rows and stmt.query for multiple rows.
-    stmt = db.prepare("SELECT * FROM COMPANY LIMIT 1;")
+    var stmt = db.prepare("SELECT * FROM COMPANY LIMIT 1;")
     print("Employee:", db.one_row[transform_row]("SELECT * FROM COMPANY LIMIT 1;"))
 
     # query returns an iterator which transforms rows into Employee structs.
