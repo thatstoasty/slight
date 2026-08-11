@@ -29,7 +29,11 @@ struct SQLiteMallocString(Movable):
         Returns:
             The pointer to the underlying memory.
         """
-        return self.ptr.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().unsafe_address_space_cast[address_space]()
+        return (
+            self.ptr.unsafe_mut_cast[origin.mut]()
+            .unsafe_origin_cast[origin]()
+            .unsafe_address_space_cast[address_space]()
+        )
 
     def as_string_slice(self) -> CStringSlice[origin_of(self)]:
         """Returns the C string to a `CStringSlice`.

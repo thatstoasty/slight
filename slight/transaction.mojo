@@ -1,3 +1,4 @@
+"""SQLite transactions and savepoints."""
 from std.os import abort
 from slight.connection import Connection
 from slight.params import Params
@@ -138,7 +139,7 @@ struct Transaction[conn_origin: ImmOrigin](Movable):
         out self,
         conn: Pointer[Connection, Self.conn_origin],
         behavior: TransactionBehavior = TransactionBehavior.DEFERRED,
-        delete_behavior: DeleteBehavior = DeleteBehavior.ROLLBACK
+        delete_behavior: DeleteBehavior = DeleteBehavior.ROLLBACK,
     ) raises:
         """Begin a new transaction.
 
@@ -422,7 +423,7 @@ struct Savepoint[conn_origin: ImmOrigin](Movable):
         out self,
         conn: Pointer[Connection, Self.conn_origin],
         name: String = "_slight_sp",
-        delete_behavior: DeleteBehavior = DeleteBehavior.ROLLBACK
+        delete_behavior: DeleteBehavior = DeleteBehavior.ROLLBACK,
     ) raises:
         """Begin a new savepoint.
 

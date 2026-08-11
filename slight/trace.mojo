@@ -25,7 +25,10 @@ from slight.api import sqlite_ffi
 
 @fieldwise_init
 struct TraceEventCodes(
-    ImplicitlyCopyable, Writable, TrivialRegisterPassable, Equatable,
+    Equatable,
+    ImplicitlyCopyable,
+    TrivialRegisterPassable,
+    Writable,
 ):
     """Bitmask of trace event types for `Connection.trace()`.
 
@@ -143,9 +146,7 @@ struct TraceEventCodes(
 
 
 @fieldwise_init
-struct StatementStatus(
-    ImplicitlyCopyable, Writable, TrivialRegisterPassable, Equatable
-):
+struct StatementStatus(Equatable, ImplicitlyCopyable, TrivialRegisterPassable, Writable):
     """Status counters for prepared statements.
 
     Used with `TraceEvent.get_status()` and `Statement.get_status()`.
@@ -224,7 +225,7 @@ struct StatementStatus(
 # ── Trace event ────────────────────────────────────────────────────────
 
 
-comptime TraceFn = def (TraceEvent) thin -> NoneType
+comptime TraceFn = def(TraceEvent) thin -> NoneType
 """User-provided trace callback type for `Connection.trace()`.
 
 The callback receives a `TraceEvent` whose `event_code` indicates
@@ -300,9 +301,7 @@ struct TraceEvent:
             The SQL text as a `String`.
         """
         var ptr = self._x.unsafe_bitcast[c_char]().unsafe_mut_cast[False]()
-        return String(
-            CStringSlice(unsafe_from_ptr=ptr)
-        )
+        return String(CStringSlice(unsafe_from_ptr=ptr))
 
     def stmt_sql(self) -> String:
         """Return the SQL text from the statement handle.
@@ -316,9 +315,7 @@ struct TraceEvent:
         var sql_ptr = sqlite_ffi()[].sql(stmt)
         if not sql_ptr:
             return ""
-        return String(
-            CStringSlice(unsafe_from_ptr=sql_ptr.value())
-        )
+        return String(CStringSlice(unsafe_from_ptr=sql_ptr.value()))
 
     def expanded_sql(self) raises -> String:
         """Return expanded SQL (parameters substituted) from the statement.
@@ -327,6 +324,9 @@ struct TraceEvent:
 
         Returns:
             The expanded SQL as a `String`.
+
+        Raises:
+            Error: If the expanded SQL string cannot be allocated due to an OOM error.
         """
         var stmt = self._p.unsafe_bitcast[sqlite3_stmt]()
         var s = sqlite_ffi()[].expanded_sql(stmt)
@@ -356,9 +356,7 @@ struct TraceEvent:
             The current value of the counter.
         """
         var stmt = self._p.unsafe_bitcast[sqlite3_stmt]()
-        return Int32(
-            sqlite_ffi()[].stmt_status(stmt, c_int(status.value), c_int(0)).value
-        )
+        return Int32(sqlite_ffi()[].stmt_status(stmt, c_int(status.value), c_int(0)).value)
 
     def is_autocommit(self) -> Bool:
         """Test whether the connection is in auto-commit mode.
@@ -384,12 +382,13 @@ struct TraceEvent:
         var file = sqlite_ffi()[].db_filename(db, db_name)
         if not file:
             return None
-        
+
         var s = String(file.value())
         if s.byte_length() == 0:
             return None
 
         return s^
+
 
 # ── C-compatible trace callback ────────────────────────────────────────
 

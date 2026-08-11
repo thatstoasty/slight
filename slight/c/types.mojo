@@ -1,15 +1,20 @@
+"""Opaque pointer and callback typedefs matching SQLite3's C types."""
 from std.ffi import c_char, c_int, c_uchar, c_uint
 from std.memory import OpaquePointer
 from std.utils import StaticTuple
 
 
-comptime ImmExternalPointer[type: AnyType] = ImmPointer[type, origin=ImmUntrackedOrigin, address_space=AddressSpace.GENERIC, ...]
+comptime ImmExternalPointer[type: AnyType] = ImmPointer[
+    type, origin=ImmUntrackedOrigin, address_space=AddressSpace.GENERIC, ...
+]
 """Immable External Pointer. This points to data owned by SQLite and should not be modified by Mojo code.
 
 Parameters:
     type: The type of the data the pointer points to.
 """
-comptime MutExternalPointer[type: AnyType] = MutPointer[type, origin=MutUntrackedOrigin, address_space=AddressSpace.GENERIC, ...]
+comptime MutExternalPointer[type: AnyType] = MutPointer[
+    type, origin=MutUntrackedOrigin, address_space=AddressSpace.GENERIC, ...
+]
 """Mutable External Pointer. This points to data owned by SQLite and may be modified by Mojo code.
 
 Parameters:
@@ -262,7 +267,9 @@ comptime CancelExtensionCallbackFn = def() abi("C") thin -> c_int
 
 comptime TraceCallbackFn = def(MutExternalPointer[NoneType], ImmExternalPointer[c_char]) abi("C") thin
 """Callback type for SQLite trace callbacks."""
-comptime TraceV2CallbackFn = def(c_uint, MutExternalPointer[NoneType], MutExternalPointer[NoneType], MutExternalPointer[NoneType]) abi("C") thin -> c_int
+comptime TraceV2CallbackFn = def(
+    c_uint, MutExternalPointer[NoneType], MutExternalPointer[NoneType], MutExternalPointer[NoneType]
+) abi("C") thin -> c_int
 """Callback type for SQLite trace v2 callbacks."""
 comptime ProfileCallbackFn = def(MutExternalPointer[NoneType], ImmExternalPointer[c_char], UInt64) abi("C") thin
 """Callback type for SQLite profile callbacks."""
@@ -306,7 +313,7 @@ comptime WALHookCallbackFn = def(
 """Callback type for SQLite WAL hook callbacks."""
 comptime MemoryAlarmCallbackFn = def(MutExternalPointer[NoneType], Int64, c_int) abi("C") thin
 """Callback type for SQLite memory alarm callbacks."""
-comptime BusyHandlerFn = def (c_int) abi("C") thin -> Bool
+comptime BusyHandlerFn = def(c_int) abi("C") thin -> Bool
 """A busy handler callback function.
 
 The argument is the number of times the busy handler has been invoked
@@ -338,7 +345,7 @@ are modeled as `Optional[ImmExternalPointer[c_char]]`; the null-pointer niche
 lets a NULL argument arrive as `None`.
 """
 
-comptime BusyHandlerCallbackFn = def (MutExternalPointer[NoneType], c_int) abi("C") thin -> c_int
+comptime BusyHandlerCallbackFn = def(MutExternalPointer[NoneType], c_int) abi("C") thin -> c_int
 """A busy handler callback function.
 
 The argument is the number of times the busy handler has been invoked
@@ -477,7 +484,7 @@ struct sqlite3_context(Movable):
     pass
 
 
-comptime VtabCreateCallbackFn = def (
+comptime VtabCreateCallbackFn = def(
     MutExternalPointer[sqlite3_connection],
     MutExternalPointer[NoneType],
     c_int,
@@ -486,7 +493,7 @@ comptime VtabCreateCallbackFn = def (
     MutExternalPointer[MutExternalPointer[c_char]],
 ) abi("C") thin -> c_int
 """Called to create a new virtual table. It should create a new instance of the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabConnectCallbackFn = def (
+comptime VtabConnectCallbackFn = def(
     MutExternalPointer[sqlite3_connection],
     MutExternalPointer[NoneType],
     c_int,
@@ -495,17 +502,21 @@ comptime VtabConnectCallbackFn = def (
     MutExternalPointer[MutExternalPointer[c_char]],
 ) abi("C") thin -> c_int
 """Called to connect to an existing virtual table. It should initialize a new instance of the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabBestIndexCallbackFn = def (MutExternalPointer[sqlite3_vtab], MutExternalPointer[sqlite3_index_info]) abi("C") thin -> c_int
+comptime VtabBestIndexCallbackFn = def(MutExternalPointer[sqlite3_vtab], MutExternalPointer[sqlite3_index_info]) abi(
+    "C"
+) thin -> c_int
 """Called to determine the best way to access a virtual table. It should analyze the query constraints and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabDisconnectCallbackFn = def (MutExternalPointer[sqlite3_vtab]) abi("C") thin -> c_int
+comptime VtabDisconnectCallbackFn = def(MutExternalPointer[sqlite3_vtab]) abi("C") thin -> c_int
 """Called to disconnect from a virtual table. It should clean up any resources associated with the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabDestroyCallbackFn = def (MutExternalPointer[sqlite3_vtab]) abi("C") thin -> c_int
+comptime VtabDestroyCallbackFn = def(MutExternalPointer[sqlite3_vtab]) abi("C") thin -> c_int
 """Called to destroy a virtual table. It should clean up any resources associated with the virtual table and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabOpenCallbackFn = def (MutExternalPointer[sqlite3_vtab], MutExternalPointer[MutExternalPointer[sqlite3_vtab_cursor]]) abi("C") thin -> c_int
+comptime VtabOpenCallbackFn = def(
+    MutExternalPointer[sqlite3_vtab], MutExternalPointer[MutExternalPointer[sqlite3_vtab_cursor]]
+) abi("C") thin -> c_int
 """Called to open a new cursor on a virtual table. It should create a new instance of the cursor and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabCloseCallbackFn = def (MutExternalPointer[sqlite3_vtab_cursor]) abi("C") thin -> c_int
+comptime VtabCloseCallbackFn = def(MutExternalPointer[sqlite3_vtab_cursor]) abi("C") thin -> c_int
 """Called to close a cursor on a virtual table. It should clean up any resources associated with the cursor and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabFilterCallbackFn = def (
+comptime VtabFilterCallbackFn = def(
     MutExternalPointer[sqlite3_vtab_cursor],
     c_int,
     Optional[ImmExternalPointer[c_char]],
@@ -513,61 +524,65 @@ comptime VtabFilterCallbackFn = def (
     MutExternalPointer[MutExternalPointer[sqlite3_value]],
 ) abi("C") thin -> c_int
 """Called to begin a search of a virtual table. It should initialize the cursor to point to the first row of the result set and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabNextCallbackFn = def (MutExternalPointer[sqlite3_vtab_cursor]) abi("C") thin -> c_int
+comptime VtabNextCallbackFn = def(MutExternalPointer[sqlite3_vtab_cursor]) abi("C") thin -> c_int
 """Called to advance a cursor to the next row of the result set. It should move the cursor to the next row and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabEofCallbackFn = def (MutExternalPointer[sqlite3_vtab_cursor]) abi("C") thin -> c_int
+comptime VtabEofCallbackFn = def(MutExternalPointer[sqlite3_vtab_cursor]) abi("C") thin -> c_int
 """Called to determine if a cursor has reached the end of the result set. It should return 1 if the cursor is at the end of the result set and 0 otherwise."""
-comptime VtabColumnCallbackFn = def (MutExternalPointer[sqlite3_vtab_cursor], MutExternalPointer[sqlite3_context], c_int) abi("C") thin -> c_int
+comptime VtabColumnCallbackFn = def(
+    MutExternalPointer[sqlite3_vtab_cursor], MutExternalPointer[sqlite3_context], c_int
+) abi("C") thin -> c_int
 """Called to retrieve a column value from the current row of the result set. It should use the sqlite3_result_*() interfaces to return the value of the specified column and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabRowidCallbackFn = def (MutExternalPointer[sqlite3_vtab_cursor], MutExternalPointer[Int64]) abi("C") thin -> c_int
+comptime VtabRowidCallbackFn = def(MutExternalPointer[sqlite3_vtab_cursor], MutExternalPointer[Int64]) abi(
+    "C"
+) thin -> c_int
 """Called to retrieve the rowid of the current row of the result set. It should store the rowid in the provided pointer and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabUpdateCallbackFn = def (
+comptime VtabUpdateCallbackFn = def(
     MutExternalPointer[sqlite3_vtab],
     c_int,
     MutExternalPointer[MutExternalPointer[sqlite3_value]],
     MutExternalPointer[Int64],
 ) abi("C") thin -> c_int
 """Called to update the virtual table. It should perform the specified update operation (insert, update, or delete) and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabBeginCallbackFn = def (MutExternalPointer[sqlite3_vtab]) abi("C") thin -> c_int
+comptime VtabBeginCallbackFn = def(MutExternalPointer[sqlite3_vtab]) abi("C") thin -> c_int
 """Called to begin a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabSyncCallbackFn = def (MutExternalPointer[sqlite3_vtab]) abi("C") thin -> c_int
+comptime VtabSyncCallbackFn = def(MutExternalPointer[sqlite3_vtab]) abi("C") thin -> c_int
 """Called to sync the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabCommitCallbackFn = def (MutExternalPointer[sqlite3_vtab]) abi("C") thin -> c_int
+comptime VtabCommitCallbackFn = def(MutExternalPointer[sqlite3_vtab]) abi("C") thin -> c_int
 """Called to commit a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabRollbackCallbackFn = def (MutExternalPointer[sqlite3_vtab]) abi("C") thin -> c_int
+comptime VtabRollbackCallbackFn = def(MutExternalPointer[sqlite3_vtab]) abi("C") thin -> c_int
 """Called to roll back a transaction on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabFindFunctionCallbackFn = def (
+comptime VtabFindFunctionCallbackFn = def(
     MutExternalPointer[sqlite3_vtab],
     c_int,
     ImmExternalPointer[c_char],
-    def (
+    def(
         MutExternalPointer[sqlite3_context], c_int, MutExternalPointer[MutExternalPointer[sqlite3_value]]
     ) abi("C") thin -> MutExternalPointer[MutExternalPointer[NoneType]],
     MutExternalPointer[MutExternalPointer[NoneType]],
 ) abi("C") thin -> c_int
 """Called to find an application-defined SQL function. It should search for the specified function and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabRenameCallbackFn = def (
-    MutExternalPointer[sqlite3_vtab], MutExternalPointer[c_char]
-) abi("C") thin -> c_int
+comptime VtabRenameCallbackFn = def(MutExternalPointer[sqlite3_vtab], MutExternalPointer[c_char]) abi("C") thin -> c_int
 """Called to rename a virtual table. It should rename the virtual table to the specified name and return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabSavepointCallbackFn = def (MutExternalPointer[sqlite3_vtab], c_int) abi("C") thin -> c_int
+comptime VtabSavepointCallbackFn = def(MutExternalPointer[sqlite3_vtab], c_int) abi("C") thin -> c_int
 """Called to create a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabReleaseCallbackFn = def (MutExternalPointer[sqlite3_vtab], c_int) abi("C") thin -> c_int
+comptime VtabReleaseCallbackFn = def(MutExternalPointer[sqlite3_vtab], c_int) abi("C") thin -> c_int
 """Called to release a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabRollbackToCallbackFn = def (MutExternalPointer[sqlite3_vtab], c_int) abi("C") thin -> c_int
+comptime VtabRollbackToCallbackFn = def(MutExternalPointer[sqlite3_vtab], c_int) abi("C") thin -> c_int
 """Called to roll back to a savepoint on the virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabShadowNameCallbackFn = def (ImmExternalPointer[c_char]) abi("C") thin -> c_int
+comptime VtabShadowNameCallbackFn = def(ImmExternalPointer[c_char]) abi("C") thin -> c_int
 """Called to retrieve the shadow name of a virtual table. It should return SQLITE_OK on success or an appropriate error code on failure."""
-comptime VtabIntegrityCallbackFn = def (
+comptime VtabIntegrityCallbackFn = def(
     MutExternalPointer[sqlite3_vtab],
     MutExternalPointer[MutExternalPointer[c_char]],
     MutExternalPointer[MutExternalPointer[c_char]],
 ) abi("C") thin -> c_int
 """Called to check the integrity of a virtual table. It should perform the integrity check and return SQLITE_OK on success or an appropriate error code on failure."""
 
+
 @fieldwise_init
 struct sqlite3_module(Movable):
     """Virtual Table Module."""
+
     var iVersion: c_int
     """The version number of the virtual table module. This should be set to 0 for the initial version of the module. Future versions may add new methods to the module, and the version number can be used to indicate which version of the module is being used."""
     var xCreate: VtabCreateCallbackFn

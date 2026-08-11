@@ -91,9 +91,7 @@ __extension StringSpan(RowIndex):
 # TODO: I tried to include the connection and statement origins in the RowTransformFn type alias,
 # but it causes parameter binding issues in the connection class.
 # And I don't want to constrain functionality more.
-comptime RowTransformFn[T: Movable] = def[conn: ImmOrigin, statement: ImmOrigin](
-    Row[conn, statement]
-) raises thin -> T
+comptime RowTransformFn[T: Movable] = def[conn: ImmOrigin, statement: ImmOrigin](Row[conn, statement]) raises thin -> T
 """A type alias for a function that transforms a Row into a value of type T.
 
 Parameters:
@@ -102,7 +100,13 @@ Parameters:
 comptime BoundRowTransformFn[T: Movable, conn: ImmOrigin, statement: ImmOrigin] = def(
     Row[conn, statement]
 ) raises thin -> T
-"""A type alias for a function that transforms a Row into a value of type T."""
+"""A type alias for a function that transforms a Row into a value of type T.
+
+Parameters:
+    T: The target type to transform the Row into.
+    conn: The connection associated with the Row.
+    statement: The statement associated with the Row.
+"""
 
 
 @fieldwise_init
@@ -405,12 +409,11 @@ struct TypedRows[conn: ImmOrigin, statement: ImmOrigin, T: MoveDestructible](Cop
         else:
             # If we use mark_initialized with a struct that has something like a pointer
             # field that doesn't become initialized it will cause a crash if parsing fails.
-            comptime assert __all_dtors_are_trivial[Self.T](), (
-                "Cannot deserialize non-Defaultable struct containing fields with"
-                " non-trivial destructors"
-            )
+            comptime assert __all_dtors_are_trivial[
+                Self.T
+            ](), "Cannot deserialize non-Defaultable struct containing fields with non-trivial destructors"
             __mlir_op.`lit.ownership.mark_initialized`(__get_mvalue_as_litref(result))
-        
+
         comptime r = reflect[Self.T]
         comptime assert r.is_struct(), "TypedRows can only transform to struct types."
 
@@ -436,7 +439,9 @@ struct TypedRows[conn: ImmOrigin, statement: ImmOrigin, T: MoveDestructible](Cop
                 )
 
                 ref field = __struct_field_ref(i, result)
-                comptime assert conforms_to(type_of(field), MoveDestructible), String(t"Field '{field_name}' of struct '{r.name()}' does not conform to `Movable & Deinitable`.")
+                comptime assert conforms_to(type_of(field), MoveDestructible), String(
+                    t"Field '{field_name}' of struct '{r.name()}' does not conform to `Movable & Deinitable`."
+                )
                 field = row.get[type_of(field)](i)
         except e:
             # TODO: We capture and print the error here because an extension bug swallows errors.

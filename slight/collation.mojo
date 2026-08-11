@@ -47,12 +47,8 @@ def _collation_compare_callback(
     """
     var fn_as_int = Int(ctx)
     var callback = Pointer(to=fn_as_int).unsafe_bitcast[CollationCompareFn]()[]
-    var left_span = Span(
-        unsafe_ptr=left.unsafe_bitcast[Byte](), length=Int(n_left)
-    )
-    var right_span = Span(
-        unsafe_ptr=right.unsafe_bitcast[Byte](), length=Int(n_right)
-    )
+    var left_span = Span(unsafe_ptr=left.unsafe_bitcast[Byte](), length=Int(n_left))
+    var right_span = Span(unsafe_ptr=right.unsafe_bitcast[Byte](), length=Int(n_right))
     return c_int(callback(left_span, right_span))
 
 

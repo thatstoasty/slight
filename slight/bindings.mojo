@@ -462,7 +462,7 @@ struct sqlite3(Movable):
             Result code (SQLITE_OK on success).
         """
         return self.lib.sqlite3_set_authorizer[auth_callback](db, pUserData)
-    
+
     def remove_authorizer(self, db: MutExternalPointer[sqlite3_connection]) -> SQLite3Result:
         """Register An Authorizer Callback.
 
@@ -1086,7 +1086,7 @@ struct sqlite3(Movable):
 
     def bind_parameter_name(
         self, pStmt: MutExternalPointer[sqlite3_stmt], idx: c_int
-    ) raises -> Optional[ImmExternalPointer[c_char]]:
+    ) -> Optional[ImmExternalPointer[c_char]]:
         """Get the name of a parameter in a prepared statement.
 
         This function returns the name of the N-th SQL parameter in the prepared
@@ -1227,6 +1227,10 @@ struct sqlite3(Movable):
 
         Returns:
             The origin column name, or None if not available.
+
+        Raises:
+            Error: If the origin column name is not available (index out of range,
+                or SQLite was not compiled with `SQLITE_ENABLE_COLUMN_METADATA`).
         """
         var ptr = self.lib.sqlite3_column_origin_name(pStmt, idx)
         if not ptr:
@@ -1335,7 +1339,7 @@ struct sqlite3(Movable):
 
     def column_text(
         self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], iCol: c_int
-    ) raises -> Optional[CStringSlice[ImmUntrackedOrigin]]:
+    ) -> Optional[CStringSlice[ImmUntrackedOrigin]]:
         """Retrieve column data as UTF-8 text.
 
         This function returns the value of the specified column as a UTF-8
@@ -1873,9 +1877,7 @@ struct sqlite3(Movable):
         var ptr = self.lib.sqlite3_value_text(value)
         if not ptr:
             return None
-        return StringSpan(
-            unsafe_from_utf8=Span(unsafe_ptr=ptr.take(), length=Int(self.lib.sqlite3_value_bytes(value)))
-        )
+        return StringSpan(unsafe_from_utf8=Span(unsafe_ptr=ptr.take(), length=Int(self.lib.sqlite3_value_bytes(value))))
 
     def value_bytes(self, value: MutExternalPointer[sqlite3_value]) -> SQLite3Result:
         """Size Of A BLOB Or TEXT Value In Bytes.
@@ -2359,9 +2361,9 @@ struct sqlite3(Movable):
         var pNotNull_ptr: Optional[MutExternalPointer[c_int]] = Pointer(to=pNotNull.value()).unsafe_origin_cast[
             MutUntrackedOrigin
         ]() if pNotNull else None
-        var pPrimaryKey_ptr: Optional[MutExternalPointer[c_int]] = Pointer(
-            to=pPrimaryKey.value()
-        ).unsafe_origin_cast[MutUntrackedOrigin]() if pPrimaryKey else None
+        var pPrimaryKey_ptr: Optional[MutExternalPointer[c_int]] = Pointer(to=pPrimaryKey.value()).unsafe_origin_cast[
+            MutUntrackedOrigin
+        ]() if pPrimaryKey else None
         var pAutoinc_ptr: Optional[MutExternalPointer[c_int]] = Pointer(to=pAutoinc.value()).unsafe_origin_cast[
             MutUntrackedOrigin
         ]() if pAutoinc else None
@@ -3108,7 +3110,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_vtab_distinct(pIdxInfo)
 
-    def create_module[origin: MutOrigin, //](
+    def create_module[
+        origin: MutOrigin, //
+    ](
         self,
         db: MutExternalPointer[sqlite3_connection],
         module_name: StringSpan,

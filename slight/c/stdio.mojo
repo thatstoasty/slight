@@ -14,6 +14,12 @@ The caller is responsible for:
 from std.ffi import external_call, c_char, c_int
 
 comptime CPointer[T: AnyType, origin: Origin] = Optional[Pointer[T, origin]]
+"""A nullable pointer type matching C's `T *` (POSIX `NULL` is `None`).
+
+Parameters:
+    T: The pointee type.
+    origin: The origin of the pointee.
+"""
 # SEEK_* constants (POSIX)
 comptime SEEK_SET: c_int = c_int(0)
 """Seek from the beginning of the file."""
@@ -24,12 +30,13 @@ comptime SEEK_END: c_int = c_int(2)
 
 
 def fopen[
-    path_origin: ImmOrigin,
-    mode_origin: ImmOrigin, //
+    path_origin: ImmOrigin, mode_origin: ImmOrigin, //
 ](
     path: ImmPointer[c_char, path_origin],
     mode: ImmPointer[c_char, mode_origin],
-) -> CPointer[NoneType, MutUntrackedOrigin]:
+) -> CPointer[
+    NoneType, MutUntrackedOrigin
+]:
     """Open a file and return an opaque ``FILE *`` handle.
 
     Args:
@@ -80,7 +87,9 @@ def ftell(fp: CPointer[NoneType, MutUntrackedOrigin]) -> Int:
     return external_call["ftell", Int](fp)
 
 
-def fread[origin: MutOrigin, //](buf: MutPointer[NoneType, origin], size: Int, count: Int, fp: CPointer[NoneType, MutUntrackedOrigin]) -> Int:
+def fread[
+    origin: MutOrigin, //
+](buf: MutPointer[NoneType, origin], size: Int, count: Int, fp: CPointer[NoneType, MutUntrackedOrigin]) -> Int:
     """Read up to ``count`` elements of ``size`` bytes each from ``fp``.
 
     Args:

@@ -1,3 +1,4 @@
+"""Raw `extern "C"` FFI declarations matching `sqlite3.h`, loaded via `DLHandle`."""
 from std import os
 from slight.c.types import (
     ImmExternalPointer,
@@ -44,7 +45,7 @@ def _find_sqlite3_library() raises -> String:
 
     Returns:
         Library path string for ``OwnedDLHandle``.
-    
+
     Raises:
         Error: If the library path cannot be determined from either the environment variable or the conda prefix.
     """
@@ -110,157 +111,308 @@ struct _sqlite3(Movable):
 
             # Validate that every C symbol used by this binding actually exists in
             # the loaded library, so call sites below can assume the lookup always succeeds.
-            if not self.lib.check_symbol("sqlite3_libversion"): raise Error("Missing required SQLite symbol: sqlite3_libversion")
-            if not self.lib.check_symbol("sqlite3_sourceid"): raise Error("Missing required SQLite symbol: sqlite3_sourceid")
-            if not self.lib.check_symbol("sqlite3_libversion_number"): raise Error("Missing required SQLite symbol: sqlite3_libversion_number")
-            if not self.lib.check_symbol("sqlite3_threadsafe"): raise Error("Missing required SQLite symbol: sqlite3_threadsafe")
-            if not self.lib.check_symbol("sqlite3_close"): raise Error("Missing required SQLite symbol: sqlite3_close")
-            if not self.lib.check_symbol("sqlite3_config"): raise Error("Missing required SQLite symbol: sqlite3_config")
-            if not self.lib.check_symbol("sqlite3_db_config"): raise Error("Missing required SQLite symbol: sqlite3_db_config")
-            if not self.lib.check_symbol("sqlite3_extended_result_codes"): raise Error("Missing required SQLite symbol: sqlite3_extended_result_codes")
-            if not self.lib.check_symbol("sqlite3_last_insert_rowid"): raise Error("Missing required SQLite symbol: sqlite3_last_insert_rowid")
-            if not self.lib.check_symbol("sqlite3_changes"): raise Error("Missing required SQLite symbol: sqlite3_changes")
-            if not self.lib.check_symbol("sqlite3_changes64"): raise Error("Missing required SQLite symbol: sqlite3_changes64")
-            if not self.lib.check_symbol("sqlite3_total_changes"): raise Error("Missing required SQLite symbol: sqlite3_total_changes")
-            if not self.lib.check_symbol("sqlite3_total_changes64"): raise Error("Missing required SQLite symbol: sqlite3_total_changes64")
-            if not self.lib.check_symbol("sqlite3_interrupt"): raise Error("Missing required SQLite symbol: sqlite3_interrupt")
-            if not self.lib.check_symbol("sqlite3_is_interrupted"): raise Error("Missing required SQLite symbol: sqlite3_is_interrupted")
-            if not self.lib.check_symbol("sqlite3_busy_handler"): raise Error("Missing required SQLite symbol: sqlite3_busy_handler")
-            if not self.lib.check_symbol("sqlite3_busy_timeout"): raise Error("Missing required SQLite symbol: sqlite3_busy_timeout")
-            if not self.lib.check_symbol("sqlite3_malloc64"): raise Error("Missing required SQLite symbol: sqlite3_malloc64")
-            if not self.lib.check_symbol("sqlite3_free"): raise Error("Missing required SQLite symbol: sqlite3_free")
-            if not self.lib.check_symbol("sqlite3_msize"): raise Error("Missing required SQLite symbol: sqlite3_msize")
-            if not self.lib.check_symbol("sqlite3_set_authorizer"): raise Error("Missing required SQLite symbol: sqlite3_set_authorizer")
-            if not self.lib.check_symbol("sqlite3_trace"): raise Error("Missing required SQLite symbol: sqlite3_trace")
-            if not self.lib.check_symbol("sqlite3_profile"): raise Error("Missing required SQLite symbol: sqlite3_profile")
-            if not self.lib.check_symbol("sqlite3_trace_v2"): raise Error("Missing required SQLite symbol: sqlite3_trace_v2")
-            if not self.lib.check_symbol("sqlite3_progress_handler"): raise Error("Missing required SQLite symbol: sqlite3_progress_handler")
-            if not self.lib.check_symbol("sqlite3_open_v2"): raise Error("Missing required SQLite symbol: sqlite3_open_v2")
-            if not self.lib.check_symbol("sqlite3_errcode"): raise Error("Missing required SQLite symbol: sqlite3_errcode")
-            if not self.lib.check_symbol("sqlite3_extended_errcode"): raise Error("Missing required SQLite symbol: sqlite3_extended_errcode")
-            if not self.lib.check_symbol("sqlite3_errmsg"): raise Error("Missing required SQLite symbol: sqlite3_errmsg")
-            if not self.lib.check_symbol("sqlite3_errstr"): raise Error("Missing required SQLite symbol: sqlite3_errstr")
-            if not self.lib.check_symbol("sqlite3_error_offset"): raise Error("Missing required SQLite symbol: sqlite3_error_offset")
-            if not self.lib.check_symbol("sqlite3_limit"): raise Error("Missing required SQLite symbol: sqlite3_limit")
-            if not self.lib.check_symbol("sqlite3_prepare_v2"): raise Error("Missing required SQLite symbol: sqlite3_prepare_v2")
-            if not self.lib.check_symbol("sqlite3_prepare_v3"): raise Error("Missing required SQLite symbol: sqlite3_prepare_v3")
-            if not self.lib.check_symbol("sqlite3_sql"): raise Error("Missing required SQLite symbol: sqlite3_sql")
-            if not self.lib.check_symbol("sqlite3_expanded_sql"): raise Error("Missing required SQLite symbol: sqlite3_expanded_sql")
-            if not self.lib.check_symbol("sqlite3_stmt_readonly"): raise Error("Missing required SQLite symbol: sqlite3_stmt_readonly")
-            if not self.lib.check_symbol("sqlite3_stmt_isexplain"): raise Error("Missing required SQLite symbol: sqlite3_stmt_isexplain")
-            if not self.lib.check_symbol("sqlite3_stmt_busy"): raise Error("Missing required SQLite symbol: sqlite3_stmt_busy")
-            if not self.lib.check_symbol("sqlite3_bind_blob64"): raise Error("Missing required SQLite symbol: sqlite3_bind_blob64")
-            if not self.lib.check_symbol("sqlite3_bind_double"): raise Error("Missing required SQLite symbol: sqlite3_bind_double")
-            if not self.lib.check_symbol("sqlite3_bind_int64"): raise Error("Missing required SQLite symbol: sqlite3_bind_int64")
-            if not self.lib.check_symbol("sqlite3_bind_null"): raise Error("Missing required SQLite symbol: sqlite3_bind_null")
-            if not self.lib.check_symbol("sqlite3_bind_text64"): raise Error("Missing required SQLite symbol: sqlite3_bind_text64")
-            if not self.lib.check_symbol("sqlite3_bind_pointer"): raise Error("Missing required SQLite symbol: sqlite3_bind_pointer")
-            if not self.lib.check_symbol("sqlite3_bind_zeroblob"): raise Error("Missing required SQLite symbol: sqlite3_bind_zeroblob")
-            if not self.lib.check_symbol("sqlite3_bind_parameter_count"): raise Error("Missing required SQLite symbol: sqlite3_bind_parameter_count")
-            if not self.lib.check_symbol("sqlite3_bind_parameter_name"): raise Error("Missing required SQLite symbol: sqlite3_bind_parameter_name")
-            if not self.lib.check_symbol("sqlite3_bind_parameter_index"): raise Error("Missing required SQLite symbol: sqlite3_bind_parameter_index")
-            if not self.lib.check_symbol("sqlite3_clear_bindings"): raise Error("Missing required SQLite symbol: sqlite3_clear_bindings")
-            if not self.lib.check_symbol("sqlite3_column_count"): raise Error("Missing required SQLite symbol: sqlite3_column_count")
-            if not self.lib.check_symbol("sqlite3_column_name"): raise Error("Missing required SQLite symbol: sqlite3_column_name")
-            if not self.lib.check_symbol("sqlite3_column_database_name"): raise Error("Missing required SQLite symbol: sqlite3_column_database_name")
-            if not self.lib.check_symbol("sqlite3_column_table_name"): raise Error("Missing required SQLite symbol: sqlite3_column_table_name")
-            if not self.lib.check_symbol("sqlite3_column_origin_name"): raise Error("Missing required SQLite symbol: sqlite3_column_origin_name")
-            if not self.lib.check_symbol("sqlite3_column_decltype"): raise Error("Missing required SQLite symbol: sqlite3_column_decltype")
-            if not self.lib.check_symbol("sqlite3_step"): raise Error("Missing required SQLite symbol: sqlite3_step")
-            if not self.lib.check_symbol("sqlite3_column_blob"): raise Error("Missing required SQLite symbol: sqlite3_column_blob")
-            if not self.lib.check_symbol("sqlite3_column_double"): raise Error("Missing required SQLite symbol: sqlite3_column_double")
-            if not self.lib.check_symbol("sqlite3_column_int64"): raise Error("Missing required SQLite symbol: sqlite3_column_int64")
-            if not self.lib.check_symbol("sqlite3_column_text"): raise Error("Missing required SQLite symbol: sqlite3_column_text")
-            if not self.lib.check_symbol("sqlite3_column_value"): raise Error("Missing required SQLite symbol: sqlite3_column_value")
-            if not self.lib.check_symbol("sqlite3_column_bytes"): raise Error("Missing required SQLite symbol: sqlite3_column_bytes")
-            if not self.lib.check_symbol("sqlite3_column_type"): raise Error("Missing required SQLite symbol: sqlite3_column_type")
-            if not self.lib.check_symbol("sqlite3_finalize"): raise Error("Missing required SQLite symbol: sqlite3_finalize")
-            if not self.lib.check_symbol("sqlite3_reset"): raise Error("Missing required SQLite symbol: sqlite3_reset")
-            if not self.lib.check_symbol("sqlite3_create_function_v2"): raise Error("Missing required SQLite symbol: sqlite3_create_function_v2")
-            if not self.lib.check_symbol("sqlite3_create_window_function"): raise Error("Missing required SQLite symbol: sqlite3_create_window_function")
-            if not self.lib.check_symbol("sqlite3_aggregate_count"): raise Error("Missing required SQLite symbol: sqlite3_aggregate_count")
-            if not self.lib.check_symbol("sqlite3_expired"): raise Error("Missing required SQLite symbol: sqlite3_expired")
-            if not self.lib.check_symbol("sqlite3_transfer_bindings"): raise Error("Missing required SQLite symbol: sqlite3_transfer_bindings")
-            if not self.lib.check_symbol("sqlite3_global_recover"): raise Error("Missing required SQLite symbol: sqlite3_global_recover")
-            if not self.lib.check_symbol("sqlite3_thread_cleanup"): raise Error("Missing required SQLite symbol: sqlite3_thread_cleanup")
-            if not self.lib.check_symbol("sqlite3_memory_alarm"): raise Error("Missing required SQLite symbol: sqlite3_memory_alarm")
-            if not self.lib.check_symbol("sqlite3_value_blob"): raise Error("Missing required SQLite symbol: sqlite3_value_blob")
-            if not self.lib.check_symbol("sqlite3_value_double"): raise Error("Missing required SQLite symbol: sqlite3_value_double")
-            if not self.lib.check_symbol("sqlite3_value_int64"): raise Error("Missing required SQLite symbol: sqlite3_value_int64")
-            if not self.lib.check_symbol("sqlite3_value_pointer"): raise Error("Missing required SQLite symbol: sqlite3_value_pointer")
-            if not self.lib.check_symbol("sqlite3_value_text"): raise Error("Missing required SQLite symbol: sqlite3_value_text")
-            if not self.lib.check_symbol("sqlite3_value_bytes"): raise Error("Missing required SQLite symbol: sqlite3_value_bytes")
-            if not self.lib.check_symbol("sqlite3_value_type"): raise Error("Missing required SQLite symbol: sqlite3_value_type")
-            if not self.lib.check_symbol("sqlite3_value_nochange"): raise Error("Missing required SQLite symbol: sqlite3_value_nochange")
-            if not self.lib.check_symbol("sqlite3_value_subtype"): raise Error("Missing required SQLite symbol: sqlite3_value_subtype")
-            if not self.lib.check_symbol("sqlite3_aggregate_context"): raise Error("Missing required SQLite symbol: sqlite3_aggregate_context")
-            if not self.lib.check_symbol("sqlite3_user_data"): raise Error("Missing required SQLite symbol: sqlite3_user_data")
-            if not self.lib.check_symbol("sqlite3_context_db_handle"): raise Error("Missing required SQLite symbol: sqlite3_context_db_handle")
-            if not self.lib.check_symbol("sqlite3_get_auxdata"): raise Error("Missing required SQLite symbol: sqlite3_get_auxdata")
-            if not self.lib.check_symbol("sqlite3_set_auxdata"): raise Error("Missing required SQLite symbol: sqlite3_set_auxdata")
-            if not self.lib.check_symbol("sqlite3_result_blob64"): raise Error("Missing required SQLite symbol: sqlite3_result_blob64")
-            if not self.lib.check_symbol("sqlite3_result_double"): raise Error("Missing required SQLite symbol: sqlite3_result_double")
-            if not self.lib.check_symbol("sqlite3_result_error"): raise Error("Missing required SQLite symbol: sqlite3_result_error")
-            if not self.lib.check_symbol("sqlite3_result_error_toobig"): raise Error("Missing required SQLite symbol: sqlite3_result_error_toobig")
-            if not self.lib.check_symbol("sqlite3_result_error_nomem"): raise Error("Missing required SQLite symbol: sqlite3_result_error_nomem")
-            if not self.lib.check_symbol("sqlite3_result_error_code"): raise Error("Missing required SQLite symbol: sqlite3_result_error_code")
-            if not self.lib.check_symbol("sqlite3_result_int64"): raise Error("Missing required SQLite symbol: sqlite3_result_int64")
-            if not self.lib.check_symbol("sqlite3_result_null"): raise Error("Missing required SQLite symbol: sqlite3_result_null")
-            if not self.lib.check_symbol("sqlite3_result_text64"): raise Error("Missing required SQLite symbol: sqlite3_result_text64")
-            if not self.lib.check_symbol("sqlite3_result_value"): raise Error("Missing required SQLite symbol: sqlite3_result_value")
-            if not self.lib.check_symbol("sqlite3_result_pointer"): raise Error("Missing required SQLite symbol: sqlite3_result_pointer")
-            if not self.lib.check_symbol("sqlite3_result_zeroblob"): raise Error("Missing required SQLite symbol: sqlite3_result_zeroblob")
-            if not self.lib.check_symbol("sqlite3_result_subtype"): raise Error("Missing required SQLite symbol: sqlite3_result_subtype")
-            if not self.lib.check_symbol("sqlite3_create_collation_v2"): raise Error("Missing required SQLite symbol: sqlite3_create_collation_v2")
-            if not self.lib.check_symbol("sqlite3_collation_needed"): raise Error("Missing required SQLite symbol: sqlite3_collation_needed")
-            if not self.lib.check_symbol("sqlite3_soft_heap_limit"): raise Error("Missing required SQLite symbol: sqlite3_soft_heap_limit")
-            if not self.lib.check_symbol("sqlite3_soft_heap_limit64"): raise Error("Missing required SQLite symbol: sqlite3_soft_heap_limit64")
-            if not self.lib.check_symbol("sqlite3_stmt_status"): raise Error("Missing required SQLite symbol: sqlite3_stmt_status")
-            if not self.lib.check_symbol("sqlite3_table_column_metadata"): raise Error("Missing required SQLite symbol: sqlite3_table_column_metadata")
-            if not self.lib.check_symbol("sqlite3_load_extension"): raise Error("Missing required SQLite symbol: sqlite3_load_extension")
-            if not self.lib.check_symbol("sqlite3_enable_load_extension"): raise Error("Missing required SQLite symbol: sqlite3_enable_load_extension")
-            if not self.lib.check_symbol("sqlite3_get_autocommit"): raise Error("Missing required SQLite symbol: sqlite3_get_autocommit")
-            if not self.lib.check_symbol("sqlite3_db_handle"): raise Error("Missing required SQLite symbol: sqlite3_db_handle")
-            if not self.lib.check_symbol("sqlite3_db_name"): raise Error("Missing required SQLite symbol: sqlite3_db_name")
-            if not self.lib.check_symbol("sqlite3_db_filename"): raise Error("Missing required SQLite symbol: sqlite3_db_filename")
-            if not self.lib.check_symbol("sqlite3_db_readonly"): raise Error("Missing required SQLite symbol: sqlite3_db_readonly")
-            if not self.lib.check_symbol("sqlite3_txn_state"): raise Error("Missing required SQLite symbol: sqlite3_txn_state")
-            if not self.lib.check_symbol("sqlite3_next_stmt"): raise Error("Missing required SQLite symbol: sqlite3_next_stmt")
-            if not self.lib.check_symbol("sqlite3_update_hook"): raise Error("Missing required SQLite symbol: sqlite3_update_hook")
-            if not self.lib.check_symbol("sqlite3_commit_hook"): raise Error("Missing required SQLite symbol: sqlite3_commit_hook")
-            if not self.lib.check_symbol("sqlite3_rollback_hook"): raise Error("Missing required SQLite symbol: sqlite3_rollback_hook")
-            if not self.lib.check_symbol("sqlite3_auto_extension"): raise Error("Missing required SQLite symbol: sqlite3_auto_extension")
-            if not self.lib.check_symbol("sqlite3_db_release_memory"): raise Error("Missing required SQLite symbol: sqlite3_db_release_memory")
-            if not self.lib.check_symbol("sqlite3_cancel_auto_extension"): raise Error("Missing required SQLite symbol: sqlite3_cancel_auto_extension")
-            if not self.lib.check_symbol("sqlite3_reset_auto_extension"): raise Error("Missing required SQLite symbol: sqlite3_reset_auto_extension")
-            if not self.lib.check_symbol("sqlite3_create_module_v2"): raise Error("Missing required SQLite symbol: sqlite3_create_module_v2")
-            if not self.lib.check_symbol("sqlite3_blob_open"): raise Error("Missing required SQLite symbol: sqlite3_blob_open")
-            if not self.lib.check_symbol("sqlite3_blob_reopen"): raise Error("Missing required SQLite symbol: sqlite3_blob_reopen")
-            if not self.lib.check_symbol("sqlite3_blob_close"): raise Error("Missing required SQLite symbol: sqlite3_blob_close")
-            if not self.lib.check_symbol("sqlite3_blob_bytes"): raise Error("Missing required SQLite symbol: sqlite3_blob_bytes")
-            if not self.lib.check_symbol("sqlite3_blob_read"): raise Error("Missing required SQLite symbol: sqlite3_blob_read")
-            if not self.lib.check_symbol("sqlite3_blob_write"): raise Error("Missing required SQLite symbol: sqlite3_blob_write")
-            if not self.lib.check_symbol("sqlite3_file_control"): raise Error("Missing required SQLite symbol: sqlite3_file_control")
-            if not self.lib.check_symbol("sqlite3_backup_init"): raise Error("Missing required SQLite symbol: sqlite3_backup_init")
-            if not self.lib.check_symbol("sqlite3_backup_step"): raise Error("Missing required SQLite symbol: sqlite3_backup_step")
-            if not self.lib.check_symbol("sqlite3_backup_finish"): raise Error("Missing required SQLite symbol: sqlite3_backup_finish")
-            if not self.lib.check_symbol("sqlite3_backup_remaining"): raise Error("Missing required SQLite symbol: sqlite3_backup_remaining")
-            if not self.lib.check_symbol("sqlite3_backup_pagecount"): raise Error("Missing required SQLite symbol: sqlite3_backup_pagecount")
-            if not self.lib.check_symbol("sqlite3_unlock_notify"): raise Error("Missing required SQLite symbol: sqlite3_unlock_notify")
-            if not self.lib.check_symbol("sqlite3_log"): raise Error("Missing required SQLite symbol: sqlite3_log")
-            if not self.lib.check_symbol("sqlite3_wal_hook"): raise Error("Missing required SQLite symbol: sqlite3_wal_hook")
-            if not self.lib.check_symbol("sqlite3_wal_autocheckpoint"): raise Error("Missing required SQLite symbol: sqlite3_wal_autocheckpoint")
-            if not self.lib.check_symbol("sqlite3_wal_checkpoint"): raise Error("Missing required SQLite symbol: sqlite3_wal_checkpoint")
-            if not self.lib.check_symbol("sqlite3_wal_checkpoint_v2"): raise Error("Missing required SQLite symbol: sqlite3_wal_checkpoint_v2")
-            if not self.lib.check_symbol("sqlite3_vtab_config"): raise Error("Missing required SQLite symbol: sqlite3_vtab_config")
-            if not self.lib.check_symbol("sqlite3_vtab_on_conflict"): raise Error("Missing required SQLite symbol: sqlite3_vtab_on_conflict")
-            if not self.lib.check_symbol("sqlite3_vtab_nochange"): raise Error("Missing required SQLite symbol: sqlite3_vtab_nochange")
-            if not self.lib.check_symbol("sqlite3_vtab_collation"): raise Error("Missing required SQLite symbol: sqlite3_vtab_collation")
-            if not self.lib.check_symbol("sqlite3_vtab_distinct"): raise Error("Missing required SQLite symbol: sqlite3_vtab_distinct")
-            if not self.lib.check_symbol("sqlite3_declare_vtab"): raise Error("Missing required SQLite symbol: sqlite3_declare_vtab")
-            if not self.lib.check_symbol("sqlite3_db_cacheflush"): raise Error("Missing required SQLite symbol: sqlite3_db_cacheflush")
-            if not self.lib.check_symbol("sqlite3_serialize"): raise Error("Missing required SQLite symbol: sqlite3_serialize")
-            if not self.lib.check_symbol("sqlite3_deserialize"): raise Error("Missing required SQLite symbol: sqlite3_deserialize")
+            if not self.lib.check_symbol("sqlite3_libversion"):
+                raise Error("Missing required SQLite symbol: sqlite3_libversion")
+            if not self.lib.check_symbol("sqlite3_sourceid"):
+                raise Error("Missing required SQLite symbol: sqlite3_sourceid")
+            if not self.lib.check_symbol("sqlite3_libversion_number"):
+                raise Error("Missing required SQLite symbol: sqlite3_libversion_number")
+            if not self.lib.check_symbol("sqlite3_threadsafe"):
+                raise Error("Missing required SQLite symbol: sqlite3_threadsafe")
+            if not self.lib.check_symbol("sqlite3_close"):
+                raise Error("Missing required SQLite symbol: sqlite3_close")
+            if not self.lib.check_symbol("sqlite3_config"):
+                raise Error("Missing required SQLite symbol: sqlite3_config")
+            if not self.lib.check_symbol("sqlite3_db_config"):
+                raise Error("Missing required SQLite symbol: sqlite3_db_config")
+            if not self.lib.check_symbol("sqlite3_extended_result_codes"):
+                raise Error("Missing required SQLite symbol: sqlite3_extended_result_codes")
+            if not self.lib.check_symbol("sqlite3_last_insert_rowid"):
+                raise Error("Missing required SQLite symbol: sqlite3_last_insert_rowid")
+            if not self.lib.check_symbol("sqlite3_changes"):
+                raise Error("Missing required SQLite symbol: sqlite3_changes")
+            if not self.lib.check_symbol("sqlite3_changes64"):
+                raise Error("Missing required SQLite symbol: sqlite3_changes64")
+            if not self.lib.check_symbol("sqlite3_total_changes"):
+                raise Error("Missing required SQLite symbol: sqlite3_total_changes")
+            if not self.lib.check_symbol("sqlite3_total_changes64"):
+                raise Error("Missing required SQLite symbol: sqlite3_total_changes64")
+            if not self.lib.check_symbol("sqlite3_interrupt"):
+                raise Error("Missing required SQLite symbol: sqlite3_interrupt")
+            if not self.lib.check_symbol("sqlite3_is_interrupted"):
+                raise Error("Missing required SQLite symbol: sqlite3_is_interrupted")
+            if not self.lib.check_symbol("sqlite3_busy_handler"):
+                raise Error("Missing required SQLite symbol: sqlite3_busy_handler")
+            if not self.lib.check_symbol("sqlite3_busy_timeout"):
+                raise Error("Missing required SQLite symbol: sqlite3_busy_timeout")
+            if not self.lib.check_symbol("sqlite3_malloc64"):
+                raise Error("Missing required SQLite symbol: sqlite3_malloc64")
+            if not self.lib.check_symbol("sqlite3_free"):
+                raise Error("Missing required SQLite symbol: sqlite3_free")
+            if not self.lib.check_symbol("sqlite3_msize"):
+                raise Error("Missing required SQLite symbol: sqlite3_msize")
+            if not self.lib.check_symbol("sqlite3_set_authorizer"):
+                raise Error("Missing required SQLite symbol: sqlite3_set_authorizer")
+            if not self.lib.check_symbol("sqlite3_trace"):
+                raise Error("Missing required SQLite symbol: sqlite3_trace")
+            if not self.lib.check_symbol("sqlite3_profile"):
+                raise Error("Missing required SQLite symbol: sqlite3_profile")
+            if not self.lib.check_symbol("sqlite3_trace_v2"):
+                raise Error("Missing required SQLite symbol: sqlite3_trace_v2")
+            if not self.lib.check_symbol("sqlite3_progress_handler"):
+                raise Error("Missing required SQLite symbol: sqlite3_progress_handler")
+            if not self.lib.check_symbol("sqlite3_open_v2"):
+                raise Error("Missing required SQLite symbol: sqlite3_open_v2")
+            if not self.lib.check_symbol("sqlite3_errcode"):
+                raise Error("Missing required SQLite symbol: sqlite3_errcode")
+            if not self.lib.check_symbol("sqlite3_extended_errcode"):
+                raise Error("Missing required SQLite symbol: sqlite3_extended_errcode")
+            if not self.lib.check_symbol("sqlite3_errmsg"):
+                raise Error("Missing required SQLite symbol: sqlite3_errmsg")
+            if not self.lib.check_symbol("sqlite3_errstr"):
+                raise Error("Missing required SQLite symbol: sqlite3_errstr")
+            if not self.lib.check_symbol("sqlite3_error_offset"):
+                raise Error("Missing required SQLite symbol: sqlite3_error_offset")
+            if not self.lib.check_symbol("sqlite3_limit"):
+                raise Error("Missing required SQLite symbol: sqlite3_limit")
+            if not self.lib.check_symbol("sqlite3_prepare_v2"):
+                raise Error("Missing required SQLite symbol: sqlite3_prepare_v2")
+            if not self.lib.check_symbol("sqlite3_prepare_v3"):
+                raise Error("Missing required SQLite symbol: sqlite3_prepare_v3")
+            if not self.lib.check_symbol("sqlite3_sql"):
+                raise Error("Missing required SQLite symbol: sqlite3_sql")
+            if not self.lib.check_symbol("sqlite3_expanded_sql"):
+                raise Error("Missing required SQLite symbol: sqlite3_expanded_sql")
+            if not self.lib.check_symbol("sqlite3_stmt_readonly"):
+                raise Error("Missing required SQLite symbol: sqlite3_stmt_readonly")
+            if not self.lib.check_symbol("sqlite3_stmt_isexplain"):
+                raise Error("Missing required SQLite symbol: sqlite3_stmt_isexplain")
+            if not self.lib.check_symbol("sqlite3_stmt_busy"):
+                raise Error("Missing required SQLite symbol: sqlite3_stmt_busy")
+            if not self.lib.check_symbol("sqlite3_bind_blob64"):
+                raise Error("Missing required SQLite symbol: sqlite3_bind_blob64")
+            if not self.lib.check_symbol("sqlite3_bind_double"):
+                raise Error("Missing required SQLite symbol: sqlite3_bind_double")
+            if not self.lib.check_symbol("sqlite3_bind_int64"):
+                raise Error("Missing required SQLite symbol: sqlite3_bind_int64")
+            if not self.lib.check_symbol("sqlite3_bind_null"):
+                raise Error("Missing required SQLite symbol: sqlite3_bind_null")
+            if not self.lib.check_symbol("sqlite3_bind_text64"):
+                raise Error("Missing required SQLite symbol: sqlite3_bind_text64")
+            if not self.lib.check_symbol("sqlite3_bind_pointer"):
+                raise Error("Missing required SQLite symbol: sqlite3_bind_pointer")
+            if not self.lib.check_symbol("sqlite3_bind_zeroblob"):
+                raise Error("Missing required SQLite symbol: sqlite3_bind_zeroblob")
+            if not self.lib.check_symbol("sqlite3_bind_parameter_count"):
+                raise Error("Missing required SQLite symbol: sqlite3_bind_parameter_count")
+            if not self.lib.check_symbol("sqlite3_bind_parameter_name"):
+                raise Error("Missing required SQLite symbol: sqlite3_bind_parameter_name")
+            if not self.lib.check_symbol("sqlite3_bind_parameter_index"):
+                raise Error("Missing required SQLite symbol: sqlite3_bind_parameter_index")
+            if not self.lib.check_symbol("sqlite3_clear_bindings"):
+                raise Error("Missing required SQLite symbol: sqlite3_clear_bindings")
+            if not self.lib.check_symbol("sqlite3_column_count"):
+                raise Error("Missing required SQLite symbol: sqlite3_column_count")
+            if not self.lib.check_symbol("sqlite3_column_name"):
+                raise Error("Missing required SQLite symbol: sqlite3_column_name")
+            if not self.lib.check_symbol("sqlite3_column_database_name"):
+                raise Error("Missing required SQLite symbol: sqlite3_column_database_name")
+            if not self.lib.check_symbol("sqlite3_column_table_name"):
+                raise Error("Missing required SQLite symbol: sqlite3_column_table_name")
+            if not self.lib.check_symbol("sqlite3_column_origin_name"):
+                raise Error("Missing required SQLite symbol: sqlite3_column_origin_name")
+            if not self.lib.check_symbol("sqlite3_column_decltype"):
+                raise Error("Missing required SQLite symbol: sqlite3_column_decltype")
+            if not self.lib.check_symbol("sqlite3_step"):
+                raise Error("Missing required SQLite symbol: sqlite3_step")
+            if not self.lib.check_symbol("sqlite3_column_blob"):
+                raise Error("Missing required SQLite symbol: sqlite3_column_blob")
+            if not self.lib.check_symbol("sqlite3_column_double"):
+                raise Error("Missing required SQLite symbol: sqlite3_column_double")
+            if not self.lib.check_symbol("sqlite3_column_int64"):
+                raise Error("Missing required SQLite symbol: sqlite3_column_int64")
+            if not self.lib.check_symbol("sqlite3_column_text"):
+                raise Error("Missing required SQLite symbol: sqlite3_column_text")
+            if not self.lib.check_symbol("sqlite3_column_value"):
+                raise Error("Missing required SQLite symbol: sqlite3_column_value")
+            if not self.lib.check_symbol("sqlite3_column_bytes"):
+                raise Error("Missing required SQLite symbol: sqlite3_column_bytes")
+            if not self.lib.check_symbol("sqlite3_column_type"):
+                raise Error("Missing required SQLite symbol: sqlite3_column_type")
+            if not self.lib.check_symbol("sqlite3_finalize"):
+                raise Error("Missing required SQLite symbol: sqlite3_finalize")
+            if not self.lib.check_symbol("sqlite3_reset"):
+                raise Error("Missing required SQLite symbol: sqlite3_reset")
+            if not self.lib.check_symbol("sqlite3_create_function_v2"):
+                raise Error("Missing required SQLite symbol: sqlite3_create_function_v2")
+            if not self.lib.check_symbol("sqlite3_create_window_function"):
+                raise Error("Missing required SQLite symbol: sqlite3_create_window_function")
+            if not self.lib.check_symbol("sqlite3_aggregate_count"):
+                raise Error("Missing required SQLite symbol: sqlite3_aggregate_count")
+            if not self.lib.check_symbol("sqlite3_expired"):
+                raise Error("Missing required SQLite symbol: sqlite3_expired")
+            if not self.lib.check_symbol("sqlite3_transfer_bindings"):
+                raise Error("Missing required SQLite symbol: sqlite3_transfer_bindings")
+            if not self.lib.check_symbol("sqlite3_global_recover"):
+                raise Error("Missing required SQLite symbol: sqlite3_global_recover")
+            if not self.lib.check_symbol("sqlite3_thread_cleanup"):
+                raise Error("Missing required SQLite symbol: sqlite3_thread_cleanup")
+            if not self.lib.check_symbol("sqlite3_memory_alarm"):
+                raise Error("Missing required SQLite symbol: sqlite3_memory_alarm")
+            if not self.lib.check_symbol("sqlite3_value_blob"):
+                raise Error("Missing required SQLite symbol: sqlite3_value_blob")
+            if not self.lib.check_symbol("sqlite3_value_double"):
+                raise Error("Missing required SQLite symbol: sqlite3_value_double")
+            if not self.lib.check_symbol("sqlite3_value_int64"):
+                raise Error("Missing required SQLite symbol: sqlite3_value_int64")
+            if not self.lib.check_symbol("sqlite3_value_pointer"):
+                raise Error("Missing required SQLite symbol: sqlite3_value_pointer")
+            if not self.lib.check_symbol("sqlite3_value_text"):
+                raise Error("Missing required SQLite symbol: sqlite3_value_text")
+            if not self.lib.check_symbol("sqlite3_value_bytes"):
+                raise Error("Missing required SQLite symbol: sqlite3_value_bytes")
+            if not self.lib.check_symbol("sqlite3_value_type"):
+                raise Error("Missing required SQLite symbol: sqlite3_value_type")
+            if not self.lib.check_symbol("sqlite3_value_nochange"):
+                raise Error("Missing required SQLite symbol: sqlite3_value_nochange")
+            if not self.lib.check_symbol("sqlite3_value_subtype"):
+                raise Error("Missing required SQLite symbol: sqlite3_value_subtype")
+            if not self.lib.check_symbol("sqlite3_aggregate_context"):
+                raise Error("Missing required SQLite symbol: sqlite3_aggregate_context")
+            if not self.lib.check_symbol("sqlite3_user_data"):
+                raise Error("Missing required SQLite symbol: sqlite3_user_data")
+            if not self.lib.check_symbol("sqlite3_context_db_handle"):
+                raise Error("Missing required SQLite symbol: sqlite3_context_db_handle")
+            if not self.lib.check_symbol("sqlite3_get_auxdata"):
+                raise Error("Missing required SQLite symbol: sqlite3_get_auxdata")
+            if not self.lib.check_symbol("sqlite3_set_auxdata"):
+                raise Error("Missing required SQLite symbol: sqlite3_set_auxdata")
+            if not self.lib.check_symbol("sqlite3_result_blob64"):
+                raise Error("Missing required SQLite symbol: sqlite3_result_blob64")
+            if not self.lib.check_symbol("sqlite3_result_double"):
+                raise Error("Missing required SQLite symbol: sqlite3_result_double")
+            if not self.lib.check_symbol("sqlite3_result_error"):
+                raise Error("Missing required SQLite symbol: sqlite3_result_error")
+            if not self.lib.check_symbol("sqlite3_result_error_toobig"):
+                raise Error("Missing required SQLite symbol: sqlite3_result_error_toobig")
+            if not self.lib.check_symbol("sqlite3_result_error_nomem"):
+                raise Error("Missing required SQLite symbol: sqlite3_result_error_nomem")
+            if not self.lib.check_symbol("sqlite3_result_error_code"):
+                raise Error("Missing required SQLite symbol: sqlite3_result_error_code")
+            if not self.lib.check_symbol("sqlite3_result_int64"):
+                raise Error("Missing required SQLite symbol: sqlite3_result_int64")
+            if not self.lib.check_symbol("sqlite3_result_null"):
+                raise Error("Missing required SQLite symbol: sqlite3_result_null")
+            if not self.lib.check_symbol("sqlite3_result_text64"):
+                raise Error("Missing required SQLite symbol: sqlite3_result_text64")
+            if not self.lib.check_symbol("sqlite3_result_value"):
+                raise Error("Missing required SQLite symbol: sqlite3_result_value")
+            if not self.lib.check_symbol("sqlite3_result_pointer"):
+                raise Error("Missing required SQLite symbol: sqlite3_result_pointer")
+            if not self.lib.check_symbol("sqlite3_result_zeroblob"):
+                raise Error("Missing required SQLite symbol: sqlite3_result_zeroblob")
+            if not self.lib.check_symbol("sqlite3_result_subtype"):
+                raise Error("Missing required SQLite symbol: sqlite3_result_subtype")
+            if not self.lib.check_symbol("sqlite3_create_collation_v2"):
+                raise Error("Missing required SQLite symbol: sqlite3_create_collation_v2")
+            if not self.lib.check_symbol("sqlite3_collation_needed"):
+                raise Error("Missing required SQLite symbol: sqlite3_collation_needed")
+            if not self.lib.check_symbol("sqlite3_soft_heap_limit"):
+                raise Error("Missing required SQLite symbol: sqlite3_soft_heap_limit")
+            if not self.lib.check_symbol("sqlite3_soft_heap_limit64"):
+                raise Error("Missing required SQLite symbol: sqlite3_soft_heap_limit64")
+            if not self.lib.check_symbol("sqlite3_stmt_status"):
+                raise Error("Missing required SQLite symbol: sqlite3_stmt_status")
+            if not self.lib.check_symbol("sqlite3_table_column_metadata"):
+                raise Error("Missing required SQLite symbol: sqlite3_table_column_metadata")
+            if not self.lib.check_symbol("sqlite3_load_extension"):
+                raise Error("Missing required SQLite symbol: sqlite3_load_extension")
+            if not self.lib.check_symbol("sqlite3_enable_load_extension"):
+                raise Error("Missing required SQLite symbol: sqlite3_enable_load_extension")
+            if not self.lib.check_symbol("sqlite3_get_autocommit"):
+                raise Error("Missing required SQLite symbol: sqlite3_get_autocommit")
+            if not self.lib.check_symbol("sqlite3_db_handle"):
+                raise Error("Missing required SQLite symbol: sqlite3_db_handle")
+            if not self.lib.check_symbol("sqlite3_db_name"):
+                raise Error("Missing required SQLite symbol: sqlite3_db_name")
+            if not self.lib.check_symbol("sqlite3_db_filename"):
+                raise Error("Missing required SQLite symbol: sqlite3_db_filename")
+            if not self.lib.check_symbol("sqlite3_db_readonly"):
+                raise Error("Missing required SQLite symbol: sqlite3_db_readonly")
+            if not self.lib.check_symbol("sqlite3_txn_state"):
+                raise Error("Missing required SQLite symbol: sqlite3_txn_state")
+            if not self.lib.check_symbol("sqlite3_next_stmt"):
+                raise Error("Missing required SQLite symbol: sqlite3_next_stmt")
+            if not self.lib.check_symbol("sqlite3_update_hook"):
+                raise Error("Missing required SQLite symbol: sqlite3_update_hook")
+            if not self.lib.check_symbol("sqlite3_commit_hook"):
+                raise Error("Missing required SQLite symbol: sqlite3_commit_hook")
+            if not self.lib.check_symbol("sqlite3_rollback_hook"):
+                raise Error("Missing required SQLite symbol: sqlite3_rollback_hook")
+            if not self.lib.check_symbol("sqlite3_auto_extension"):
+                raise Error("Missing required SQLite symbol: sqlite3_auto_extension")
+            if not self.lib.check_symbol("sqlite3_db_release_memory"):
+                raise Error("Missing required SQLite symbol: sqlite3_db_release_memory")
+            if not self.lib.check_symbol("sqlite3_cancel_auto_extension"):
+                raise Error("Missing required SQLite symbol: sqlite3_cancel_auto_extension")
+            if not self.lib.check_symbol("sqlite3_reset_auto_extension"):
+                raise Error("Missing required SQLite symbol: sqlite3_reset_auto_extension")
+            if not self.lib.check_symbol("sqlite3_create_module_v2"):
+                raise Error("Missing required SQLite symbol: sqlite3_create_module_v2")
+            if not self.lib.check_symbol("sqlite3_blob_open"):
+                raise Error("Missing required SQLite symbol: sqlite3_blob_open")
+            if not self.lib.check_symbol("sqlite3_blob_reopen"):
+                raise Error("Missing required SQLite symbol: sqlite3_blob_reopen")
+            if not self.lib.check_symbol("sqlite3_blob_close"):
+                raise Error("Missing required SQLite symbol: sqlite3_blob_close")
+            if not self.lib.check_symbol("sqlite3_blob_bytes"):
+                raise Error("Missing required SQLite symbol: sqlite3_blob_bytes")
+            if not self.lib.check_symbol("sqlite3_blob_read"):
+                raise Error("Missing required SQLite symbol: sqlite3_blob_read")
+            if not self.lib.check_symbol("sqlite3_blob_write"):
+                raise Error("Missing required SQLite symbol: sqlite3_blob_write")
+            if not self.lib.check_symbol("sqlite3_file_control"):
+                raise Error("Missing required SQLite symbol: sqlite3_file_control")
+            if not self.lib.check_symbol("sqlite3_backup_init"):
+                raise Error("Missing required SQLite symbol: sqlite3_backup_init")
+            if not self.lib.check_symbol("sqlite3_backup_step"):
+                raise Error("Missing required SQLite symbol: sqlite3_backup_step")
+            if not self.lib.check_symbol("sqlite3_backup_finish"):
+                raise Error("Missing required SQLite symbol: sqlite3_backup_finish")
+            if not self.lib.check_symbol("sqlite3_backup_remaining"):
+                raise Error("Missing required SQLite symbol: sqlite3_backup_remaining")
+            if not self.lib.check_symbol("sqlite3_backup_pagecount"):
+                raise Error("Missing required SQLite symbol: sqlite3_backup_pagecount")
+            if not self.lib.check_symbol("sqlite3_unlock_notify"):
+                raise Error("Missing required SQLite symbol: sqlite3_unlock_notify")
+            if not self.lib.check_symbol("sqlite3_log"):
+                raise Error("Missing required SQLite symbol: sqlite3_log")
+            if not self.lib.check_symbol("sqlite3_wal_hook"):
+                raise Error("Missing required SQLite symbol: sqlite3_wal_hook")
+            if not self.lib.check_symbol("sqlite3_wal_autocheckpoint"):
+                raise Error("Missing required SQLite symbol: sqlite3_wal_autocheckpoint")
+            if not self.lib.check_symbol("sqlite3_wal_checkpoint"):
+                raise Error("Missing required SQLite symbol: sqlite3_wal_checkpoint")
+            if not self.lib.check_symbol("sqlite3_wal_checkpoint_v2"):
+                raise Error("Missing required SQLite symbol: sqlite3_wal_checkpoint_v2")
+            if not self.lib.check_symbol("sqlite3_vtab_config"):
+                raise Error("Missing required SQLite symbol: sqlite3_vtab_config")
+            if not self.lib.check_symbol("sqlite3_vtab_on_conflict"):
+                raise Error("Missing required SQLite symbol: sqlite3_vtab_on_conflict")
+            if not self.lib.check_symbol("sqlite3_vtab_nochange"):
+                raise Error("Missing required SQLite symbol: sqlite3_vtab_nochange")
+            if not self.lib.check_symbol("sqlite3_vtab_collation"):
+                raise Error("Missing required SQLite symbol: sqlite3_vtab_collation")
+            if not self.lib.check_symbol("sqlite3_vtab_distinct"):
+                raise Error("Missing required SQLite symbol: sqlite3_vtab_distinct")
+            if not self.lib.check_symbol("sqlite3_declare_vtab"):
+                raise Error("Missing required SQLite symbol: sqlite3_declare_vtab")
+            if not self.lib.check_symbol("sqlite3_db_cacheflush"):
+                raise Error("Missing required SQLite symbol: sqlite3_db_cacheflush")
+            if not self.lib.check_symbol("sqlite3_serialize"):
+                raise Error("Missing required SQLite symbol: sqlite3_serialize")
+            if not self.lib.check_symbol("sqlite3_deserialize"):
+                raise Error("Missing required SQLite symbol: sqlite3_deserialize")
         except e:
             os.abort(String(t"Failed to load the SQLite library: {e}"))
 
@@ -306,7 +458,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_libversion_number")()
         except:
-            os.abort("sqlite3_libversion_number: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_libversion_number: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_threadsafe(self) -> c_int:
         """Test if the library is threadsafe.
@@ -437,7 +591,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_extended_result_codes")(db, onoff)
         except:
-            os.abort("sqlite3_extended_result_codes: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_extended_result_codes: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_last_insert_rowid(self, db: MutExternalPointer[sqlite3_connection]) -> Int64:
         """Last Insert Rowid.
@@ -456,7 +612,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[Int64]("sqlite3_last_insert_rowid")(db)
         except:
-            os.abort("sqlite3_last_insert_rowid: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_last_insert_rowid: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_changes(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
         """Count The Number of Rows Modified.
@@ -621,7 +779,9 @@ struct _sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_busy_handler")(db, callback, arg.unsafe_origin_cast[MutUntrackedOrigin]())
+            return self.lib.get_function[c_int]("sqlite3_busy_handler")(
+                db, callback, arg.unsafe_origin_cast[MutUntrackedOrigin]()
+            )
         except:
             os.abort("sqlite3_busy_handler: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -702,9 +862,12 @@ struct _sqlite3(Movable):
             os.abort("sqlite3_msize: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_set_authorizer[
-        userdata_origin: MutOrigin, //,
+        userdata_origin: MutOrigin,
+        //,
         auth_callback: AuthCallbackFn,
-    ](self, db: MutExternalPointer[sqlite3_connection], pUserData: Optional[MutOpaquePointer[userdata_origin]]) -> c_int:
+    ](
+        self, db: MutExternalPointer[sqlite3_connection], pUserData: Optional[MutOpaquePointer[userdata_origin]]
+    ) -> c_int:
         """Compile-Time Authorization Callbacks.
 
         This routine registers an authorizer callback with a particular database
@@ -726,16 +889,15 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        var user_data = Optional[MutExternalPointer[NoneType]](pUserData.value().unsafe_origin_cast[MutUntrackedOrigin]()) if pUserData else None
+        var user_data = Optional[MutExternalPointer[NoneType]](
+            pUserData.value().unsafe_origin_cast[MutUntrackedOrigin]()
+        ) if pUserData else None
         try:
             return self.lib.get_function[c_int]("sqlite3_set_authorizer")(db, auth_callback, user_data)
         except:
             os.abort("sqlite3_set_authorizer: symbol not found in libsqlite3 (should have been validated in __init__)")
-    
-    def sqlite3_remove_authorizer(
-        self,
-        db: MutExternalPointer[sqlite3_connection]
-    ) -> c_int:
+
+    def sqlite3_remove_authorizer(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
         """Compile-Time Authorization Callbacks.
 
         This routine registers an authorizer callback with a particular database
@@ -753,9 +915,13 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_set_authorizer")(db, _NULL_PTR, _NULL_PTR)
         except:
-            os.abort("sqlite3_remove_authorizer: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_remove_authorizer: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
-    def sqlite3_trace[arg_origin: MutOrigin](
+    def sqlite3_trace[
+        arg_origin: MutOrigin
+    ](
         self,
         db: MutExternalPointer[sqlite3_connection],
         xTrace: TraceCallbackFn,
@@ -778,7 +944,9 @@ struct _sqlite3(Movable):
             Previously registered user data pointer.
         """
         try:
-            return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_trace")(db, xTrace, pArg.unsafe_origin_cast[MutUntrackedOrigin]())
+            return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_trace")(
+                db, xTrace, pArg.unsafe_origin_cast[MutUntrackedOrigin]()
+            )
         except:
             os.abort("sqlite3_trace: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -806,7 +974,9 @@ struct _sqlite3(Movable):
             Previously registered user data pointer.
         """
         try:
-            return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_profile")(db, xProfile, pArg.unsafe_origin_cast[MutUntrackedOrigin]())
+            return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_profile")(
+                db, xProfile, pArg.unsafe_origin_cast[MutUntrackedOrigin]()
+            )
         except:
             os.abort("sqlite3_profile: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -864,7 +1034,9 @@ struct _sqlite3(Movable):
             pArg: User data pointer passed to callback.
         """
         try:
-            self.lib.get_function[NoneType]("sqlite3_progress_handler")(db, nOps, xProgress, pArg.unsafe_origin_cast[MutUntrackedOrigin]())
+            self.lib.get_function[NoneType]("sqlite3_progress_handler")(
+                db, nOps, xProgress, pArg.unsafe_origin_cast[MutUntrackedOrigin]()
+            )
         except:
             pass
 
@@ -911,11 +1083,11 @@ struct _sqlite3(Movable):
                 filename.unsafe_origin_cast[MutUntrackedOrigin](),
                 ppDb.unsafe_origin_cast[MutUntrackedOrigin](),
                 flags,
-                zVfs.unsafe_origin_cast[MutUntrackedOrigin]()
+                zVfs.unsafe_origin_cast[MutUntrackedOrigin](),
             )
         except:
             os.abort("sqlite3_open_v2: symbol not found in libsqlite3 (should have been validated in __init__)")
-    
+
     def sqlite3_open_v2[
         filename_origin: ImmOrigin,
         db_origin: MutOrigin,
@@ -956,7 +1128,7 @@ struct _sqlite3(Movable):
                 filename.unsafe_origin_cast[MutUntrackedOrigin](),
                 ppDb.unsafe_origin_cast[MutUntrackedOrigin](),
                 flags,
-                _NULL_C_STRING
+                _NULL_C_STRING,
             )
         except:
             os.abort("sqlite3_open_v2: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -997,7 +1169,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_extended_errcode")(db)
         except:
-            os.abort("sqlite3_extended_errcode: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_extended_errcode: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_errmsg(self, db: MutExternalPointer[sqlite3_connection]) -> Optional[ImmExternalPointer[c_char]]:
         """Retrieve the English-language error message for the most recent error.
@@ -1200,7 +1374,9 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_sql: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_expanded_sql(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]]) -> Optional[MutExternalPointer[c_char]]:
+    def sqlite3_expanded_sql(
+        self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]]
+    ) -> Optional[MutExternalPointer[c_char]]:
         """Retrieve SQL with bound parameters expanded.
 
         Returns a pointer to a UTF-8 string containing the SQL text of the
@@ -1303,11 +1479,15 @@ struct _sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_bind_blob64")(pStmt, idx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback)
+            return self.lib.get_function[c_int]("sqlite3_bind_blob64")(
+                pStmt, idx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback
+            )
         except:
             os.abort("sqlite3_bind_blob64: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_bind_double(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], idx: c_int, value: Float64) -> c_int:
+    def sqlite3_bind_double(
+        self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], idx: c_int, value: Float64
+    ) -> c_int:
         """Binding Values To Prepared Statements - REAL.
 
         This routine binds a floating point value to a parameter in a prepared statement.
@@ -1394,14 +1574,14 @@ struct _sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_bind_text64")(pStmt, idx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback, encoding)
+            return self.lib.get_function[c_int]("sqlite3_bind_text64")(
+                pStmt, idx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback, encoding
+            )
         except:
             os.abort("sqlite3_bind_text64: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_bind_pointer[
-        value_origin: MutOrigin,
-        type_origin: ImmOrigin,
-        //
+        value_origin: MutOrigin, type_origin: ImmOrigin, //
     ](
         self,
         pStmt: Optional[MutExternalPointer[sqlite3_stmt]],
@@ -1429,7 +1609,13 @@ struct _sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_bind_pointer")(pStmt, idx, value.unsafe_origin_cast[MutUntrackedOrigin](), typeStr.unsafe_origin_cast[MutUntrackedOrigin](), destructor_callback)
+            return self.lib.get_function[c_int]("sqlite3_bind_pointer")(
+                pStmt,
+                idx,
+                value.unsafe_origin_cast[MutUntrackedOrigin](),
+                typeStr.unsafe_origin_cast[MutUntrackedOrigin](),
+                destructor_callback,
+            )
         except:
             os.abort("sqlite3_bind_pointer: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -1470,7 +1656,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_bind_parameter_count")(pStmt)
         except:
-            os.abort("sqlite3_bind_parameter_count: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_bind_parameter_count: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_bind_parameter_name(
         self, pStmt: MutExternalPointer[sqlite3_stmt], idx: c_int
@@ -1491,13 +1679,17 @@ struct _sqlite3(Movable):
             Pointer to parameter name, or None if no name or invalid index.
         """
         try:
-            return self.lib.get_function[Optional[ImmExternalPointer[c_char]]]("sqlite3_bind_parameter_name")(pStmt, idx)
+            return self.lib.get_function[Optional[ImmExternalPointer[c_char]]]("sqlite3_bind_parameter_name")(
+                pStmt, idx
+            )
         except:
-            os.abort("sqlite3_bind_parameter_name: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_bind_parameter_name: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
-    def sqlite3_bind_parameter_index[origin: ImmOrigin, //](
-        self, pStmt: MutExternalPointer[sqlite3_stmt], zName: ImmPointer[c_char, origin]
-    ) -> c_int:
+    def sqlite3_bind_parameter_index[
+        origin: ImmOrigin, //
+    ](self, pStmt: MutExternalPointer[sqlite3_stmt], zName: ImmPointer[c_char, origin]) -> c_int:
         """Index Of A Parameter With A Given Name.
 
         This routine returns the index of an SQL parameter given its name.
@@ -1512,9 +1704,13 @@ struct _sqlite3(Movable):
             Index of the parameter (1-based), or 0 if not found.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_bind_parameter_index")(pStmt, zName.unsafe_origin_cast[MutUntrackedOrigin]())
+            return self.lib.get_function[c_int]("sqlite3_bind_parameter_index")(
+                pStmt, zName.unsafe_origin_cast[MutUntrackedOrigin]()
+            )
         except:
-            os.abort("sqlite3_bind_parameter_index: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_bind_parameter_index: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_clear_bindings(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]]) -> c_int:
         """Reset All Bindings On A Prepared Statement.
@@ -1552,7 +1748,9 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_column_count: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_column_name(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], N: c_int) -> Optional[ImmExternalPointer[c_char]]:
+    def sqlite3_column_name(
+        self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], N: c_int
+    ) -> Optional[ImmExternalPointer[c_char]]:
         """Column Names In A Result Set.
 
         This routine returns the name assigned to a particular column in the
@@ -1590,9 +1788,13 @@ struct _sqlite3(Movable):
             Pointer to the database name.
         """
         try:
-            return self.lib.get_function[Optional[ImmExternalPointer[c_char]]]("sqlite3_column_database_name")(pStmt, idx)
+            return self.lib.get_function[Optional[ImmExternalPointer[c_char]]]("sqlite3_column_database_name")(
+                pStmt, idx
+            )
         except:
-            os.abort("sqlite3_column_database_name: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_column_database_name: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_column_table_name(
         self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], idx: c_int
@@ -1617,7 +1819,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[Optional[ImmExternalPointer[c_char]]]("sqlite3_column_table_name")(pStmt, idx)
         except:
-            os.abort("sqlite3_column_table_name: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_column_table_name: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_column_origin_name(
         self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], idx: c_int
@@ -1642,7 +1846,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[Optional[ImmExternalPointer[c_char]]]("sqlite3_column_origin_name")(pStmt, idx)
         except:
-            os.abort("sqlite3_column_origin_name: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_column_origin_name: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_column_decltype(
         self, pStmt: MutExternalPointer[sqlite3_stmt], idx: c_int
@@ -1750,7 +1956,9 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_column_int64: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_column_text(self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], iCol: c_int) -> Optional[ImmExternalPointer[c_uchar]]:
+    def sqlite3_column_text(
+        self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], iCol: c_int
+    ) -> Optional[ImmExternalPointer[c_uchar]]:
         """Retrieve column data as UTF-8 text.
 
         This function returns the value of the specified column as a UTF-8
@@ -1787,7 +1995,9 @@ struct _sqlite3(Movable):
             Pointer to the sqlite3_value object for the column or None if the column is out of range or an OOM error occurs.
         """
         try:
-            return self.lib.get_function[Optional[MutExternalPointer[sqlite3_value]]]("sqlite3_column_value")(pStmt, iCol)
+            return self.lib.get_function[Optional[MutExternalPointer[sqlite3_value]]]("sqlite3_column_value")(
+                pStmt, iCol
+            )
         except:
             os.abort("sqlite3_column_value: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -1903,7 +2113,7 @@ struct _sqlite3(Movable):
                 _NULL_PTR,
                 _NULL_PTR,
                 _NULL_PTR,
-                _NULL_PTR
+                _NULL_PTR,
             )
         except:
             os.abort("sqlite3_remove_function: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -1945,10 +2155,13 @@ struct _sqlite3(Movable):
                 xFunc,
                 _NULL_PTR,
                 _NULL_PTR,
-                destructor_callback
+                destructor_callback,
             )
         except:
-            os.abort("sqlite3_create_scalar_function: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_create_scalar_function: symbol not found in libsqlite3 (should have been validated in"
+                " __init__)"
+            )
 
     def sqlite3_create_scalar_function[
         fn_name_origin: ImmOrigin,
@@ -1982,10 +2195,13 @@ struct _sqlite3(Movable):
                 xFunc,
                 _NULL_PTR,
                 _NULL_PTR,
-                _NULL_PTR
+                _NULL_PTR,
             )
         except:
-            os.abort("sqlite3_create_scalar_function: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_create_scalar_function: symbol not found in libsqlite3 (should have been validated in"
+                " __init__)"
+            )
 
     def sqlite3_create_aggregate_function[
         fn_name_origin: ImmOrigin,
@@ -2026,10 +2242,13 @@ struct _sqlite3(Movable):
                 _NULL_PTR,
                 xStep,
                 xFinal,
-                destructor_callback
+                destructor_callback,
             )
         except:
-            os.abort("sqlite3_create_aggregate_function: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_create_aggregate_function: symbol not found in libsqlite3 (should have been validated in"
+                " __init__)"
+            )
 
     def sqlite3_create_aggregate_function[
         fn_name_origin: ImmOrigin,
@@ -2042,7 +2261,7 @@ struct _sqlite3(Movable):
         xStep: AggStepCallback,
         xFinal: AggFinalCallback,
     ) -> c_int:
-         """Adds an aggregate SQL function or redefines the behavior of an existing aggregate SQL function.
+        """Adds an aggregate SQL function or redefines the behavior of an existing aggregate SQL function.
 
         Args:
             db: Database connection handle.
@@ -2057,18 +2276,13 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_create_function_v2")(
-                db,
-                zFunctionName.unsafe_origin_cast[MutUntrackedOrigin](),
-                nArg,
-                eTextRep,
-                _NULL_PTR,
-                _NULL_PTR,
-                xStep,
-                xFinal,
-                _NULL_PTR
+                db, zFunctionName, nArg, eTextRep, _NULL_PTR, _NULL_PTR, xStep, xFinal, _NULL_PTR
             )
         except:
-            os.abort("sqlite3_create_aggregate_function: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_create_aggregate_function: symbol not found in libsqlite3 (should have been validated in"
+                " __init__)"
+            )
 
     def sqlite3_create_window_function[
         fn_name_origin: ImmOrigin,
@@ -2114,10 +2328,13 @@ struct _sqlite3(Movable):
                 xFinal,
                 xValue,
                 xInverse,
-                destructor_callback
+                destructor_callback,
             )
         except:
-            os.abort("sqlite3_create_window_function: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_create_window_function: symbol not found in libsqlite3 (should have been validated in"
+                " __init__)"
+            )
 
     def sqlite3_create_window_function[
         fn_name_origin: ImmOrigin,
@@ -2158,10 +2375,13 @@ struct _sqlite3(Movable):
                 xFinal,
                 xValue,
                 xInverse,
-                _NULL_PTR
+                _NULL_PTR,
             )
         except:
-            os.abort("sqlite3_create_window_function: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_create_window_function: symbol not found in libsqlite3 (should have been validated in"
+                " __init__)"
+            )
 
     def sqlite3_aggregate_count(self, ctx: MutExternalPointer[sqlite3_context]) -> c_int:
         """Number Of Rows In An Aggregate Context (Deprecated).
@@ -2217,7 +2437,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_transfer_bindings")(fromStmt, toStmt)
         except:
-            os.abort("sqlite3_transfer_bindings: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_transfer_bindings: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_global_recover(self) -> c_int:
         """Attempt To Free Heap Memory (Deprecated).
@@ -2247,12 +2469,7 @@ struct _sqlite3(Movable):
 
     def sqlite3_memory_alarm[
         origin: MutOrigin, //
-    ](
-        self,
-        callback: MemoryAlarmCallbackFn,
-        arg: MutPointer[NoneType, origin],
-        n: Int64,
-    ) -> c_int:
+    ](self, callback: MemoryAlarmCallbackFn, arg: MutPointer[NoneType, origin], n: Int64,) -> c_int:
         """Register A Callback For Memory Allocation Events (Deprecated).
 
         This function was used to register a callback that would be invoked
@@ -2268,7 +2485,9 @@ struct _sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_memory_alarm")(callback, arg.unsafe_origin_cast[MutUntrackedOrigin](), n)
+            return self.lib.get_function[c_int]("sqlite3_memory_alarm")(
+                callback, arg.unsafe_origin_cast[MutUntrackedOrigin](), n
+            )
         except:
             os.abort("sqlite3_memory_alarm: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -2325,9 +2544,9 @@ struct _sqlite3(Movable):
 
     def sqlite3_value_pointer[
         origin: ImmOrigin, //
-    ](
-        self, value: MutExternalPointer[sqlite3_value], typeStr: ImmPointer[c_char, origin]
-    ) -> Optional[MutExternalPointer[NoneType]]:
+    ](self, value: MutExternalPointer[sqlite3_value], typeStr: ImmPointer[c_char, origin]) -> Optional[
+        MutExternalPointer[NoneType]
+    ]:
         """Obtaining SQL Values - Pointer.
 
         This routine extracts a pointer value from an sqlite3_value object.
@@ -2342,7 +2561,9 @@ struct _sqlite3(Movable):
             The pointer value, or None if not a matching pointer type.
         """
         try:
-            return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_value_pointer")(value, typeStr.unsafe_origin_cast[ImmUntrackedOrigin]())
+            return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_value_pointer")(
+                value, typeStr.unsafe_origin_cast[ImmUntrackedOrigin]()
+            )
         except:
             os.abort("sqlite3_value_pointer: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -2453,9 +2674,13 @@ struct _sqlite3(Movable):
             Pointer to aggregate context memory, or None if allocation fails.
         """
         try:
-            return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_aggregate_context")(ctx, nBytes)
+            return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_aggregate_context")(
+                ctx, nBytes
+            )
         except:
-            os.abort("sqlite3_aggregate_context: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_aggregate_context: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_user_data(self, ctx: MutExternalPointer[sqlite3_context]) -> Optional[MutExternalPointer[NoneType]]:
         """User Data For Functions.
@@ -2496,11 +2721,17 @@ struct _sqlite3(Movable):
             Database connection handle or None if the context is invalid.
         """
         try:
-            return self.lib.get_function[Optional[MutExternalPointer[sqlite3_connection]]]("sqlite3_context_db_handle")(ctx)
+            return self.lib.get_function[Optional[MutExternalPointer[sqlite3_connection]]]("sqlite3_context_db_handle")(
+                ctx
+            )
         except:
-            os.abort("sqlite3_context_db_handle: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_context_db_handle: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
-    def sqlite3_get_auxdata(self, ctx: MutExternalPointer[sqlite3_context], N: c_int) -> Optional[MutExternalPointer[NoneType]]:
+    def sqlite3_get_auxdata(
+        self, ctx: MutExternalPointer[sqlite3_context], N: c_int
+    ) -> Optional[MutExternalPointer[NoneType]]:
         """Function Auxiliary Data.
 
         This routine returns a pointer to metadata that was previously saved
@@ -2548,7 +2779,9 @@ struct _sqlite3(Movable):
             destructor_callback: Function to call when data should be freed.
         """
         try:
-            self.lib.get_function[NoneType]("sqlite3_set_auxdata")(ctx, N, data.unsafe_origin_cast[MutUntrackedOrigin](), destructor_callback)
+            self.lib.get_function[NoneType]("sqlite3_set_auxdata")(
+                ctx, N, data.unsafe_origin_cast[MutUntrackedOrigin](), destructor_callback
+            )
         except:
             pass
 
@@ -2575,7 +2808,9 @@ struct _sqlite3(Movable):
             destructor_callback: Function to call when SQLite is done with the BLOB.
         """
         try:
-            self.lib.get_function[NoneType]("sqlite3_result_blob64")(ctx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback)
+            self.lib.get_function[NoneType]("sqlite3_result_blob64")(
+                ctx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback
+            )
         except:
             pass
 
@@ -2610,7 +2845,9 @@ struct _sqlite3(Movable):
             n: Length of error message in bytes, or -1 for None-terminated.
         """
         try:
-            self.lib.get_function[NoneType]("sqlite3_result_error")(ctx, msg.unsafe_origin_cast[MutUntrackedOrigin](), n)
+            self.lib.get_function[NoneType]("sqlite3_result_error")(
+                ctx, msg.unsafe_origin_cast[MutUntrackedOrigin](), n
+            )
         except:
             pass
 
@@ -2716,13 +2953,13 @@ struct _sqlite3(Movable):
             destructor_callback: Function to call when SQLite is done with the text.
         """
         try:
-            self.lib.get_function[NoneType]("sqlite3_result_text64")(ctx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback, encoding)
+            self.lib.get_function[NoneType]("sqlite3_result_text64")(
+                ctx, value.unsafe_origin_cast[MutUntrackedOrigin](), n, destructor_callback, encoding
+            )
         except:
             pass
 
-    def sqlite3_result_value(
-        self, ctx: MutExternalPointer[sqlite3_context], value: MutExternalPointer[sqlite3_value]
-    ):
+    def sqlite3_result_value(self, ctx: MutExternalPointer[sqlite3_context], value: MutExternalPointer[sqlite3_value]):
         """Setting The Result Of An SQL Function - Value Copy.
 
         This routine sets the result of an application-defined SQL function to
@@ -2763,7 +3000,12 @@ struct _sqlite3(Movable):
             destructor_callback: Function to call when SQLite is done with the pointer.
         """
         try:
-            self.lib.get_function[NoneType]("sqlite3_result_pointer")(ctx, ptr.unsafe_origin_cast[MutUntrackedOrigin](), typeStr.unsafe_origin_cast[MutUntrackedOrigin](), destructor_callback)
+            self.lib.get_function[NoneType]("sqlite3_result_pointer")(
+                ctx,
+                ptr.unsafe_origin_cast[MutUntrackedOrigin](),
+                typeStr.unsafe_origin_cast[MutUntrackedOrigin](),
+                destructor_callback,
+            )
         except:
             pass
 
@@ -2800,9 +3042,7 @@ struct _sqlite3(Movable):
             pass
 
     def sqlite3_create_collation_v2[
-        name_origin: ImmOrigin,
-        arg_origin: MutOrigin,
-        //
+        name_origin: ImmOrigin, arg_origin: MutOrigin, //
     ](
         self,
         db: MutExternalPointer[sqlite3_connection],
@@ -2841,13 +3081,16 @@ struct _sqlite3(Movable):
                 eTextRep,
                 pArg.unsafe_origin_cast[MutUntrackedOrigin](),
                 xCompare,
-                destructor_callback
+                destructor_callback,
             )
         except:
-            os.abort("sqlite3_create_collation_v2: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_create_collation_v2: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_collation_needed[
-        arg_origin: MutOrigin, //,
+        arg_origin: MutOrigin,
+        //,
     ](
         self,
         db: MutExternalPointer[sqlite3_connection],
@@ -2871,9 +3114,13 @@ struct _sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_collation_needed")(db, pArg.unsafe_origin_cast[MutUntrackedOrigin](), callback)
+            return self.lib.get_function[c_int]("sqlite3_collation_needed")(
+                db, pArg.unsafe_origin_cast[MutUntrackedOrigin](), callback
+            )
         except:
-            os.abort("sqlite3_collation_needed: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_collation_needed: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_soft_heap_limit(self, n: c_int) -> c_int:
         """Deprecated Soft Heap Limit.
@@ -2910,7 +3157,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[Int64]("sqlite3_soft_heap_limit64")(n)
         except:
-            os.abort("sqlite3_soft_heap_limit64: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_soft_heap_limit64: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_stmt_status(self, pStmt: MutExternalPointer[sqlite3_stmt], op: c_int, resetFlg: c_int) -> c_int:
         """Prepared Statement Status.
@@ -2988,7 +3237,9 @@ struct _sqlite3(Movable):
                 db, zDbName, zTableName, zColumnName, pzDataType, pzCollSeq, pNotNull, pPrimaryKey, pAutoinc
             )
         except:
-            os.abort("sqlite3_table_column_metadata: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_table_column_metadata: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_load_extension[
         file_origin: ImmOrigin,
@@ -3043,7 +3294,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_enable_load_extension")(db, onoff)
         except:
-            os.abort("sqlite3_enable_load_extension: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_enable_load_extension: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_get_autocommit(self, db: MutExternalPointer[sqlite3_connection]) -> c_int:
         """Test For Auto-Commit Mode.
@@ -3063,7 +3316,9 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_get_autocommit: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_db_handle(self, pStmt: MutExternalPointer[sqlite3_stmt]) -> Optional[MutExternalPointer[sqlite3_connection]]:
+    def sqlite3_db_handle(
+        self, pStmt: MutExternalPointer[sqlite3_stmt]
+    ) -> Optional[MutExternalPointer[sqlite3_connection]]:
         """Find The Database Handle Of A Prepared Statement.
 
         This routine returns the database connection pointer that was used to
@@ -3080,7 +3335,9 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_db_handle: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_db_name(self, db: MutExternalPointer[sqlite3_connection], N: c_int) -> Optional[ImmExternalPointer[c_char]]:
+    def sqlite3_db_name(
+        self, db: MutExternalPointer[sqlite3_connection], N: c_int
+    ) -> Optional[ImmExternalPointer[c_char]]:
         """Return The Schema Name For A Database.
 
         This routine returns the schema name for the N-th database on the
@@ -3102,9 +3359,9 @@ struct _sqlite3(Movable):
 
     def sqlite3_db_filename[
         origin: ImmOrigin, //
-    ](
-        self, db: MutExternalPointer[sqlite3_connection], zDbName: ImmPointer[c_char, origin]
-    ) -> Optional[ImmExternalPointer[c_char]]:
+    ](self, db: MutExternalPointer[sqlite3_connection], zDbName: ImmPointer[c_char, origin]) -> Optional[
+        ImmExternalPointer[c_char]
+    ]:
         """Return The Filename For A Database.
 
         This routine returns the filename for the database schema specified
@@ -3120,7 +3377,9 @@ struct _sqlite3(Movable):
             Pointer to the filename, or None if not found or an empty string if the database is in-memory or temporary.
         """
         try:
-            return self.lib.get_function[Optional[ImmExternalPointer[c_char]]]("sqlite3_db_filename")(db, zDbName.unsafe_origin_cast[MutUntrackedOrigin]())
+            return self.lib.get_function[Optional[ImmExternalPointer[c_char]]]("sqlite3_db_filename")(
+                db, zDbName.unsafe_origin_cast[MutUntrackedOrigin]()
+            )
         except:
             os.abort("sqlite3_db_filename: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -3141,7 +3400,9 @@ struct _sqlite3(Movable):
             1 if read-only, 0 if read-write, -1 if not found.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_db_readonly")(db, zDbName.unsafe_origin_cast[MutUntrackedOrigin]())
+            return self.lib.get_function[c_int]("sqlite3_db_readonly")(
+                db, zDbName.unsafe_origin_cast[MutUntrackedOrigin]()
+            )
         except:
             os.abort("sqlite3_db_readonly: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -3164,7 +3425,9 @@ struct _sqlite3(Movable):
             The transaction state code.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_txn_state")(db, zSchema.unsafe_origin_cast[MutUntrackedOrigin]())
+            return self.lib.get_function[c_int]("sqlite3_txn_state")(
+                db, zSchema.unsafe_origin_cast[MutUntrackedOrigin]()
+            )
         except:
             os.abort("sqlite3_txn_state: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -3241,7 +3504,9 @@ struct _sqlite3(Movable):
             Previously registered user data pointer or None if no previous callback was registered.
         """
         try:
-            return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_commit_hook")(db, xCallback, pArg)
+            return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_commit_hook")(
+                db, xCallback, pArg
+            )
         except:
             os.abort("sqlite3_commit_hook: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -3268,7 +3533,9 @@ struct _sqlite3(Movable):
             Previously registered user data pointer or None if no previous callback was registered.
         """
         try:
-            return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_rollback_hook")(db, xCallback, pArg)
+            return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_rollback_hook")(
+                db, xCallback, pArg
+            )
         except:
             os.abort("sqlite3_rollback_hook: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -3307,7 +3574,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_db_release_memory")(db)
         except:
-            os.abort("sqlite3_db_release_memory: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_db_release_memory: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_cancel_auto_extension[
         origin: MutOrigin, //
@@ -3329,7 +3598,9 @@ struct _sqlite3(Movable):
                 xEntryPoint.unsafe_origin_cast[MutUntrackedOrigin]()
             )
         except:
-            os.abort("sqlite3_cancel_auto_extension: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_cancel_auto_extension: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_reset_auto_extension(self) -> c_int:
         """Reset The Automatic Extension Loading.
@@ -3345,12 +3616,12 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_reset_auto_extension")()
         except:
-            os.abort("sqlite3_reset_auto_extension: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_reset_auto_extension: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_create_module_v2[
-        name_origin: ImmOrigin,
-        module_origin: MutOrigin,
-        //
+        name_origin: ImmOrigin, module_origin: MutOrigin, //
     ](
         self,
         db: MutExternalPointer[sqlite3_connection],
@@ -3383,14 +3654,12 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_create_module_v2")(
-                db,
-                zName.unsafe_origin_cast[MutUntrackedOrigin](),
-                p,
-                pClientData,
-                destructor_callback
+                db, zName.unsafe_origin_cast[MutUntrackedOrigin](), p, pClientData, destructor_callback
             )
         except:
-            os.abort("sqlite3_create_module_v2: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_create_module_v2: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_blob_open[
         db_origin: ImmOrigin, table_origin: ImmOrigin, column_origin: ImmOrigin, blob_origin: MutOrigin, //
@@ -3427,7 +3696,15 @@ struct _sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_blob_open")(db, zDb.unsafe_origin_cast[MutUntrackedOrigin](), zTable.unsafe_origin_cast[MutUntrackedOrigin](), zColumn.unsafe_origin_cast[MutUntrackedOrigin](), iRow, flags, ppBlob.unsafe_origin_cast[MutUntrackedOrigin]())
+            return self.lib.get_function[c_int]("sqlite3_blob_open")(
+                db,
+                zDb.unsafe_origin_cast[MutUntrackedOrigin](),
+                zTable.unsafe_origin_cast[MutUntrackedOrigin](),
+                zColumn.unsafe_origin_cast[MutUntrackedOrigin](),
+                iRow,
+                flags,
+                ppBlob.unsafe_origin_cast[MutUntrackedOrigin](),
+            )
         except:
             os.abort("sqlite3_blob_open: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -3507,7 +3784,9 @@ struct _sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_blob_read")(pBlob, Z.unsafe_origin_cast[MutUntrackedOrigin](), N, iOffset)
+            return self.lib.get_function[c_int]("sqlite3_blob_read")(
+                pBlob, Z.unsafe_origin_cast[MutUntrackedOrigin](), N, iOffset
+            )
         except:
             os.abort("sqlite3_blob_read: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -3531,14 +3810,14 @@ struct _sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_blob_write")(pBlob, z.unsafe_origin_cast[MutUntrackedOrigin](), n, iOffset)
+            return self.lib.get_function[c_int]("sqlite3_blob_write")(
+                pBlob, z.unsafe_origin_cast[MutUntrackedOrigin](), n, iOffset
+            )
         except:
             os.abort("sqlite3_blob_write: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_file_control[
-        db_name_origin: ImmOrigin,
-        arg_origin: MutOrigin,
-        //
+        db_name_origin: ImmOrigin, arg_origin: MutOrigin, //
     ](
         self,
         db: MutExternalPointer[sqlite3_connection],
@@ -3564,14 +3843,14 @@ struct _sqlite3(Movable):
             SQLITE_OK on success, SQLITE_NOTFOUND if unknown op, or error code.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_file_control")(db, zDbName.unsafe_origin_cast[MutUntrackedOrigin](), op, pArg.unsafe_origin_cast[MutUntrackedOrigin]())
+            return self.lib.get_function[c_int]("sqlite3_file_control")(
+                db, zDbName.unsafe_origin_cast[MutUntrackedOrigin](), op, pArg.unsafe_origin_cast[MutUntrackedOrigin]()
+            )
         except:
             os.abort("sqlite3_file_control: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_backup_init[
-        dest_name_origin: ImmOrigin,
-        source_name_origin: ImmOrigin,
-        //
+        dest_name_origin: ImmOrigin, source_name_origin: ImmOrigin, //
     ](
         self,
         pDest: MutExternalPointer[sqlite3_connection],
@@ -3596,7 +3875,12 @@ struct _sqlite3(Movable):
             Backup handle, or None on error.
         """
         try:
-            return self.lib.get_function[Optional[MutExternalPointer[sqlite3_backup]]]("sqlite3_backup_init")(pDest, zDestName.unsafe_origin_cast[MutUntrackedOrigin](), pSource, zSourceName.unsafe_origin_cast[MutUntrackedOrigin]())
+            return self.lib.get_function[Optional[MutExternalPointer[sqlite3_backup]]]("sqlite3_backup_init")(
+                pDest,
+                zDestName.unsafe_origin_cast[MutUntrackedOrigin](),
+                pSource,
+                zSourceName.unsafe_origin_cast[MutUntrackedOrigin](),
+            )
         except:
             os.abort("sqlite3_backup_init: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -3654,7 +3938,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_backup_remaining")(p)
         except:
-            os.abort("sqlite3_backup_remaining: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_backup_remaining: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_backup_pagecount(self, p: MutExternalPointer[sqlite3_backup]) -> c_int:
         """Get Total Number Of Pages.
@@ -3673,7 +3959,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_backup_pagecount")(p)
         except:
-            os.abort("sqlite3_backup_pagecount: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_backup_pagecount: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_unlock_notify[
         arg_origin: MutOrigin, //
@@ -3703,9 +3991,7 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[c_int]("sqlite3_unlock_notify")(
-                pBlocked,
-                xNotify,
-                pNotifyArg.unsafe_origin_cast[MutUntrackedOrigin]()
+                pBlocked, xNotify, pNotifyArg.unsafe_origin_cast[MutUntrackedOrigin]()
             )
         except:
             os.abort("sqlite3_unlock_notify: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -3752,9 +4038,7 @@ struct _sqlite3(Movable):
         """
         try:
             return self.lib.get_function[Optional[MutExternalPointer[NoneType]]]("sqlite3_wal_hook")(
-                db,
-                xCallback,
-                pArg.unsafe_origin_cast[MutUntrackedOrigin]()
+                db, xCallback, pArg.unsafe_origin_cast[MutUntrackedOrigin]()
             )
         except:
             os.abort("sqlite3_wal_hook: symbol not found in libsqlite3 (should have been validated in __init__)")
@@ -3777,9 +4061,13 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_wal_autocheckpoint")(db, N)
         except:
-            os.abort("sqlite3_wal_autocheckpoint: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_wal_autocheckpoint: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
-    def sqlite3_wal_checkpoint(self, db: MutExternalPointer[sqlite3_connection], zDb: Optional[ImmExternalPointer[c_char]] = None) -> c_int:
+    def sqlite3_wal_checkpoint(
+        self, db: MutExternalPointer[sqlite3_connection], zDb: Optional[ImmExternalPointer[c_char]] = None
+    ) -> c_int:
         """Checkpoint A Database.
 
         This routine runs a checkpoint operation on database zDb. A checkpoint
@@ -3799,7 +4087,9 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_wal_checkpoint: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_wal_checkpoint_v2[log_origin: MutOrigin, checkpoint_origin: MutOrigin, //](
+    def sqlite3_wal_checkpoint_v2[
+        log_origin: MutOrigin, checkpoint_origin: MutOrigin, //
+    ](
         self,
         db: MutExternalPointer[sqlite3_connection],
         zDb: Optional[ImmExternalPointer[c_char]],
@@ -3831,9 +4121,17 @@ struct _sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         try:
-            return self.lib.get_function[c_int]("sqlite3_wal_checkpoint_v2")(db, zDb, eMode, pnLog.unsafe_origin_cast[MutUntrackedOrigin](), pnCkpt.unsafe_origin_cast[MutUntrackedOrigin]())
+            return self.lib.get_function[c_int]("sqlite3_wal_checkpoint_v2")(
+                db,
+                zDb,
+                eMode,
+                pnLog.unsafe_origin_cast[MutUntrackedOrigin](),
+                pnCkpt.unsafe_origin_cast[MutUntrackedOrigin](),
+            )
         except:
-            os.abort("sqlite3_wal_checkpoint_v2: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_wal_checkpoint_v2: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_vtab_config(self, db: MutExternalPointer[sqlite3_connection], op: c_int) -> c_int:
         """Configure Virtual Table Behavior.
@@ -3874,7 +4172,9 @@ struct _sqlite3(Movable):
         try:
             return self.lib.get_function[c_int]("sqlite3_vtab_on_conflict")(db)
         except:
-            os.abort("sqlite3_vtab_on_conflict: symbol not found in libsqlite3 (should have been validated in __init__)")
+            os.abort(
+                "sqlite3_vtab_on_conflict: symbol not found in libsqlite3 (should have been validated in __init__)"
+            )
 
     def sqlite3_vtab_nochange(self, ctx: MutExternalPointer[sqlite3_context]) -> c_int:
         """Detect No-Op Column Updates.
@@ -3913,7 +4213,9 @@ struct _sqlite3(Movable):
             Name of the collation sequence, or None if an OOM error occurs or if the constraint has no explicit collation.
         """
         try:
-            return self.lib.get_function[Optional[ImmExternalPointer[c_char]]]("sqlite3_vtab_collation")(pIdxInfo, iCons)
+            return self.lib.get_function[Optional[ImmExternalPointer[c_char]]]("sqlite3_vtab_collation")(
+                pIdxInfo, iCons
+            )
         except:
             os.abort("sqlite3_vtab_collation: symbol not found in libsqlite3 (should have been validated in __init__)")
 
@@ -3936,11 +4238,9 @@ struct _sqlite3(Movable):
         except:
             os.abort("sqlite3_vtab_distinct: symbol not found in libsqlite3 (should have been validated in __init__)")
 
-    def sqlite3_declare_vtab[sql_origin: ImmOrigin, //](
-        self,
-        db: MutExternalPointer[sqlite3_connection],
-        zSQL: ImmPointer[c_char, sql_origin],
-    ) -> c_int:
+    def sqlite3_declare_vtab[
+        sql_origin: ImmOrigin, //
+    ](self, db: MutExternalPointer[sqlite3_connection], zSQL: ImmPointer[c_char, sql_origin],) -> c_int:
         """Declare The Schema Of A Virtual Table.
 
         This interface is used within the xCreate or xConnect methods of
@@ -4015,13 +4315,17 @@ struct _sqlite3(Movable):
             Pointer to serialized database, or None on error.
         """
         try:
-            return self.lib.get_function[Optional[MutExternalPointer[c_uchar]]]("sqlite3_serialize")(db, zSchema.unsafe_origin_cast[MutUntrackedOrigin](), piSize.unsafe_origin_cast[MutUntrackedOrigin](), mFlags)
+            return self.lib.get_function[Optional[MutExternalPointer[c_uchar]]]("sqlite3_serialize")(
+                db,
+                zSchema.unsafe_origin_cast[MutUntrackedOrigin](),
+                piSize.unsafe_origin_cast[MutUntrackedOrigin](),
+                mFlags,
+            )
         except:
             os.abort("sqlite3_serialize: symbol not found in libsqlite3 (should have been validated in __init__)")
 
     def sqlite3_deserialize[
-        schema_origin: ImmOrigin,
-        data_origin: MutOrigin, //
+        schema_origin: ImmOrigin, data_origin: MutOrigin, //
     ](
         self,
         db: MutExternalPointer[sqlite3_connection],
@@ -4059,7 +4363,7 @@ struct _sqlite3(Movable):
                 pData.unsafe_origin_cast[MutUntrackedOrigin](),
                 szDb,
                 szBuf,
-                mFlags
+                mFlags,
             )
         except:
             os.abort("sqlite3_deserialize: symbol not found in libsqlite3 (should have been validated in __init__)")

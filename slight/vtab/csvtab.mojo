@@ -137,6 +137,14 @@ struct CsvCursor(Movable):
         delimiter: UInt8,
         quote: UInt8,
     ):
+        """Initialize a cursor over `filename`, not yet positioned on a row.
+
+        Args:
+            filename: Path of the CSV file — re-opened on each `xFilter` call.
+            data_start_offset: Byte offset at which data rows begin (header already skipped).
+            delimiter: Field delimiter byte.
+            quote: Quote character byte (0 = no quoting).
+        """
         self.fp = None
         self.filename = filename
         self.data_start_offset = data_start_offset
@@ -157,7 +165,9 @@ struct CsvCursor(Movable):
 # ===----------------------------------------------------------------------=== #
 
 comptime LF_BYTE = as_byte["\n"]()
+"""The line-feed byte (`\\n`)."""
 comptime CR_BYTE = as_byte["\r"]()
+"""The carriage-return byte (`\\r`)."""
 
 
 def _read_row_from_fp(
@@ -277,11 +287,17 @@ def _read_row_from_fp(
         return None
     return row^
 
+
 comptime SINGLE_QUOTE_BYTE = as_byte["'"]()
+"""The single-quote byte (`'`)."""
 comptime DOUBLE_QUOTE_BYTE = as_byte['"']()
+"""The double-quote byte (`"`)."""
 comptime BACKTICK_BYTE = as_byte["`"]()
+"""The backtick byte (`` ` ``)."""
 comptime L_BRACKET_BYTE = as_byte["["]()
+"""The left-bracket byte (`[`)."""
 comptime R_BRACKET_BYTE = as_byte["]"]()
+"""The right-bracket byte (`]`)."""
 
 
 def _dequote(s: StringSpan) -> String:
@@ -358,9 +374,9 @@ def _escape_double_quotes(s: StringSpan) -> String:
     var result = String()
     for b in s.as_bytes():
         if b == DOUBLE_QUOTE_BYTE:
-            result.write("\"\"")
+            result.write('""')
             continue
-        
+
         result.write(Codepoint(b))
     return result^
 
@@ -370,7 +386,9 @@ def _escape_double_quotes(s: StringSpan) -> String:
 # ===----------------------------------------------------------------------=== #
 
 
-def csv_connect[origin: ImmOrigin, //](
+def csv_connect[
+    origin: ImmOrigin, //
+](
     db: VTabConnection,
     aux: MutExternalPointer[NoneType],
     module_name: String,
@@ -566,6 +584,10 @@ def csv_best_index(
 
     Returns:
         ``False`` — output order does not match any index.
+
+    Raises:
+        Nothing: required by ``VTabBestIndexFn``'s signature, but this
+        implementation never raises.
     """
     index_info[].estimatedCost = 1_000_000.0
     return False
@@ -588,6 +610,10 @@ def csv_open(vtab: MutExternalPointer[CsvState]) raises -> CsvCursor:
 
     Returns:
         A new ``CsvCursor`` ready to be initialised by ``csv_filter``.
+
+    Raises:
+        Nothing: required by ``VTabOpenFn``'s signature, but this
+        implementation never raises.
     """
     return CsvCursor(
         filename=vtab[].filename,
@@ -610,9 +636,7 @@ def _csv_advance(cursor: MutExternalPointer[CsvCursor]) raises:
     Args:
         cursor: Pointer to the cursor whose file handle to advance.
     """
-    var maybe_row = _read_row_from_fp(
-        cursor[].fp, cursor[].delimiter, cursor[].quote
-    )
+    var maybe_row = _read_row_from_fp(cursor[].fp, cursor[].delimiter, cursor[].quote)
     if maybe_row:
         var row = maybe_row.value().copy()
         cursor[].current_row = row^
@@ -642,6 +666,9 @@ def csv_filter(
         idx_str: Index string selected by ``xBestIndex`` (unused).
         argv: Constraint values from the query planner (unused for full scan).
         argc: Number of constraint values (unused).
+
+    Raises:
+        Error: If the CSV file cannot be opened.
     """
     # Close any file handle from a previous scan.
     if cursor[].fp:
@@ -682,6 +709,10 @@ def csv_next(cursor: MutExternalPointer[CsvCursor]) raises:
 
     Args:
         cursor: Pointer to the cursor state to advance.
+
+    Raises:
+        Nothing: required by ``VTabNextFn``'s signature, but this
+        implementation never raises.
     """
     _csv_advance(cursor)
 
@@ -722,6 +753,10 @@ def csv_column(
         cursor: Pointer to the cursor state.
         ctx: The SQLite function context used to set the return value.
         col: 0-based column index.
+
+    Raises:
+        Nothing: required by ``VTabColumnFn``'s signature, but this
+        implementation never raises.
     """
     if cursor[].eof:
         ctx.result_null()
@@ -748,6 +783,10 @@ def csv_rowid(cursor: MutExternalPointer[CsvCursor]) raises -> Int64:
 
     Returns:
         The 1-based index of the current row.
+
+    Raises:
+        Nothing: required by ``VTabRowidFn``'s signature, but this
+        implementation never raises.
     """
     return Int64(cursor[].row_number)
 

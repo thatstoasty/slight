@@ -13,7 +13,7 @@ from slight.connection import Connection
 
 
 @explicit_destroy("You must call `.close()` to close the BLOB before the `Blob` is destroyed.")
-struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Movable, Sized, Deinitable where False):
+struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Deinitable where False, Movable, Sized):
     """A handle for incremental BLOB I/O, allowing a BLOB value to be read
     or written in chunks without loading the entire value into memory.
 
@@ -70,9 +70,7 @@ struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Movable, Sized, Dei
             Error: If the BLOB could not be opened.
         """
         self.conn = conn
-        self.handle = conn[].db.blob_open(
-            table^, column^, row_id, read_only=Self.read_only, schema=schema^
-        )
+        self.handle = conn[].db.blob_open(table^, column^, row_id, read_only=Self.read_only, schema=schema^)
 
     def __len__(self) -> Int:
         """Returns the size of the BLOB in bytes.
@@ -115,8 +113,9 @@ struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Movable, Sized, Dei
 
     # Self doesn't need to be Mut since it carries a mutable pointer.
     # But we're altering the blob, so self being borrow immutably is wrong.
-    def write[origin: ImmOrigin, //](mut self, data: Span[Byte, origin], offset: Int = 0) raises where
-        not Self.read_only:
+    def write[
+        origin: ImmOrigin, //
+    ](mut self, data: Span[Byte, origin], offset: Int = 0) raises where not Self.read_only:
         """Writes data into the BLOB incrementally.
 
         The BLOB must have been opened with `read_only=False`.

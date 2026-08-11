@@ -1,3 +1,4 @@
+"""`FromSQL` trait: SQLite → Mojo type conversion for reading columns."""
 from slight.types.value_ref import ValueRef, Null
 from std.builtin.rebind import downcast
 
@@ -97,7 +98,10 @@ __extension SIMD(FromSQL):
             DType.uint32,
             DType.uint64,
         ]
-        comptime assert (Self.dtype in int_types or Self.dtype in float_types), String("To construct a SIMD type from a ValueRef, it must be one of the int or float dtypes. Received: {Self.dtype}")
+        comptime assert Self.dtype in int_types or Self.dtype in float_types, String(
+            "To construct a SIMD type from a ValueRef, it must be one of the int or float dtypes. Received:"
+            " {Self.dtype}"
+        )
 
         comptime if Self.dtype in (DType.float16, DType.float32, DType.float64):
             self = Scalar[Self.dtype](value.as_float64())

@@ -200,7 +200,9 @@ struct Statement[conn: ImmOrigin](Movable):
         """
         var text = self.stmt.unsafe_column_text(idx)
 
-        var c_str_slice = CStringSlice(unsafe_from_ptr=text.unsafe_ptr().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)]())
+        var c_str_slice = CStringSlice(
+            unsafe_from_ptr=text.unsafe_ptr().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)]()
+        )
         return StringSpan(unsafe_from_utf8=c_str_slice)
 
     def unsafe_column_blob(self, idx: UInt) raises -> Span[Byte, origin_of(self)]:
@@ -390,9 +392,7 @@ struct Statement[conn: ImmOrigin](Movable):
         """
         self.connection[].raise_if_error(self.stmt.bind_double(index, value))
 
-    def bind_text[
-        origin: ImmOrigin, //
-    ](self, index: UInt, value: StringSpan[origin]) raises -> None:
+    def bind_text[origin: ImmOrigin, //](self, index: UInt, value: StringSpan[origin]) raises -> None:
         """Binds a text string value to the specified parameter.
 
         The text is borrowed rather than copied on the Mojo side; SQLite is
@@ -413,9 +413,7 @@ struct Statement[conn: ImmOrigin](Movable):
         # Enforce transient destructor so sqlite copies the data.
         self.connection[].raise_if_error(self.stmt.bind_text(index, value, DestructorHint.transient_destructor()))
 
-    def bind_blob[origin: ImmOrigin, //](
-        self, index: UInt, value: ImmSpan[Byte, origin]
-    ) raises -> None:
+    def bind_blob[origin: ImmOrigin, //](self, index: UInt, value: ImmSpan[Byte, origin]) raises -> None:
         """Binds a blob value to the specified parameter.
 
         Args:
@@ -739,7 +737,9 @@ struct Statement[conn: ImmOrigin](Movable):
         if not name:
             raise Error("InvalidColumnIndexError: column index is out of bounds.")
 
-        var c_str_slice = CStringSlice(unsafe_from_ptr=name.value().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)]())
+        var c_str_slice = CStringSlice(
+            unsafe_from_ptr=name.value().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)]()
+        )
         return StringSpan(unsafe_from_utf8=c_str_slice)
 
     def column_index(self, name: StringSpan) raises -> UInt:

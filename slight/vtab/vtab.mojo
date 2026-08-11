@@ -1,3 +1,4 @@
+"""Generic `VTab`/`VTabCursor` machinery for implementing SQLite virtual tables in Mojo."""
 from std.ffi import c_char, c_int, CStringSlice
 from std.memory.alloc import alloc, dealloc, Layout, Allocation, unsafe_alloc
 from slight.api import sqlite_ffi
@@ -108,6 +109,9 @@ struct VTabConnectResult[T: MoveDestructible](Movable):
         """Consume this result, returning the schema and dropping vtab.
 
         This is an escape hatch: call only when vtab is already moved out.
+
+        Returns:
+            The `CREATE TABLE` SQL string declaring the virtual table schema.
         """
         schema = self.schema^
 
@@ -118,14 +122,20 @@ struct VTabConnectResult[T: MoveDestructible](Movable):
 
         Args:
             schema: Receives the `CREATE TABLE` schema string.
+
+        Returns:
+            The initial virtual table state.
         """
         schema = self.schema^
         vtab = self.vtab^
 
 
 @fieldwise_init
-struct VTabConfig(Copyable, Equatable, Writable, TrivialRegisterPassable):
+struct VTabConfig(Copyable, Equatable, TrivialRegisterPassable, Writable):
+    """Configuration options for `sqlite3_vtab_config()`."""
+
     var value: c_int
+    """The underlying `sqlite3_vtab_config` option code."""
     comptime CONSTRAINT_SUPPORT = Self(1)
     """Equivalent to `SQLITE_VTAB_CONSTRAINT_SUPPORT`"""
     comptime INNOCUOUS = Self(2)
@@ -139,15 +149,16 @@ struct VTabConfig(Copyable, Equatable, Writable, TrivialRegisterPassable):
 @fieldwise_init
 struct VTabConnection(Movable):
     """Encapsulates the sqlite3_connection pointer passed to xConnect/xCreate."""
+
     var db: MutExternalPointer[sqlite3_connection]
     """VTab connection handle supplied by SQLite to xConnect/xCreate callbacks."""
 
     def config(mut self, config: VTabConfig) raises:
         """Configure various facets of the virtual table interface.
-        
+
         Args:
             config: The configuration option to set.
-        
+
         Raises:
             Error: If the underlying `sqlite3_vtab_config` call fails.
         """
@@ -167,12 +178,16 @@ struct VTabConnection(Movable):
         Returns:
             The pointer to the underlying memory.
         """
-        return self.db.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().unsafe_address_space_cast[address_space]()
+        return (
+            self.db.unsafe_mut_cast[origin.mut]()
+            .unsafe_origin_cast[origin]()
+            .unsafe_address_space_cast[address_space]()
+        )
 
 
 comptime VTabConnectFn[T: MoveDestructible] = def[origin: ImmOrigin, //](
     VTabConnection,
-    MutExternalPointer[NoneType], # Maybe make this a Copyable struct and pass a pointer to a copy?
+    MutExternalPointer[NoneType],  # Maybe make this a Copyable struct and pass a pointer to a copy?
     String,
     String,
     String,
@@ -203,9 +218,7 @@ Parameters:
     T: The user-provided virtual table state type.
 """
 
-comptime VTabOpenFn[T: MoveDestructible, C: MoveDestructible] = def(
-    MutExternalPointer[T],
-) raises thin -> C
+comptime VTabOpenFn[T: MoveDestructible, C: MoveDestructible] = def(MutExternalPointer[T],) raises thin -> C
 """User-provided xOpen callback.
 
 Called to create a new cursor for iterating over the virtual table. Returns
@@ -255,7 +268,9 @@ Parameters:
 """
 
 comptime VTabColumnFn[C: MoveDestructible] = def(
-    MutExternalPointer[C], Context, c_int,
+    MutExternalPointer[C],
+    Context,
+    c_int,
 ) raises thin
 """User-provided xColumn callback.
 
@@ -315,7 +330,9 @@ def _vtab_stub_find_function(
     pVtab: MutExternalPointer[sqlite3_vtab],
     nArg: c_int,
     zName: ImmExternalPointer[c_char],
-    pxFunc: def(MutExternalPointer[sqlite3_context], c_int, MutExternalPointer[MutExternalPointer[sqlite3_value]]) abi("C") thin -> MutExternalPointer[MutExternalPointer[NoneType]],
+    pxFunc: def(MutExternalPointer[sqlite3_context], c_int, MutExternalPointer[MutExternalPointer[sqlite3_value]]) abi(
+        "C"
+    ) thin -> MutExternalPointer[MutExternalPointer[NoneType]],
     ppArg: MutExternalPointer[MutExternalPointer[NoneType]],
 ) abi("C") -> c_int:
     """Stub xFindFunction — no overloaded SQL functions."""
@@ -331,21 +348,24 @@ def _vtab_stub_rename(
 
 
 def _vtab_stub_savepoint(
-    pVTab: MutExternalPointer[sqlite3_vtab], iSavepoint: c_int,
+    pVTab: MutExternalPointer[sqlite3_vtab],
+    iSavepoint: c_int,
 ) abi("C") -> c_int:
     """Stub xSavepoint — savepoints not supported."""
     return SQLITE_OK
 
 
 def _vtab_stub_release(
-    pVTab: MutExternalPointer[sqlite3_vtab], iSavepoint: c_int,
+    pVTab: MutExternalPointer[sqlite3_vtab],
+    iSavepoint: c_int,
 ) abi("C") -> c_int:
     """Stub xRelease — savepoints not supported."""
     return SQLITE_OK
 
 
 def _vtab_stub_rollback_to(
-    pVTab: MutExternalPointer[sqlite3_vtab], iSavepoint: c_int,
+    pVTab: MutExternalPointer[sqlite3_vtab],
+    iSavepoint: c_int,
 ) abi("C") -> c_int:
     """Stub xRollbackTo — savepoints not supported."""
     return SQLITE_OK
@@ -401,7 +421,7 @@ def _vtab_xConnect[
             String(unsafe_from_utf8_ptr=argv[unsafe_offset=0]),
             String(unsafe_from_utf8_ptr=argv[unsafe_offset=1]),
             String(unsafe_from_utf8_ptr=argv[unsafe_offset=2]),
-            [ String(unsafe_from_utf8_ptr=argv[unsafe_offset=i]) for i in range(3, Int(argc)) ]
+            [String(unsafe_from_utf8_ptr=argv[unsafe_offset=i]) for i in range(3, Int(argc))],
         )
         var schema = ""
         var vtab_data = result^.take_vtab(schema)
@@ -412,10 +432,8 @@ def _vtab_xConnect[
             return rc.value
 
         # Allocate VTabBox[T] on the heap.
-        var vtab_base = sqlite3_vtab(
-            pModule=None, nRef=c_int(0), zErrMsg=None
-        )
-        var box_ptr = unsafe_alloc[VTabBox[T]](count=1) # TODO: Maybe use OwnedPointer here instead of VTabBox
+        var vtab_base = sqlite3_vtab(pModule=None, nRef=c_int(0), zErrMsg=None)
+        var box_ptr = unsafe_alloc[VTabBox[T]](count=1)  # TODO: Maybe use OwnedPointer here instead of VTabBox
         box_ptr.unsafe_write(VTabBox[T](_base=vtab_base^, data=vtab_data^))
 
         # Write the vtab pointer back to SQLite.
@@ -427,12 +445,10 @@ def _vtab_xConnect[
 
 
 def _vtab_xBestIndex[
-    T: MoveDestructible, //,
+    T: MoveDestructible,
+    //,
     best_index_fn: VTabBestIndexFn[T],
-](
-    pVTab: MutExternalPointer[sqlite3_vtab],
-    pIdxInfo: MutExternalPointer[sqlite3_index_info],
-) abi("C") -> c_int:
+](pVTab: MutExternalPointer[sqlite3_vtab], pIdxInfo: MutExternalPointer[sqlite3_index_info],) abi("C") -> c_int:
     """xBestIndex trampoline.
 
     Casts the sqlite3_vtab pointer to the full VTabBox[T], then calls the
@@ -451,9 +467,9 @@ def _vtab_xBestIndex[
         return SQLITE_ERROR
 
 
-def _vtab_xDisconnect[T: MoveDestructible](
-    pVTab: MutExternalPointer[sqlite3_vtab],
-) abi("C") -> c_int:
+def _vtab_xDisconnect[
+    T: MoveDestructible
+](pVTab: MutExternalPointer[sqlite3_vtab],) abi("C") -> c_int:
     """xDisconnect / xDestroy trampoline.
 
     Moves the user data out of the VTabBox[T], drops it (triggering the
@@ -472,12 +488,15 @@ def _vtab_xDisconnect[T: MoveDestructible](
 
 def _vtab_xOpen[
     T: MoveDestructible,
-    C: MoveDestructible, //,
+    C: MoveDestructible,
+    //,
     open_fn: VTabOpenFn[T, C],
 ](
     pVTab: MutExternalPointer[sqlite3_vtab],
     ppCursor: MutExternalPointer[MutExternalPointer[sqlite3_vtab_cursor]],
-) abi("C") -> c_int:
+) abi(
+    "C"
+) -> c_int:
     """xOpen trampoline.
 
     Calls the user-provided xOpen implementation and allocates a VTabCursorBox[C]
@@ -495,22 +514,18 @@ def _vtab_xOpen[
         # Allocate VTabCursorBox[C] on the heap.
         var cursor_base = sqlite3_vtab_cursor(pVtab=None)
         var cursor_box_ptr = unsafe_alloc[VTabCursorBox[C]](count=1)
-        cursor_box_ptr.unsafe_write(
-            VTabCursorBox[C](_base=cursor_base^, data=cursor_data^)
-        )
+        cursor_box_ptr.unsafe_write(VTabCursorBox[C](_base=cursor_base^, data=cursor_data^))
 
         # Write the cursor pointer back to SQLite.
-        ppCursor[] = cursor_box_ptr.unsafe_bitcast[sqlite3_vtab_cursor]().unsafe_origin_cast[
-            MutUntrackedOrigin
-        ]()
+        ppCursor[] = cursor_box_ptr.unsafe_bitcast[sqlite3_vtab_cursor]().unsafe_origin_cast[MutUntrackedOrigin]()
         return SQLITE_OK
     except:
         return SQLITE_ERROR
 
 
-def _vtab_xClose[C: MoveDestructible](
-    pCursor: MutExternalPointer[sqlite3_vtab_cursor],
-) abi("C") -> c_int:
+def _vtab_xClose[
+    C: MoveDestructible
+](pCursor: MutExternalPointer[sqlite3_vtab_cursor],) abi("C") -> c_int:
     """xClose trampoline.
 
     Moves the cursor state out of VTabCursorBox[C] (triggering its destructor)
@@ -527,7 +542,8 @@ def _vtab_xClose[C: MoveDestructible](
 
 
 def _vtab_xFilter[
-    C: MoveDestructible, //,
+    C: MoveDestructible,
+    //,
     filter_fn: VTabFilterFn[C],
 ](
     pCursor: MutExternalPointer[sqlite3_vtab_cursor],
@@ -550,9 +566,7 @@ def _vtab_xFilter[
     # Convert nullable idxStr C pointer to Optional[StringSpan].
     var idx_str: Optional[StringSpan[ImmUntrackedOrigin]] = None
     if idxStr:
-        idx_str = StringSpan(
-            unsafe_from_utf8=CStringSlice(unsafe_from_ptr=idxStr.value())
-        )
+        idx_str = StringSpan(unsafe_from_utf8=CStringSlice(unsafe_from_ptr=idxStr.value()))
 
     try:
         filter_fn(
@@ -568,11 +582,10 @@ def _vtab_xFilter[
 
 
 def _vtab_xNext[
-    C: MoveDestructible, //,
+    C: MoveDestructible,
+    //,
     next_fn: VTabNextFn[C],
-](
-    pCursor: MutExternalPointer[sqlite3_vtab_cursor],
-) abi("C") -> c_int:
+](pCursor: MutExternalPointer[sqlite3_vtab_cursor],) abi("C") -> c_int:
     """xNext trampoline.
 
     Parameters:
@@ -588,11 +601,10 @@ def _vtab_xNext[
 
 
 def _vtab_xEof[
-    C: MoveDestructible, //,
+    C: MoveDestructible,
+    //,
     eof_fn: VTabEofFn[C],
-](
-    pCursor: MutExternalPointer[sqlite3_vtab_cursor],
-) abi("C") -> c_int:
+](pCursor: MutExternalPointer[sqlite3_vtab_cursor],) abi("C") -> c_int:
     """xEof trampoline.
 
     Returns 1 if the cursor is past the last row, 0 otherwise.
@@ -606,13 +618,16 @@ def _vtab_xEof[
 
 
 def _vtab_xColumn[
-    C: MoveDestructible, //,
+    C: MoveDestructible,
+    //,
     column_fn: VTabColumnFn[C],
 ](
     pCursor: MutExternalPointer[sqlite3_vtab_cursor],
     pCtx: MutExternalPointer[sqlite3_context],
     iCol: c_int,
-) abi("C") -> c_int:
+) abi(
+    "C"
+) -> c_int:
     """xColumn trampoline.
 
     Parameters:
@@ -629,12 +644,10 @@ def _vtab_xColumn[
 
 
 def _vtab_xRowid[
-    C: MoveDestructible, //,
+    C: MoveDestructible,
+    //,
     rowid_fn: VTabRowidFn[C],
-](
-    pCursor: MutExternalPointer[sqlite3_vtab_cursor],
-    pRowid: MutExternalPointer[Int64],
-) abi("C") -> c_int:
+](pCursor: MutExternalPointer[sqlite3_vtab_cursor], pRowid: MutExternalPointer[Int64],) abi("C") -> c_int:
     """xRowid trampoline.
 
     Parameters:
@@ -656,7 +669,8 @@ def _vtab_xRowid[
 
 def make_read_only_module[
     T: MoveDestructible,
-    C: MoveDestructible, //,
+    C: MoveDestructible,
+    //,
     connect_fn: VTabConnectFn[T],
     best_index_fn: VTabBestIndexFn[T],
     open_fn: VTabOpenFn[T, C],

@@ -41,9 +41,7 @@ def _unlock_notify_cb(
         flag_ptr[] = True
 
 
-def is_locked(
-    db: MutExternalPointer[sqlite3_connection], rc: SQLite3Result
-) -> Bool:
+def is_locked(db: MutExternalPointer[sqlite3_connection], rc: SQLite3Result) -> Bool:
     """Check whether a result code indicates shared-cache lock contention.
 
     Args:
@@ -55,10 +53,7 @@ def is_locked(
     """
     if rc == SQLITE_LOCKED_SHAREDCACHE:
         return True
-    return (
-        rc.value & 0xFF == SQLITE_LOCKED
-        and sqlite_ffi()[].extended_errcode(db) == SQLite3Result.LOCKED_SHAREDCACHE
-    )
+    return rc.value & 0xFF == SQLITE_LOCKED and sqlite_ffi()[].extended_errcode(db) == SQLite3Result.LOCKED_SHAREDCACHE
 
 
 def wait_for_unlock_notify(
@@ -90,9 +85,7 @@ def wait_for_unlock_notify(
         notify_arg,
     )
     debug_assert(
-        rc == SQLITE_LOCKED
-        or rc == SQLITE_LOCKED_SHAREDCACHE
-        or rc == SQLITE_OK,
+        rc == SQLITE_LOCKED or rc == SQLITE_LOCKED_SHAREDCACHE or rc == SQLITE_OK,
         "unexpected result from sqlite3_unlock_notify",
     )
     if rc == SQLite3Result.OK:

@@ -85,7 +85,7 @@ comptime AuthorizerFn = def(
     Optional[ImmExternalStringSlice],
     Optional[ImmExternalStringSlice],
     Optional[ImmExternalStringSlice],
-    Optional[ImmExternalStringSlice]
+    Optional[ImmExternalStringSlice],
 ) thin -> AuthResult
 """User-provided authorizer callback type for `Connection.register_authorizer()`.
 
@@ -99,6 +99,7 @@ ignore the action.
 
 
 # ── C-compatible callback ────────────────────────────────────────────────
+
 
 def _to_string_span(ptr: ImmExternalPointer[c_char]) -> Optional[ImmExternalStringSlice]:
     """Decode a possibly-NULL `const char*` into an `Optional[StringSpan]`.

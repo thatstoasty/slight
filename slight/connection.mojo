@@ -120,7 +120,11 @@ struct Connection(Movable):
         connection = Self(InnerConnection(":memory:", flags))
 
     def __init__(out self, var conn: InnerConnection):
-        """Initialize a new connection with the given inner connection."""
+        """Initialize a new connection with the given inner connection.
+
+        Args:
+            conn: The inner connection to wrap.
+        """
         self.db = conn^
 
     def __init__(out self, var path: String) raises:
@@ -761,9 +765,7 @@ struct Connection(Movable):
         for row in self.prepare(String(sql)).query(()):
             callback(row)
 
-    def pragma_update[
-        T: AnyType, //
-    ](self, pragma: StringSpan, value: T, schema: Optional[String] = None) raises:
+    def pragma_update[T: AnyType, //](self, pragma: StringSpan, value: T, schema: Optional[String] = None) raises:
         """Set a new value to a pragma.
 
         Some pragmas will return the updated value which cannot be retrieved
@@ -1311,7 +1313,11 @@ struct Connection(Movable):
         self.raise_if_error(self.db.trace_v2(mask, trace_fn))
 
     def clear_trace_function(self) raises:
-        """Clear the trace callback, if any."""
+        """Clear the trace callback, if any.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
         self.raise_if_error(self.db.clear_trace_v2())
 
     def register_commit_hook(self, callback: CommitHookFn):
@@ -1368,7 +1374,9 @@ struct Connection(Movable):
         """Unregister the update hook, if any."""
         self.db.clear_update_hook()
 
-    def create_collation(self, var name: String, compare: CollationCompareFn, flags: FunctionFlags = FunctionFlags.UTF8) raises:
+    def create_collation(
+        self, var name: String, compare: CollationCompareFn, flags: FunctionFlags = FunctionFlags.UTF8
+    ) raises:
         """Define a new collating sequence for use in `ORDER BY`, `COLLATE`, indexes, etc.
 
         Args:
@@ -1658,20 +1666,17 @@ struct Connection(Movable):
         finally:
             backup^.finish()
 
-    def blob_open[read_only: Bool = False](
-        mut self,
-        var table: String,
-        var column: String,
-        row_id: Int64,
-        *,
-        var schema: String = "main"
-    ) raises -> Blob[origin_of(self), read_only]:
+    def blob_open[
+        read_only: Bool = False
+    ](mut self, var table: String, var column: String, row_id: Int64, *, var schema: String = "main") raises -> Blob[
+        origin_of(self), read_only
+    ]:
         """Opens a BLOB for incremental I/O.
 
         This is more efficient than loading an entire large BLOB value into
         memory when only part of it needs to be read or written.
 
-        Params:
+        Parameters:
             read_only: If True, opens the BLOB for reading only. If False,
                 opens the BLOB for reading and writing.
 

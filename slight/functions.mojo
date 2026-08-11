@@ -55,9 +55,7 @@ struct FunctionFlags(TrivialRegisterPassable, Writable):
         return Self(self.value | other.value)
 
 
-def _typed_destructor[
-    T: CopyDestructible
-](pApp: Optional[MutExternalPointer[NoneType]]) abi("C"):
+def _typed_destructor[T: CopyDestructible](pApp: Optional[MutExternalPointer[NoneType]]) abi("C"):
     """Destructor for user-defined function application data of type `T`.
 
     Used as the destructor callback when creating user-defined functions with
@@ -91,9 +89,9 @@ Parameters:
     V: The return type of the scalar function, which must conform to `ToSQL`.
 """
 
+
 def _call_scalar_callback[
-    V: MoveDestructible, //,
-    func: ScalarUDF[V]
+    V: MoveDestructible, //, func: ScalarUDF[V]
 ](
     ctx: MutExternalPointer[sqlite3_context],
     argc: c_int,
@@ -115,12 +113,12 @@ def _call_scalar_callback[
         argv: The arguments passed to the function.
     """
     comptime assert conforms_to(V, ToSQL), String(
-        T"`func` must return a type that conforms to `ToSQL`. {reflect[V].name()} does not implement `ToSQL`."
+        t"`func` must return a type that conforms to `ToSQL`. {reflect[V].name()} does not implement `ToSQL`."
     )
 
     # Convert raw C callback to our Context wrapper and call the user-provided function
     var context = Context(ctx, argc, argv)
-    
+
     var fn_result: V
     try:
         fn_result = func(context)
@@ -128,7 +126,7 @@ def _call_scalar_callback[
         # If the user's function raises an error, we need to convert it to a SQLite error result.
         context.result_error(t"Error in scalar function: {e}")
         return
-    
+
     var result: ToSqlOutput[origin_of(fn_result)]
     try:
         result = fn_result.to_sql()
@@ -159,6 +157,7 @@ Parameters:
     A: The type of the aggregate context, which is updated by the step function and passed to this function.
     T: The return type of the final function, which must conform to `ToSQL`.
 """
+
 
 def _call_step_callback[
     A: MoveDestructible,
@@ -270,11 +269,9 @@ Parameters:
     A: The type of the aggregate context, which is updated by the xStep callback and passed to this function to compute the current value of the window function for window frames.
 """
 
+
 def _call_value_callback[
-    A: CopyDestructible,
-    T: MoveDestructible,
-    //,
-    value_fn: WindowAggregateValueUDF[A, T]
+    A: CopyDestructible, T: MoveDestructible, //, value_fn: WindowAggregateValueUDF[A, T]
 ](ctx: MutExternalPointer[sqlite3_context]) abi("C"):
     """The xValue callback for the window function.
 

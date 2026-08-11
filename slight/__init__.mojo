@@ -1,3 +1,4 @@
+"""`slight` — a Mojo wrapper around the SQLite3 C library."""
 from slight.authorizer import AuthAction, AuthResult
 from slight.bind import BindIndex, Int, String, StringSpan, UInt
 from slight.checkpoint import CheckpointMode

@@ -1,4 +1,9 @@
-# """ToSQL and FromSQL trait implementations for emberjson's Value type.
+"""ToSQL and FromSQL trait implementations for emberjson's Value type.
+
+Currently disabled (commented out below) pending ToSQL/FromSQL trait-system
+support for the interior origin of Optional and for computed (owned) SQL
+values.
+"""
 
 # This module provides conversions between SQLite values and emberjson Values,
 # enabling JSON data to be stored and retrieved from SQLite databases.

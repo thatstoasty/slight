@@ -59,9 +59,7 @@ struct ToSqlOutput[origin: ImmOrigin](Movable):
         """
         return self.value.isa[T]()
 
-    def __getitem_param__[
-        T: Movable
-    ](self) -> ref[origin_of(self.value)._get_owned_interior["value"]] T:
+    def __getitem_param__[T: Movable](self) -> ref[origin_of(self.value)._get_owned_interior["value"]] T:
         """Access the payload as a `T`.
 
         Parameters:

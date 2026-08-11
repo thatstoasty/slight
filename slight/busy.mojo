@@ -9,9 +9,7 @@ from std.ffi import c_int
 from slight.c.types import MutExternalPointer, BusyHandlerFn
 
 
-def _busy_handler_callback(
-    p_arg: MutExternalPointer[NoneType], count: c_int
-) abi("C") -> c_int:
+def _busy_handler_callback(p_arg: MutExternalPointer[NoneType], count: c_int) abi("C") -> c_int:
     """C-compatible busy handler callback that delegates to a Mojo function.
 
     This function is passed as the callback to `sqlite3_busy_handler()`.

@@ -23,6 +23,11 @@ struct Null(SQLType):
     """An owned SQL NULL value."""
 
     def write_to(self, mut writer: Some[Writer]):
+        """Writes a human-readable representation of this value.
+
+        Args:
+            writer: The writer to write to.
+        """
         writer.write("NULL")
 
 
@@ -34,6 +39,11 @@ struct Integer(SQLType):
     """The underlying integer value."""
 
     def write_to(self, mut writer: Some[Writer]):
+        """Writes a human-readable representation of this value.
+
+        Args:
+            writer: The writer to write to.
+        """
         writer.write(self.value)
 
 
@@ -45,6 +55,11 @@ struct Real(SQLType):
     """The underlying floating-point value."""
 
     def write_to(self, mut writer: Some[Writer]):
+        """Writes a human-readable representation of this value.
+
+        Args:
+            writer: The writer to write to.
+        """
         writer.write(self.value)
 
 
@@ -56,6 +71,11 @@ struct Text(SQLType):
     """The underlying text, owned by this struct."""
 
     def write_to(self, mut writer: Some[Writer]):
+        """Writes a human-readable representation of this value.
+
+        Args:
+            writer: The writer to write to.
+        """
         writer.write(self.value)
 
 
@@ -67,6 +87,11 @@ struct Blob(SQLType):
     """The underlying bytes, owned by this struct."""
 
     def write_to(self, mut writer: Some[Writer]):
+        """Writes a human-readable representation of this value.
+
+        Args:
+            writer: The writer to write to.
+        """
         # TODO: Improve blob representation
         writer.write("BLOB(")
         writer.write(len(self.value))
@@ -140,9 +165,7 @@ struct Value(Copyable, Writable):
         """
         return self.value.isa[T]()
 
-    def __getitem_param__[
-        T: SQLType
-    ](self) -> ref[origin_of(self.value)._get_owned_interior["value"]] T:
+    def __getitem_param__[T: SQLType](self) -> ref[origin_of(self.value)._get_owned_interior["value"]] T:
         """Access the stored value as a `T`.
 
         Parameters:

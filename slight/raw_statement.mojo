@@ -10,7 +10,7 @@ from slight.enums import TextEncoding
 
 @fieldwise_init
 @explicit_destroy("RawStatement must be explicitly destroyed. Use self.finalize() to destroy.")
-struct RawStatement(Movable, Deinitable where False):
+struct RawStatement(Deinitable where False, Movable):
     """A raw SQL statement wrapper around a pointer to a `sqlite3_stmt`."""
 
     var stmt: Optional[MutExternalPointer[sqlite3_stmt]]
@@ -32,7 +32,7 @@ struct RawStatement(Movable, Deinitable where False):
 
         Returns:
             The value of the specified column as a 64-bit integer.
-        """            
+        """
         return sqlite_ffi()[].column_int64(self.stmt, Int32(idx))
 
     def column_double(self, idx: UInt) -> Float64:
@@ -107,8 +107,7 @@ struct RawStatement(Movable, Deinitable where False):
         # Widest bound we can express: the statement. The real bound is "until
         # the next step/reset/finalize or type conversion on this column".
         return Span(
-            unsafe_ptr=ptr.value().unsafe_bitcast[Byte]().unsafe_origin_cast[origin_of(self)](),
-            length=Int(length)
+            unsafe_ptr=ptr.value().unsafe_bitcast[Byte]().unsafe_origin_cast[origin_of(self)](), length=Int(length)
         )
 
     def column_type(self, idx: UInt) -> Int32:
@@ -219,7 +218,9 @@ struct RawStatement(Movable, Deinitable where False):
             self.stmt, Int32(index), value, UInt64(len(value.as_bytes())), TextEncoding.UTF8, destructor_callback
         )
 
-    def bind_blob[origin: ImmOrigin, //](self, index: UInt, value: Span[Byte, origin], destructor_callback: ResultDestructorFn) -> SQLite3Result:
+    def bind_blob[
+        origin: ImmOrigin, //
+    ](self, index: UInt, value: Span[Byte, origin], destructor_callback: ResultDestructorFn) -> SQLite3Result:
         """Binds a blob value to the specified parameter.
 
         Args:
@@ -231,7 +232,11 @@ struct RawStatement(Movable, Deinitable where False):
             The SQLite result code from binding the blob value.
         """
         return sqlite_ffi()[].bind_blob64(
-            self.stmt, Int32(index), value.unsafe_ptr().unsafe_bitcast[NoneType](), UInt64(len(value)), destructor_callback
+            self.stmt,
+            Int32(index),
+            value.unsafe_ptr().unsafe_bitcast[NoneType](),
+            UInt64(len(value)),
+            destructor_callback,
         )
 
     def sql(self) -> Optional[StringSpan[origin_of(self)]]:
@@ -249,16 +254,18 @@ struct RawStatement(Movable, Deinitable where False):
         if not sql_ptr:
             return None
         return StringSpan(
-            unsafe_from_utf8=CStringSlice(
-                unsafe_from_ptr=sql_ptr.value().unsafe_origin_cast[origin_of(self)]()
-            )
+            unsafe_from_utf8=CStringSlice(unsafe_from_ptr=sql_ptr.value().unsafe_origin_cast[origin_of(self)]())
         )
 
     def expanded_sql(self) raises -> Optional[SQLiteMallocString]:
         """Returns the SQL text of the prepared statement with bound parameters expanded.
 
         Returns:
-            The SQL statement with parameter values substituted.
+            The SQL statement with parameter values substituted, or None if
+            the statement has already been finalized.
+
+        Raises:
+            Error: If the expanded SQL string cannot be allocated due to an OOM error.
         """
         if not self.stmt:
             return None

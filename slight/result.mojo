@@ -154,6 +154,9 @@ struct SQLite3Result(Equatable, Intable, TrivialRegisterPassable, Writable):
 
     def write_to(self, mut writer: Some[Writer]):
         """Writes a human-readable string representation of the SQLite3Result, including a description of the result code.
+
+        Args:
+            writer: The writer to write to.
         """
         if self.value == SQLITE_OK:
             writer.write(t"[SQLITE_OK ({self.value})] Successful result")

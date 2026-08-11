@@ -9,7 +9,7 @@ from slight.types.to_sql import ToSqlOutput
 
 
 @fieldwise_init
-struct Context(Movable, Sized, Boolable):
+struct Context(Boolable, Movable, Sized):
     """A wrapper for the SQLite function evaluation context.
 
     Provides convenient access to function arguments and methods to set
@@ -149,7 +149,7 @@ struct Context(Movable, Sized, Boolable):
         var text = sqlite_ffi()[].value_text(self.args[idx])
         if not text:
             return None
-        
+
         # We're laundering the origin here. It should be safe because the value should
         # live as long as the context is alive. That conveys more information than using an external origin.
         return CStringSlice(
@@ -308,7 +308,7 @@ struct Context(Movable, Sized, Boolable):
             subtype: The subtype value.
         """
         sqlite_ffi()[].result_subtype(self.ctx, subtype)
-    
+
     def set_result(self, result: ValueRef[_]):
         """Set the function result based on a ValueRef.
 

@@ -4,6 +4,7 @@ from slight.types.to_sql import ToSQL
 from slight.bind import BindIndex
 from slight.statement import Statement
 
+
 trait Params(Movable):
     """A trait for types that can be used as parameters in SQL queries."""
 
@@ -34,7 +35,7 @@ __extension List(Params):
         _constrained_conforms_to[
             conforms_to(Self.T, ToSQL),
             Parent=Self,
-            Element = Self.T,
+            Element=Self.T,
             ParentConformsTo="Params",
             ElementConformsTo="ToSQL",
         ]()
@@ -65,7 +66,7 @@ __extension Array(Params):
         _constrained_conforms_to[
             conforms_to(Self.T, ToSQL),
             Parent=Self,
-            Element = Self.T,
+            Element=Self.T,
             ParentConformsTo="Params",
             ElementConformsTo="ToSQL",
         ]()
@@ -92,7 +93,9 @@ __extension Dict(Params):
         Raises:
             Error: If the parameters cannot be bound to the statement.
         """
-        comptime assert conforms_to(Self.K, BindIndex), String("The type of the Key must implement the `BindIndex` trait.")
+        comptime assert conforms_to(Self.K, BindIndex), String(
+            "The type of the Key must implement the `BindIndex` trait."
+        )
         comptime assert conforms_to(Self.V, ToSQL), String("The type of the Value must implement the `ToSQL` trait.")
         _constrained_conforms_to[
             conforms_to(Self.K, BindIndex),

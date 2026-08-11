@@ -94,7 +94,7 @@ def _free_module(var module: Allocation[sqlite3_module]):
 
 @fieldwise_init
 @explicit_destroy("InnerConnection must be explicitly destroyed. Use self.close() to destroy.")
-struct InnerConnection(Movable, Deinitable where False):
+struct InnerConnection(Deinitable where False, Movable):
     """A connection to a SQLite3 database."""
 
     var db: MutExternalPointer[sqlite3_connection]
@@ -139,7 +139,11 @@ struct InnerConnection(Movable, Deinitable where False):
         Returns:
             The pointer to the underlying memory.
         """
-        return self.db.unsafe_mut_cast[origin.mut]().unsafe_origin_cast[origin]().unsafe_address_space_cast[address_space]()
+        return (
+            self.db.unsafe_mut_cast[origin.mut]()
+            .unsafe_origin_cast[origin]()
+            .unsafe_address_space_cast[address_space]()
+        )
 
     def is_autocommit(self) -> Bool:
         """Returns whether the connection is in auto-commit mode.
@@ -680,6 +684,9 @@ struct InnerConnection(Movable, Deinitable where False):
         Args:
             fn_name: Name of the SQL function to remove.
             n_arg: Number of arguments the function was registered with.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
         """
         # To delete a function, pass NULL for all callbacks and pApp,
         # with UTF8 encoding.
@@ -734,7 +741,7 @@ struct InnerConnection(Movable, Deinitable where False):
             _busy_handler_callback,
             ctx,
         )
-            
+
     def clear_busy_handler(self) -> SQLite3Result:
         """Clears the set busy handler callback.
 
@@ -743,8 +750,8 @@ struct InnerConnection(Movable, Deinitable where False):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-            # Passing timeout=0 clears all busy handlers (per SQLite docs).
-            return sqlite_ffi()[].busy_timeout(self.db, 0)
+        # Passing timeout=0 clears all busy handlers (per SQLite docs).
+        return sqlite_ffi()[].busy_timeout(self.db, 0)
 
     def limit(self, limit: Limit) -> Int32:
         """Returns the current value of a run-time limit.
@@ -978,6 +985,9 @@ struct InnerConnection(Movable, Deinitable where False):
 
         Args:
             enable: If True, enables extension loading. If False, disables it.
+
+        Returns:
+            SQLITE_OK on success, or an error code on failure.
         """
         return sqlite_ffi()[].enable_load_extension(self.db, c_int(1 if enable else 0))
 
@@ -1283,10 +1293,14 @@ struct InnerConnection(Movable, Deinitable where False):
             Error: If the underlying SQLite call fails.
         """
         self.raise_if_error(
-            sqlite_ffi()[].blob_read(pBlob, buffer.unsafe_ptr().unsafe_bitcast[NoneType](), c_int(len(buffer)), c_int(offset))
+            sqlite_ffi()[].blob_read(
+                pBlob, buffer.unsafe_ptr().unsafe_bitcast[NoneType](), c_int(len(buffer)), c_int(offset)
+            )
         )
 
-    def blob_write[origin: Origin, //](self, pBlob: MutExternalPointer[sqlite3_blob], data: Span[Byte, origin], offset: Int) raises:
+    def blob_write[
+        origin: Origin, //
+    ](self, pBlob: MutExternalPointer[sqlite3_blob], data: Span[Byte, origin], offset: Int) raises:
         """Writes data into a BLOB incrementally.
 
         Args:

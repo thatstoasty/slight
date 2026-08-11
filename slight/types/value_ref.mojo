@@ -1,3 +1,8 @@
+"""`ValueRef` — a borrowed reference to a SQLite value.
+
+Used for scalar/aggregate function arguments and other places that read a
+SQLite-owned value without copying it.
+"""
 from std.os import abort
 from std.utils import Variant
 from slight.c.types import sqlite3_value, MutExternalPointer
@@ -21,6 +26,11 @@ struct Null(SQLRefType):
     """
 
     def write_to(self, mut writer: Some[Writer]):
+        """Writes a human-readable representation of this value.
+
+        Args:
+            writer: The writer to write to.
+        """
         writer.write("NULL")
 
 
@@ -51,8 +61,13 @@ struct Integer(SQLRefType):
             value: The value to wrap.
         """
         self.value = Int64(value)
-    
+
     def write_to(self, mut writer: Some[Writer]):
+        """Writes a human-readable representation of this value.
+
+        Args:
+            writer: The writer to write to.
+        """
         writer.write(self.value)
 
 
@@ -74,8 +89,13 @@ struct Real(SQLRefType):
             value: The value to wrap.
         """
         self.value = value
-    
+
     def write_to(self, mut writer: Some[Writer]):
+        """Writes a human-readable representation of this value.
+
+        Args:
+            writer: The writer to write to.
+        """
         writer.write(self.value)
 
 
@@ -101,8 +121,13 @@ struct Text[stmt: ImmOrigin](SQLRefType):
             value: The text value to wrap.
         """
         self.value = value
-    
+
     def write_to(self, mut writer: Some[Writer]):
+        """Writes a human-readable representation of this value.
+
+        Args:
+            writer: The writer to write to.
+        """
         writer.write(self.value)
 
 
@@ -128,8 +153,13 @@ struct Blob[stmt: ImmOrigin](SQLRefType):
             value: The blob value to wrap.
         """
         self.value = value
-    
+
     def write_to(self, mut writer: Some[Writer]):
+        """Writes a human-readable representation of this value.
+
+        Args:
+            writer: The writer to write to.
+        """
         # TODO: Improve blob representation
         writer.write("BLOB(")
         writer.write(len(self.value))
@@ -210,7 +240,7 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
             value: The Blob value to store.
         """
         self.value = value^
-    
+
     def __init__(out self, value: MutExternalPointer[sqlite3_value]):
         """Returns the `idx`th argument as a `ValueRef`.
 
@@ -270,7 +300,7 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
             A reference to the value cast to type T.
         """
         return self.value[T]
-    
+
     def write_to(self, mut writer: Some[Writer]):
         """Write the string representation of the SQL value to the given writer.
 

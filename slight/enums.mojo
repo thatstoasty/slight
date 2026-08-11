@@ -1,6 +1,7 @@
 """Informational Enums."""
 from slight.c.types import ResultDestructorFn
 
+
 @fieldwise_init
 struct DataType(Equatable, TrivialRegisterPassable, Writable):
     """Fundamental Datatypes.
@@ -52,6 +53,7 @@ struct TextEncoding(TrivialRegisterPassable, Writable):
     """Internal enum value."""
     comptime UTF8 = Self(1)
     """`SQLITE_UTF8`: UTF-8 encoding."""
+
 
 @fieldwise_init
 struct DestructorHint(TrivialRegisterPassable, Writable):
