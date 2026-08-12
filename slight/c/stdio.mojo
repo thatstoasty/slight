@@ -1,7 +1,7 @@
 """Thin wrappers around the C standard I/O functions needed for CSV streaming.
 
 ``FILE *`` handles are represented as ``Int`` (an opaque integer-sized value).
-String path and mode arguments use ``ImmutUnsafePointer[c_char, origin]`` so
+String path and mode arguments use ``ImmPointer[c_char, origin]`` so
 that LLVM sees typed pointer arguments to the external call — this prevents
 dead-store elimination of the string buffers in AOT-compiled code.
 
@@ -13,7 +13,13 @@ The caller is responsible for:
 
 from std.ffi import external_call, c_char, c_int
 
-comptime CPointer[T: AnyType, origin: Origin] = Optional[UnsafePointer[T, origin]]
+comptime CPointer[T: AnyType, origin: Origin] = Optional[Pointer[T, origin]]
+"""A nullable pointer type matching C's `T *` (POSIX `NULL` is `None`).
+
+Parameters:
+    T: The pointee type.
+    origin: The origin of the pointee.
+"""
 # SEEK_* constants (POSIX)
 comptime SEEK_SET: c_int = c_int(0)
 """Seek from the beginning of the file."""
@@ -24,17 +30,18 @@ comptime SEEK_END: c_int = c_int(2)
 
 
 def fopen[
-    path_origin: ImmutOrigin,
-    mode_origin: ImmutOrigin, //
+    path_origin: ImmOrigin, mode_origin: ImmOrigin, //
 ](
-    path: ImmutUnsafePointer[c_char, path_origin],
-    mode: ImmutUnsafePointer[c_char, mode_origin],
-) -> CPointer[NoneType, MutUntrackedOrigin]:
+    path: ImmPointer[c_char, path_origin],
+    mode: ImmPointer[c_char, mode_origin],
+) -> CPointer[
+    NoneType, MutUntrackedOrigin
+]:
     """Open a file and return an opaque ``FILE *`` handle.
 
     Args:
-        path: Immutable pointer to a null-terminated file path string.
-        mode: Immutable pointer to a null-terminated mode string (e.g. ``"r"``).
+        path: Immable pointer to a null-terminated file path string.
+        mode: Immable pointer to a null-terminated mode string (e.g. ``"r"``).
 
     Returns:
         Opaque ``FILE *`` pointer on success, None on failure.
@@ -80,7 +87,9 @@ def ftell(fp: CPointer[NoneType, MutUntrackedOrigin]) -> Int:
     return external_call["ftell", Int](fp)
 
 
-def fread[origin: MutOrigin, //](buf: MutUnsafePointer[NoneType, origin], size: Int, count: Int, fp: CPointer[NoneType, MutUntrackedOrigin]) -> Int:
+def fread[
+    origin: MutOrigin, //
+](buf: MutPointer[NoneType, origin], size: Int, count: Int, fp: CPointer[NoneType, MutUntrackedOrigin]) -> Int:
     """Read up to ``count`` elements of ``size`` bytes each from ``fp``.
 
     Args:

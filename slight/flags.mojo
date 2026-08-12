@@ -1,3 +1,4 @@
+"""Flag option enums."""
 from slight.c.types import (
     SQLITE_OPEN_AUTOPROXY,
     SQLITE_OPEN_CREATE,
@@ -25,11 +26,13 @@ from slight.c.types import (
 
 
 @fieldwise_init
-struct PrepFlag(Copyable, ImplicitlyCopyable, Movable):
+struct PrepFlag(TrivialRegisterPassable, Writable):
     """Flags for preparing a SQLite statement."""
 
     var value: UInt32
     """The integer value of the flags."""
+    comptime NONE = Self(0x00)
+    """No flags enabled."""
     comptime PREPARE_PERSISTENT = Self(0x01)
     """A hint to the query planner that the prepared statement will be retained for a long time and probably reused many times."""
     comptime PREPARE_NO_VTAB = Self(0x04)
@@ -52,7 +55,7 @@ struct PrepFlag(Copyable, ImplicitlyCopyable, Movable):
 
 
 @fieldwise_init
-struct OpenFlag(Copyable, ImplicitlyCopyable, Movable):
+struct OpenFlag(TrivialRegisterPassable, Writable):
     """Flags for opening a SQLite database connection.
 
     Defaults to READ_WRITE | CREATE | URI.

@@ -24,7 +24,7 @@ from slight.result import SQLite3Result
 
 
 def _unlock_notify_cb(
-    ap_arg: MutUnsafePointer[MutExternalPointer[NoneType], MutUntrackedOrigin],
+    ap_arg: MutPointer[MutExternalPointer[NoneType], MutUntrackedOrigin],
     n_arg: c_int,
 ) abi("C"):
     """C-compatible unlock-notify callback.
@@ -37,13 +37,11 @@ def _unlock_notify_cb(
         n_arg: Number of entries in the array.
     """
     for i in range(Int(n_arg)):
-        var flag_ptr = ap_arg[i].bitcast[Bool]()
+        var flag_ptr = ap_arg[unsafe_offset=i].unsafe_bitcast[Bool]()
         flag_ptr[] = True
 
 
-def is_locked(
-    db: MutExternalPointer[sqlite3_connection], rc: SQLite3Result
-) -> Bool:
+def is_locked[conn_origin: ImmOrigin, //](db: ImmPointer[sqlite3_connection, conn_origin], rc: SQLite3Result) -> Bool:
     """Check whether a result code indicates shared-cache lock contention.
 
     Args:
@@ -55,14 +53,11 @@ def is_locked(
     """
     if rc == SQLITE_LOCKED_SHAREDCACHE:
         return True
-    return (
-        rc.value & 0xFF == SQLITE_LOCKED
-        and sqlite_ffi()[].extended_errcode(db) == SQLite3Result.LOCKED_SHAREDCACHE
-    )
+    return rc.value & 0xFF == SQLITE_LOCKED and sqlite_ffi()[].extended_errcode(db) == SQLite3Result.LOCKED_SHAREDCACHE
 
 
-def wait_for_unlock_notify(
-    db: MutExternalPointer[sqlite3_connection],
+def wait_for_unlock_notify[conn_origin: MutOrigin, //](
+    db: MutPointer[sqlite3_connection, conn_origin],
 ) -> SQLite3Result:
     """Block until an unlock-notify callback fires, then return SQLITE_OK.
 
@@ -82,7 +77,7 @@ def wait_for_unlock_notify(
         registering the notification fails.
     """
     var fired = False
-    var notify_arg = UnsafePointer(to=fired).bitcast[NoneType]()
+    var notify_arg = Pointer(to=fired).unsafe_bitcast[NoneType]()
 
     var rc = sqlite_ffi()[].unlock_notify(
         db,
@@ -90,9 +85,7 @@ def wait_for_unlock_notify(
         notify_arg,
     )
     debug_assert(
-        rc == SQLITE_LOCKED
-        or rc == SQLITE_LOCKED_SHAREDCACHE
-        or rc == SQLITE_OK,
+        rc == SQLITE_LOCKED or rc == SQLITE_LOCKED_SHAREDCACHE or rc == SQLITE_OK,
         "unexpected result from sqlite3_unlock_notify",
     )
     if rc == SQLite3Result.OK:

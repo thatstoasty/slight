@@ -3,52 +3,72 @@
 This module provides the ToSQL trait which allows converting Mojo types
 into SQLite-compatible values for binding to prepared statements.
 """
-from slight.types.value_ref import SQLite3Blob, SQLite3Integer, SQLite3Null, SQLite3Real, SQLite3Text, SQLType, ValueRef
-from std.sys.intrinsics import _type_is_eq, _type_is_eq_parse_time
+from slight.types import value_ref
+from slight.types import value
+from slight.types.value_ref import ValueRef
+from slight.types.value import Value
 from std.utils.variant import Variant
 
 
-# @fieldwise_init
-# struct Borrowed[origin: ImmutOrigin](Movable):
-#     """A borrowed SQLite value reference."""
-#     var data: ValueRef[Self.origin]
-#     """The underlying SQLite value reference."""
+struct ToSqlOutput[origin: ImmOrigin](Movable):
+    """What a `ToSQL` implementation returns: either a borrow or an owned value.
 
-#     def isa[T: SQLTypeRef](self) -> Bool:
-#         return self.data.isa[T]()
+    Return a `ValueRef` when the SQL representation already exists in memory —
+    the bytes of a `String`, the elements of a `List[Byte]`, or a scalar — so no
+    allocation is needed.
 
-#     def __getitem__[T: SQLTypeRef](self) -> ref [self.data.value] T:
-#         return self.data[T]
+    Return a `Value` when the representation must be *computed* and therefore
+    has nowhere to be borrowed from: a date formatted as ISO text, a UUID, an
+    enum rendered as a string. Returning a `ValueRef` view of a local temporary
+    in those cases would dangle, and the compiler rejects it.
 
+    Parameters:
+        origin: The origin of the borrowed value, when borrowing.
+    """
 
-# @fieldwise_init
-# struct Owned(Movable):
-#     """An owned SQLite value."""
-#     var data: Value
-#     """The underlying owned SQLite value."""
+    comptime _type = Variant[ValueRef[Self.origin], Value]
+    var value: Self._type
+    """The borrowed-or-owned payload."""
 
+    @implicit
+    def __init__(out self, value: ValueRef[Self.origin]):
+        """Initialize from a borrowed value.
 
-# @fieldwise_init
-# struct ToSqlOutput[origin: ImmutOrigin](Copyable):
-#     """An enum representing the output of a ToSQL conversion."""
-#     var value: Variant[
-#         # Owned,
-#         Borrowed[Self.origin],
-#     ]
+        Args:
+            value: The borrowed value.
+        """
+        self.value = value
 
-#     @implicit
-#     def __init__(out self, var value: Owned):
-#         self.value = value^
+    @implicit
+    def __init__(out self, var value: Value):
+        """Initialize from an owned value.
 
-#     @implicit
-#     def __init__(out self, var value: Borrowed[Self.origin]):
-#         self.value = value^
+        Args:
+            value: The owned value.
+        """
+        self.value = value^
 
-#     def isa[T: AnyType](self) -> Bool:
-#         return self.value.isa[T]()
+    def isa[T: Movable](self) -> Bool:
+        """Check which arm this output holds.
 
-#     def __getitem__[T: AnyType](self) -> ref [self.value] T:
-#         return self.value[T]
+        Parameters:
+            T: The arm to test for.
+
+        Returns:
+            True if the output holds a `T`.
+        """
+        return self.value.isa[T]()
+
+    def __getitem_param__[T: Movable](self) -> ref[origin_of(self.value)._get_owned_interior["value"]] T:
+        """Access the payload as a `T`.
+
+        Parameters:
+            T: The arm to read.
+
+        Returns:
+            A reference to the payload.
+        """
+        return self.value[T]
 
 
 trait ToSQL(Movable):
@@ -61,11 +81,15 @@ trait ToSQL(Movable):
 
     # TODO: How can I enforce an immutable origin here? If I don't use ref, then
     # it complains that self might be a register_passable type.
-    def to_sql(ref self) raises -> ValueRef[origin_of(self)]:
-        """Convert this value to a Parameter that can be bound to SQL.
+    def to_sql(ref self) raises -> ToSqlOutput[origin_of(self)]:
+        """Convert this value into something bindable to SQL.
+
+        Return a `ValueRef` when the SQL representation already exists in
+        memory, or a `Value` when it has to be computed and therefore has no
+        buffer to borrow from.
 
         Returns:
-            A Parameter containing the SQLite-compatible value.
+            A `ToSqlOutput` containing the SQLite-compatible value.
 
         Raises:
             Error: If the value cannot be converted to a SQLite-compatible value.
@@ -73,8 +97,9 @@ trait ToSQL(Movable):
         ...
 
 
+# TODO: Probably need to handle the interior origin of the Optional correctly here.
 __extension Optional(ToSQL):
-    def to_sql(ref self) raises -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) raises -> ToSqlOutput[origin_of(self)]:
         """Convert an Optional value to a SQL parameter, handling None as NULL.
 
         Returns:
@@ -86,54 +111,52 @@ __extension Optional(ToSQL):
             " does not implement `ToSQL`.",
         )
         if not self:
-            return ValueRef[origin_of(self)](SQLite3Null())
+            return ValueRef[origin_of(self)](value_ref.Null())
 
-        var sql_value = trait_downcast[ToSQL](self.value()).to_sql()
-        if sql_value.isa[SQLite3Integer]():
-            return ValueRef[origin_of(self)](sql_value[SQLite3Integer].copy())
-        elif sql_value.isa[SQLite3Real]():
-            return ValueRef[origin_of(self)](sql_value[SQLite3Real].copy())
-        elif sql_value.isa[SQLite3Text[sql_value.stmt]]():
-            return ValueRef[origin_of(self)](sql_value[SQLite3Text[sql_value.stmt]].copy())
-        elif sql_value.isa[SQLite3Blob[sql_value.stmt]]():
-            return ValueRef[origin_of(self)](sql_value[SQLite3Blob[sql_value.stmt]].copy())
+        # Delegate to the wrapped value. The borrowed arms still have to be
+        # unwrapped and re-wrapped to re-origin the ValueRef, but an owned
+        # inner value now passes straight through instead of being dropped.
+        var inner = self.value().to_sql()
+        if inner.isa[Value]():
+            return inner[Value].copy()
+
+        comptime inner_origin = origin_of(self.value())
+        ref vr = inner[ValueRef[inner_origin]]
+        if vr.isa[value_ref.Integer]():
+            return ValueRef[origin_of(self)](vr[value_ref.Integer])
+        elif vr.isa[value_ref.Real]():
+            return ValueRef[origin_of(self)](vr[value_ref.Real])
+        elif vr.isa[value_ref.Text[inner_origin]]():
+            return ValueRef[origin_of(self)](vr[value_ref.Text[inner_origin]])
+        elif vr.isa[value_ref.Blob[inner_origin]]():
+            return ValueRef[origin_of(self)](vr[value_ref.Blob[inner_origin]])
+        elif vr.isa[value_ref.Null]():
+            return ValueRef[origin_of(self)](value_ref.Null())
         else:
             raise Error("Unsupported type in Optional for ToSQL conversion")
-        # return ValueRef[origin_of(self)](trait_downcast[ToSQL](self.value()).to_sql().value)
 
 
 __extension Bool(ToSQL):
-    def to_sql(ref self) -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) -> ToSqlOutput[origin_of(self)]:
         """Convert a Bool to a SQL parameter (as INTEGER 0 or 1).
 
         Returns:
             A ValueRef containing the SQLite-compatible value.
         """
-        return ValueRef[origin_of(self)](SQLite3Integer(Int64(self)))
-
-
-__extension Int(ToSQL):
-    def to_sql(ref self) -> ValueRef[origin_of(self)]:
-        """Convert an Int to a SQL parameter.
-
-        Returns:
-            A ValueRef containing the SQLite-compatible value.
-        """
-        return ValueRef[origin_of(self)](SQLite3Integer(Int64(self)))
+        return ValueRef[origin_of(self)](value_ref.Integer(Int64(self)))
 
 
 __extension SIMD(ToSQL):
-    # def to_sql(ref self) raises -> ValueRef[origin_of(self)] where size == 1:
-    def to_sql(ref self) raises -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) raises -> ToSqlOutput[origin_of(self)]:
         """Convert a SIMD scalar to a SQL parameter.
 
         Returns:
             A ValueRef containing the SQLite-compatible value.
         """
-        comptime assert self.size == 1, "Only SIMD vectors of size 1 can be converted to SQL parameters"
-        comptime if dtype in (DType.float16, DType.float32, DType.float64):
-            return ValueRef[origin_of(self)](SQLite3Real(Float64(self._refine[self.dtype, 1]())))
-        elif dtype in (
+        comptime assert Self.length == 1, "Only SIMD vectors of size 1 can be converted to SQL parameters"
+        comptime if Self.dtype in (DType.float16, DType.float32, DType.float64):
+            return ValueRef[origin_of(self)](value_ref.Real(Float64(self._refine[self.dtype, 1]())))
+        elif Self.dtype in (
             DType.int,
             DType.int8,
             DType.int16,
@@ -145,58 +168,52 @@ __extension SIMD(ToSQL):
             DType.uint32,
             DType.uint64,
         ):
-            return ValueRef[origin_of(self)](SQLite3Integer(Int64(self._refine[self.dtype, 1]())))
+            return ValueRef[origin_of(self)](value_ref.Integer(Int64(self._refine[self.dtype, 1]())))
         else:
             raise Error("InvalidColumnType: Unsupported SIMD dtype for size 1")
 
 
 __extension String(ToSQL):
-    def to_sql(ref self) -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) -> ToSqlOutput[origin_of(self)]:
         """Convert a String to a SQL parameter.
 
         Returns:
             A ValueRef containing the SQLite-compatible value.
         """
-        return ValueRef[origin_of(self)](SQLite3Text(self))
+        return ValueRef[origin_of(self)](value_ref.Text(self))
 
 
 __extension NoneType(ToSQL):
-    def to_sql(ref self) -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) -> ToSqlOutput[origin_of(self)]:
         """Convert None to a SQL NULL parameter.
 
         Returns:
             A ValueRef containing the SQLite-compatible value.
         """
-        return ValueRef[origin_of(self)](SQLite3Null())
+        return ValueRef[origin_of(self)](value_ref.Null())
 
 
 __extension List(ToSQL):
-    # def to_sql(ref self) raises -> ValueRef[origin_of(self)] where _type_is_eq_parse_time[
-    #     Self.T, Byte
-    # ]():
-    def to_sql(ref self) raises -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) raises -> ToSqlOutput[origin_of(self)]:
         """Convert Bytes to a SQL Blob parameter.
 
         Returns:
             A ValueRef containing the SQLite-compatible value.
         """
-        comptime assert _type_is_eq[Self.T, Byte](), String(
+        comptime assert Self.T == Byte, String(
             t"List can only be used with Byte type for `ToSQL`. {reflect[Self.T].name()} is not Byte."
         )
-        return ValueRef[origin_of(self)](SQLite3Blob(rebind[List[Byte]](self)))
+        return ValueRef[origin_of(self)](value_ref.Blob(rebind[List[Byte]](self)))
 
 
 __extension Span(ToSQL):
-    # def to_sql(ref self) raises -> ValueRef[origin_of(self)] where _type_is_eq_parse_time[
-    #     Self.T, Byte
-    # ]():
-    def to_sql(ref self) raises -> ValueRef[origin_of(self)]:
+    def to_sql(ref self) raises -> ToSqlOutput[origin_of(self)]:
         """Convert Bytes to a SQL Blob parameter.
 
         Returns:
             A ValueRef containing the SQLite-compatible value.
         """
-        comptime assert _type_is_eq[Self.T, Byte](), String(
+        comptime assert Self.T == Byte, String(
             t"Span can only be used with Byte type for `ToSQL`. {reflect[Self.T].name()} is not Byte."
         )
-        return ValueRef[origin_of(self)](SQLite3Blob(rebind[Span[Byte, self.origin]](self)))
+        return ValueRef[origin_of(self)](value_ref.Blob(rebind[Span[Byte, self.origin]](self)))

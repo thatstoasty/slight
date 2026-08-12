@@ -1,7 +1,6 @@
 """Debug test to isolate crash."""
 from std.ffi import c_char, c_int
 from slight.c.types import (
-    ImmutUntrackedOrigin,
     MutExternalPointer,
     sqlite3_connection,
     sqlite3_index_info,
@@ -40,13 +39,13 @@ struct FakeCursor(Movable):
     var eof: Bool
 
 
-def fake_connect(
+def fake_connect[origin: ImmOrigin, //](
     db: VTabConnection,
     aux: MutExternalPointer[NoneType],
     module_name: String,
     database_name: String,
     table_name: String,
-    argv: Span[String, ...],
+    argv: Span[String, origin],
 ) raises -> VTabConnectResult[FakeState]:
     print("fake_connect called, argc =", len(argv))
     var rows = List[List[String]]()
@@ -82,7 +81,7 @@ def fake_open(vtab: MutExternalPointer[FakeState]) raises -> FakeCursor:
 def fake_filter(
     cursor: MutExternalPointer[FakeCursor],
     idx_num: c_int,
-    idx_str: Optional[StringSlice[ImmutUntrackedOrigin]],
+    idx_str: Optional[StringSpan[ImmUntrackedOrigin]],
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
     argc: c_int,
 ) raises:
@@ -101,7 +100,7 @@ def fake_eof(cursor: MutExternalPointer[FakeCursor]) -> Bool:
 
 def fake_column(
     cursor: MutExternalPointer[FakeCursor],
-    ctx: Context,
+    mut ctx: Context,
     col: c_int,
 ) raises:
     ctx.result_text(cursor[].rows[cursor[].row_idx][Int(col)])

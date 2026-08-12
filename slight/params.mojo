@@ -1,11 +1,14 @@
+"""Params trait for binding parameter values to prepared statements."""
 from std.builtin.constrained import _constrained_conforms_to
+from slight.types.to_sql import ToSQL
 from slight.bind import BindIndex
 from slight.statement import Statement
+
 
 trait Params(Movable):
     """A trait for types that can be used as parameters in SQL queries."""
 
-    def bind(self, stmt: Statement) raises:
+    def bind[origin: MutOrigin, //](self, mut stmt: Statement[origin]) raises:
         """Binds the parameters to the given statement.
 
         Args:
@@ -18,7 +21,7 @@ trait Params(Movable):
 
 
 __extension List(Params):
-    def bind(self, stmt: Statement) raises:
+    def bind[origin: MutOrigin, //](self, mut stmt: Statement[origin]) raises:
         """Binds the parameters to the given statement.
 
         Args:
@@ -28,15 +31,16 @@ __extension List(Params):
         Raises:
             Error: If the parameters cannot be bound to the statement.
         """
+        comptime assert conforms_to(Self.T, ToSQL), String("The type, `T`, must implement the `ToSQL` trait.")
         _constrained_conforms_to[
             conforms_to(Self.T, ToSQL),
             Parent=Self,
-            Element = Self.T,
+            Element=Self.T,
             ParentConformsTo="Params",
             ElementConformsTo="ToSQL",
         ]()
 
-        var expected = Int(stmt.stmt.bind_parameter_count())
+        var expected = Int(stmt.bind_parameter_count())
         var index = 0
         for i in range(len(self)):
             index += 1  # The leftmost SQL parameter has an index of 1.
@@ -47,8 +51,8 @@ __extension List(Params):
             raise Error(t"Invalid parameter count: {index}, expected: {expected}")
 
 
-__extension Dict(Params):
-    def bind(self, stmt: Statement) raises:
+__extension Array(Params):
+    def bind[origin: MutOrigin, //](self, mut stmt: Statement[origin]) raises:
         """Binds the parameters to the given statement.
 
         Args:
@@ -58,6 +62,42 @@ __extension Dict(Params):
         Raises:
             Error: If the parameters cannot be bound to the statement.
         """
+        comptime assert conforms_to(Self.T, ToSQL), String("The type, `T`, must implement the `ToSQL` trait.")
+        _constrained_conforms_to[
+            conforms_to(Self.T, ToSQL),
+            Parent=Self,
+            Element=Self.T,
+            ParentConformsTo="Params",
+            ElementConformsTo="ToSQL",
+        ]()
+
+        comptime if Self.length > 0:
+            var expected = Int(stmt.bind_parameter_count())
+            var index = 0
+            for i in range(len(self)):
+                index += 1  # The leftmost SQL parameter has an index of 1.
+                if index > expected:
+                    break
+                stmt.bind_parameter(self[i], UInt(index))
+            if index != expected:
+                raise Error(t"Invalid parameter count: {index}, expected: {expected}")
+
+
+__extension Dict(Params):
+    def bind[origin: MutOrigin, //](self, mut stmt: Statement[origin]) raises:
+        """Binds the parameters to the given statement.
+
+        Args:
+            self: Temporary docstring due to extension bug.
+            stmt: The statement to bind the parameters to.
+
+        Raises:
+            Error: If the parameters cannot be bound to the statement.
+        """
+        comptime assert conforms_to(Self.K, BindIndex), String(
+            "The type of the Key must implement the `BindIndex` trait."
+        )
+        comptime assert conforms_to(Self.V, ToSQL), String("The type of the Value must implement the `ToSQL` trait.")
         _constrained_conforms_to[
             conforms_to(Self.K, BindIndex),
             Parent=Self,
@@ -74,11 +114,11 @@ __extension Dict(Params):
         ]()
 
         for kv in self.items():
-            stmt.bind_parameter(kv.value, trait_downcast[BindIndex](kv.key).bind_idx(stmt))
+            stmt.bind_parameter(kv.value, kv.key.bind_idx(stmt))
 
 
 __extension Tuple(Params):
-    def bind(self, stmt: Statement) raises:
+    def bind[origin: MutOrigin, //](self, mut stmt: Statement[origin]) raises:
         """Binds the parameters to the given statement.
 
         Args:
@@ -89,22 +129,20 @@ __extension Tuple(Params):
             Error: If the parameters cannot be bound to the statement.
         """
         comptime parameter_count = len(Self.element_types)
-        comptime if parameter_count == 0:
-            return  # No parameters to bind
-
-        var expected = Int(stmt.stmt.bind_parameter_count())
-        var index = 0
-        comptime for i in range(len(Self.element_types)):
-            comptime assert conforms_to(Self.element_types[i], ToSQL), String(
-                "All elements of the tuple must conform to `ToSQL`. Element at index ",
-                i,
-                "of type ",
-                reflect[Self.element_types[i]].name(),
-                " does not conform to `ToSQL`",
-            )
-            index += 1  # The leftmost SQL parameter has an index of 1.
-            if index > expected:
-                break
-            stmt.bind_parameter(self[i], UInt(index))
-        if index != expected:
-            raise Error(t"Invalid parameter count: {index}, expected: {expected}")
+        comptime if parameter_count > 0:
+            var expected = Int(stmt.bind_parameter_count())
+            var index = 0
+            comptime for i in range(parameter_count):
+                comptime assert conforms_to(Self.element_types[i], ToSQL), String(
+                    "All elements of the tuple must conform to `ToSQL`. Element at index ",
+                    i,
+                    "of type ",
+                    reflect[Self.element_types[i]].name(),
+                    " does not conform to `ToSQL`",
+                )
+                index += 1  # The leftmost SQL parameter has an index of 1.
+                if index > expected:
+                    break
+                stmt.bind_parameter(self[i], UInt(index))
+            if index != expected:
+                raise Error(t"Invalid parameter count: {index}, expected: {expected}")

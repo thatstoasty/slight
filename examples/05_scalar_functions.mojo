@@ -12,7 +12,7 @@ def halve(ctx: Context) raises -> Float64:
 
 def halve_user_data(ctx: Context) raises -> Float64:
     var user_data = ctx.user_data()
-    var addend = user_data.value().bitcast[Float64]()[] if user_data else 0.0
+    var addend = user_data.value().unsafe_bitcast[Float64]()[] if user_data else 0.0
     return (ctx.get_double(0) / 2.0) + addend
 
 

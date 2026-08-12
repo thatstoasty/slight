@@ -86,7 +86,7 @@ def bench_scalar_udf(mut b: Bencher, conn: Connection) raises:
     @parameter
     def do() raises:
         conn.create_scalar_function[halve]("halve", n_arg=1)
-        var stmt = conn.prepare("SELECT halve(value) FROM t", PrepFlag(0))
+        var stmt = conn.prepare("SELECT halve(value) FROM t", PrepFlag.NONE)
         for _ in stmt.query():
             pass
 
@@ -104,7 +104,7 @@ def bench_aggregate_udf(mut b: Bencher, conn: Connection) raises:
             n_arg=1,
             flags=FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
         )
-        var stmt = conn.prepare("SELECT my_sum(value) FROM t", PrepFlag(0))
+        var stmt = conn.prepare("SELECT my_sum(value) FROM t", PrepFlag.NONE)
         for _ in stmt.query():
             pass
 
@@ -125,7 +125,7 @@ def bench_window_udf(mut b: Bencher, conn: Connection) raises:
         )
         var stmt = conn.prepare(
             "SELECT value, my_sum(value) OVER (ORDER BY value ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) FROM t",
-            PrepFlag(0),
+            PrepFlag.NONE,
         )
         for _ in stmt.query():
             pass

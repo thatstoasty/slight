@@ -6,10 +6,10 @@ for atomic database operations with rollback capabilities.
 
 from slight.connection import Connection
 from slight.row import Row
-from slight.transaction import DropBehavior, Savepoint, Transaction, TransactionBehavior
+from slight.transaction import DeleteBehavior, Savepoint, Transaction, TransactionBehavior
 
 
-def print_account_balances(db: Connection) raises:
+def print_account_balances(mut db: Connection) raises:
     """Helper function to print all account balances."""
     print("Current account balances:")
     var stmt = db.prepare("SELECT name, balance FROM accounts ORDER BY name")
@@ -33,12 +33,12 @@ def example_basic_transaction() raises:
     # Use a transaction to transfer money atomically
     with db.transaction() as tx:
         # Deduct from Alice
-        _ = tx.conn[].execute(
+        _ = tx.execute(
             "UPDATE accounts SET balance = balance - ?1 WHERE name = ?2",
             (200.0, "Alice")
         )
         # Add to Bob
-        _ = tx.conn[].execute(
+        _ = tx.execute(
             "UPDATE accounts SET balance = balance + ?1 WHERE name = ?2",
             (200.0, "Bob")
         )
@@ -62,7 +62,7 @@ def example_transaction_rollback() raises:
 
     # This transaction will be rolled back (default behavior)
     with db.transaction() as tx:
-        _ = tx.conn[].execute(
+        _ = tx.execute(
             "UPDATE accounts SET balance = balance + ?1 WHERE name = ?2",
             (9999.0, "Alice")
         )
@@ -83,7 +83,7 @@ def example_savepoints() raises:
         INSERT INTO inventory VALUES ('Apples', 100);
     """)
 
-    def print_inventory(conn: Connection) raises:
+    def print_inventory(mut conn: Connection) raises:
         var stmt = conn.prepare("SELECT item, quantity FROM inventory")
         for row in stmt.query(()):
             print("  ", row.get[String](0), ":", row.get[Int](1))
@@ -93,20 +93,20 @@ def example_savepoints() raises:
 
     with db.transaction() as tx:
         # First operation: Add oranges
-        _ = tx.conn[].execute("INSERT INTO inventory VALUES (?1, ?2)", ("Oranges", 50))
+        _ = tx.execute("INSERT INTO inventory VALUES (?1, ?2)", ("Oranges", 50))
         print("\nAfter adding Oranges:")
         print_inventory(tx.conn[])
 
         # Savepoint for a risky operation
         with tx.savepoint() as sp:
-            _ = sp.conn[].execute("UPDATE inventory SET quantity = ?1 WHERE item = ?2", (0, "Apples"))
+            _ = sp.execute("UPDATE inventory SET quantity = ?1 WHERE item = ?2", (0, "Apples"))
             print("\nInside savepoint (set Apples to 0):")
             print_inventory(sp.conn[])
             # Oops! We don't want to zero out apples, rollback this savepoint
             sp.rollback()
 
             # Try again with a smaller reduction
-            _ = sp.conn[].execute("UPDATE inventory SET quantity = quantity - ?1 WHERE item = ?2", (10, "Apples"))
+            _ = sp.execute("UPDATE inventory SET quantity = quantity - ?1 WHERE item = ?2", (10, "Apples"))
             sp.commit()
 
         print("\nAfter savepoint (Apples reduced by 10 instead of zeroed):")
@@ -125,7 +125,7 @@ def example_nested_savepoints() raises:
     db.execute_batch("CREATE TABLE log (level INTEGER, message TEXT)")
 
     with db.transaction() as tx:
-        _ = tx.conn[].execute("INSERT INTO log VALUES (?1, ?2)", (1, "Transaction started"))
+        _ = tx.execute("INSERT INTO log VALUES (?1, ?2)", (1, "Transaction started"))
 
         with tx.savepoint() as sp1:
             _ = sp1.conn[].execute("INSERT INTO log VALUES (?1, ?2)", (2, "Savepoint 1"))
@@ -159,21 +159,21 @@ def example_transaction_behaviors() raises:
     # DEFERRED: Locks are acquired lazily (default)
     print("DEFERRED transaction (default - acquires locks lazily):")
     with db.transaction(TransactionBehavior.DEFERRED) as tx:
-        _ = tx.conn[].execute("INSERT INTO data VALUES (?1)", [1])
+        _ = tx.execute("INSERT INTO data VALUES (?1)", [1])
         tx.commit()
     print("  Inserted value 1")
 
     # IMMEDIATE: Acquires a write lock immediately
     print("IMMEDIATE transaction (acquires write lock immediately):")
     with db.transaction(TransactionBehavior.IMMEDIATE) as tx:
-        _ = tx.conn[].execute("INSERT INTO data VALUES (?1)", [2])
+        _ = tx.execute("INSERT INTO data VALUES (?1)", [2])
         tx.commit()
     print("  Inserted value 2")
 
     # EXCLUSIVE: Prevents other connections from reading
     print("EXCLUSIVE transaction (exclusive access):")
     with db.transaction(TransactionBehavior.EXCLUSIVE) as tx:
-        _ = tx.conn[].execute("INSERT INTO data VALUES (?1)", [3])
+        _ = tx.execute("INSERT INTO data VALUES (?1)", [3])
         tx.commit()
     print("  Inserted value 3")
 
@@ -184,22 +184,22 @@ def example_transaction_behaviors() raises:
     print("Total sum:", total)
 
 
-def example_drop_behavior() raises:
-    """Demonstrates using drop_behavior to control transaction finalization."""
+def example_delete_behavior() raises:
+    """Demonstrates using delete_behavior to control transaction finalization."""
     print("\n=== Drop Behavior Example ===")
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE items (name TEXT)")
 
     # Default drop behavior is ROLLBACK
     var tx = db.transaction()
-    _ = tx.conn[].execute("INSERT INTO items VALUES (?1)", ["will_rollback"])
+    _ = tx.execute("INSERT INTO items VALUES (?1)", ["will_rollback"])
     tx^.finish()  # Rolls back by default
 
     # Change drop behavior to COMMIT
     tx = db.transaction()
-    _ = tx.conn[].execute("INSERT INTO items VALUES (?1)", ["will_commit"])
-    tx.drop_behavior = DropBehavior.COMMIT
-    tx^.finish()  # Commits because of drop_behavior
+    _ = tx.execute("INSERT INTO items VALUES (?1)", ["will_commit"])
+    tx.delete_behavior = DeleteBehavior.COMMIT
+    tx^.finish()  # Commits because of delete_behavior
 
     print("Items in table (only 'will_commit' should appear):")
     var stmt = db.prepare("SELECT name FROM items")
@@ -213,4 +213,4 @@ def main() raises:
     example_savepoints()
     example_nested_savepoints()
     example_transaction_behaviors()
-    example_drop_behavior()
+    example_delete_behavior()

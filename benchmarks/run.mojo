@@ -315,10 +315,10 @@ def run[
     m.bench_with_input[String, func](BenchId(name), csv_path, [_bytes_measure(file_bytes)])
 
 
-comptime CSVTabBenchFn[origin: ImmutOrigin] = def (mut Bencher, CSVTabBenchContext[origin]) raises capturing thin
+comptime CSVTabBenchFn[origin: ImmOrigin] = def (mut Bencher, CSVTabBenchContext[origin]) raises capturing thin
 
 def run_with_context[
-    origin: ImmutOrigin, //,
+    origin: ImmOrigin, //,
     func: CSVTabBenchFn[origin],
     name: String,
 ](mut m: Bench, ctx: CSVTabBenchContext[origin]) raises:

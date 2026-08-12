@@ -1,3 +1,6 @@
+"""Column metadata."""
+
+
 @fieldwise_init
 struct ColumnMetadata(Copyable, Movable):
     """Metadata information about a database column."""

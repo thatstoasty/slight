@@ -1,10 +1,8 @@
 """Tests for busy handler (when the database is locked)."""
 
 from std import tempfile
-from slight.busy import BusyHandlerFn
 from slight.connection import Connection
 from slight.result import SQLite3Result
-from slight.transaction import TransactionBehavior
 from std.pathlib import Path
 from std.testing import TestSuite, assert_equal, assert_raises, assert_true
 
@@ -60,7 +58,7 @@ def test_busy_handler() raises:
         db1.execute_batch("CREATE TABLE IF NOT EXISTS t(a)")
 
         var db2 = Connection.open(path)
-        db2.register_busy_handler[busy_handler]()
+        db2.register_busy_handler(busy_handler)
 
         # Lock the database exclusively from db1
         db1.execute_batch("BEGIN EXCLUSIVE")

@@ -20,7 +20,7 @@ def test_path() raises:
     with Connection.open_in_memory() as db:
         assert_equal(db.path().value(), "")
 
-    db = Connection.open("file:dummy.db?mode=memory&cache=shared")
+    var db = Connection.open("file:dummy.db?mode=memory&cache=shared")
     assert_equal(db.path().value(), "")
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -43,14 +43,14 @@ def test_open_failure() raises:
 #     try:
 #         var sql: String = "SELECT 1"
 #         var sql_ptr = sql.unsafe_cstr_ptr()
-#         var c_tail = UnsafePointer(to=sql_ptr)
-#         var raw_stmt = UnsafePointer[sqlite3_stmt]()
+#         var c_tail = Pointer(to=sql_ptr)
+#         var raw_stmt = Pointer[sqlite3_stmt]()
 #         var rc = sqlite_ffi()[].prepare_v3(
 #             db.db.db,
 #             sql_ptr,
 #             Int32(len(sql) + 1),
 #             1,
-#             UnsafePointer(to=raw_stmt),
+#             Pointer(to=raw_stmt),
 #             c_tail,
 #         )
 
@@ -198,9 +198,6 @@ def test_insert_bytes() raises:
     var db = Connection.open_in_memory()
     var example = "hello".as_bytes()
     
-    def get_int(r: Row) raises -> Int:
-        return r.get[Int](0)
-    
     db.execute_batch("CREATE TABLE foo(x BLOB)")
     assert_equal(db.execute("INSERT INTO foo(x) VALUES (?1)", [example]), 1)
 
@@ -267,9 +264,6 @@ def test_prepare_query() raises:
 
 def test_query_map() raises:
     var db = Connection.open_in_memory()
-
-    def get_string(r: Row) raises -> String:
-        return r.get[String](1)
     
     db.execute_batch("""CREATE TABLE foo(x INTEGER, y TEXT);
     INSERT INTO foo VALUES(4, 'hello');
@@ -297,8 +291,11 @@ struct Pair(Copyable, Defaultable, Writable):
         self.x = 0
         self.y = ""
 
-    def write_to(self, mut writer: Some[Writer]):
-        writer.write("Pair(x=", self.x, ", y=", self.y, ")")
+
+@fieldwise_init
+struct TrivialPair(Copyable, Writable):
+    var x: Int
+    var y: Int
 
 
 def test_mapped_rows_collect() raises:
@@ -308,11 +305,8 @@ def test_mapped_rows_collect() raises:
     INSERT INTO foo VALUES(2, 'b');
     INSERT INTO foo VALUES(3, 'c');""")
 
-    def get_string(r: Row) raises -> String:
-        return r.get[String](1)
-
     var stmt = db.prepare("SELECT x, y FROM foo ORDER BY x")
-    var results = stmt.query[get_string]().collect()
+    var results = stmt.query[lambda (r: Row) raises -> String: r.get[String](1)]().collect()
     assert_equal(len(results), 3)
     assert_equal(results[0], "a")
     assert_equal(results[1], "b")
@@ -332,6 +326,21 @@ def test_typed_rows_collect() raises:
     assert_equal(results[0].y, "a")
     assert_equal(results[1].x, 2)
     assert_equal(results[1].y, "b")
+
+
+def test_trivial_typed_rows_collect() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""CREATE TABLE foo(x INTEGER, y INTEGER);
+    INSERT INTO foo VALUES(1, 2);
+    INSERT INTO foo VALUES(3, 4);""")
+
+    var stmt = db.prepare("SELECT x, y FROM foo ORDER BY x")
+    var results = stmt.query[TrivialPair]().collect()
+    assert_equal(len(results), 2, "expected at least 2 results.")
+    assert_equal(results[0].x, 1)
+    assert_equal(results[0].y, 2)
+    assert_equal(results[1].x, 3)
+    assert_equal(results[1].y, 4)
 
 
 def test_query_row() raises:
@@ -357,6 +366,54 @@ def test_query_row() raises:
     
     with assert_raises():
         _ = db.one_row[get_int64]("SELECT 1; SELECT 2;")
+
+
+def test_one_column() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""CREATE TABLE foo(x INTEGER);
+    INSERT INTO foo VALUES(1);
+    INSERT INTO foo VALUES(2);
+    INSERT INTO foo VALUES(3);""")
+
+    assert_equal(db.one_column[Int]("SELECT count(*) FROM foo"), 3)
+    assert_equal(db.one_column[Int]("SELECT SUM(x) FROM foo"), 6)
+    assert_equal(db.one_column[Int]("SELECT x FROM foo WHERE x = ?1", [2]), 2)
+
+    with assert_raises(contains="No rows returned by query"):
+        _ = db.one_column[Int]("SELECT x FROM foo WHERE x > 100")
+
+    # Statement.one_column should work the same way.
+    var stmt = db.prepare("SELECT count(*) FROM foo")
+    assert_equal(stmt.one_column[Int](), 3)
+
+
+def test_maybe_one_row() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""CREATE TABLE foo(x INTEGER);
+    INSERT INTO foo VALUES(1);
+    INSERT INTO foo VALUES(2);""")
+
+    def get_int(r: Row) raises -> Int:
+        return r.get[Int](0)
+
+    # Hit case.
+    var hit = db.maybe_one_row[get_int]("SELECT x FROM foo WHERE x = ?1", [1])
+    assert_true(hit)
+    assert_equal(hit.value(), 1)
+
+    # Miss case: returns None instead of raising.
+    var miss = db.maybe_one_row[get_int]("SELECT x FROM foo WHERE x > 100")
+    assert_false(Bool(miss))
+
+    # Statement.maybe_one_row should behave the same.
+    var stmt = db.prepare("SELECT x FROM foo WHERE x = ?1")
+    var stmt_hit = stmt.maybe_one_row[get_int]([2])
+    assert_true(stmt_hit)
+    assert_equal(stmt_hit.value(), 2)
+
+    var stmt2 = db.prepare("SELECT x FROM foo WHERE x > ?1")
+    var stmt_miss = stmt2.maybe_one_row[get_int]([100])
+    assert_false(Bool(stmt_miss))
 
 
 def test_pragma_query_row() raises:
@@ -581,5 +638,5 @@ def test_alter_table() raises:
 def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
     # var suite = TestSuite()
-    # suite.test[test_insert_bytes]()
+    # suite.test[test_trivial_typed_rows_collect]()
     # suite^.run()

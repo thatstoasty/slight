@@ -2,7 +2,7 @@
 
 from std.testing import assert_equal, assert_true, assert_raises, TestSuite
 
-from slight import Connection, Int, Row, String
+from slight import Connection, Row
 
 
 def test_serialize_returns_nonempty_buffer() raises:

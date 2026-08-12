@@ -1,3 +1,4 @@
+"""Virtual table support: generic `VTab`/`VTabCursor` machinery for SQLite virtual tables."""
 from slight.vtab.vtab import (
     VTabBox,
     VTabCursorBox,

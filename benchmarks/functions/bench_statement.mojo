@@ -32,7 +32,7 @@ def bench_prepare(mut b: Bencher, conn: Connection) raises:
 
     @parameter
     def do() raises:
-        var stmt = conn.prepare("SELECT id, name, value FROM t WHERE id = ?1", PrepFlag(0))
+        var stmt = conn.prepare("SELECT id, name, value FROM t WHERE id = ?1", PrepFlag.NONE)
         _ = stmt
 
     b.iter[do]()
@@ -45,7 +45,7 @@ def bench_bind_positional(mut b: Bencher, conn: Connection) raises:
     @parameter
     def do() raises:
         var stmt = conn.prepare(
-            "INSERT INTO t (id, name, value) VALUES (?1, ?2, ?3)", PrepFlag(0)
+            "INSERT INTO t (id, name, value) VALUES (?1, ?2, ?3)", PrepFlag.NONE
         )
         for _ in stmt.query((1, "row", 1.5)):
             pass
@@ -60,7 +60,7 @@ def bench_bind_named(mut b: Bencher, conn: Connection) raises:
     @parameter
     def do() raises:
         var stmt = conn.prepare(
-            "INSERT INTO t (id, name, value) VALUES (:id, :name, :value)", PrepFlag(0)
+            "INSERT INTO t (id, name, value) VALUES (:id, :name, :value)", PrepFlag.NONE
         )
         for _ in stmt.query({":id": "1", ":name": "row", ":value": "1.5"}):
             pass
@@ -77,7 +77,7 @@ def bench_reset_and_rebind(mut b: Bencher, conn: Connection) raises:
     @parameter
     def do() raises:
         var stmt = conn.prepare(
-            "INSERT INTO t (id, name, value) VALUES (?1, ?2, ?3)", PrepFlag(0)
+            "INSERT INTO t (id, name, value) VALUES (?1, ?2, ?3)", PrepFlag.NONE
         )
         for i in range(20):
             stmt.reset()

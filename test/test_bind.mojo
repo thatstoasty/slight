@@ -72,18 +72,18 @@ def test_bind_index_with_string_invalid_name() raises:
 
 
 def test_bind_index_with_string_slice() raises:
-    """Test BindIndex with StringSlice type for named parameter indexing."""
+    """Test BindIndex with StringSpan type for named parameter indexing."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (value INTEGER, label TEXT)")
 
     var stmt = db.prepare("INSERT INTO test (value, label) VALUES (:value, :label)")
 
-    # Test that StringSlice.bind_idx returns the correct index for valid parameter names
+    # Test that StringSpan.bind_idx returns the correct index for valid parameter names
     var param_value = ":value"
     var param_label = ":label"
 
-    var value_index = StringSlice(param_value).bind_idx(stmt)
-    var label_index = StringSlice(param_label).bind_idx(stmt)
+    var value_index = StringSpan(param_value).bind_idx(stmt)
+    var label_index = StringSpan(param_label).bind_idx(stmt)
 
     # Indices should be valid (non-zero, 1-based)
     assert_true(value_index > 0)
@@ -92,7 +92,7 @@ def test_bind_index_with_string_slice() raises:
 
 
 def test_bind_index_with_string_slice_invalid_name() raises:
-    """Test BindIndex with StringSlice type raises error for invalid parameter name."""
+    """Test BindIndex with StringSpan type raises error for invalid parameter name."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (id INTEGER)")
 
@@ -101,7 +101,7 @@ def test_bind_index_with_string_slice_invalid_name() raises:
     var invalid_param = ":missing"
 
     with assert_raises(contains="invalid parameter name"):
-        _ = StringSlice(invalid_param).bind_idx(stmt)
+        _ = StringSpan(invalid_param).bind_idx(stmt)
 
 
 def test_bind_index_with_different_param_prefixes() raises:
@@ -148,7 +148,7 @@ def test_bind_index_int_zero_and_negative() raises:
 
 
 def test_bind_index_string_vs_string_slice_consistency() raises:
-    """Test that String and StringSlice return consistent indices for the same parameter."""
+    """Test that String and StringSpan return consistent indices for the same parameter."""
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE test (x INTEGER, y TEXT)")
 
@@ -157,8 +157,8 @@ def test_bind_index_string_vs_string_slice_consistency() raises:
     var param_y = ":y"
 
     # Both should return the same index for the same parameter name
-    assert_equal(param_x.bind_idx(stmt), StringSlice(param_x).bind_idx(stmt))
-    assert_equal(param_y.bind_idx(stmt), StringSlice(param_y).bind_idx(stmt))
+    assert_equal(param_x.bind_idx(stmt), StringSpan(param_x).bind_idx(stmt))
+    assert_equal(param_y.bind_idx(stmt), StringSpan(param_y).bind_idx(stmt))
 
 
 def main() raises:

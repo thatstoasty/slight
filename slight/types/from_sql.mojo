@@ -1,6 +1,6 @@
-from slight.types.value_ref import ValueRef
+"""`FromSQL` trait: SQLite → Mojo type conversion for reading columns."""
+from slight.types.value_ref import ValueRef, Null
 from std.builtin.rebind import downcast
-from std.sys.intrinsics import _type_is_eq
 
 
 trait FromSQL(Movable):
@@ -18,19 +18,6 @@ trait FromSQL(Movable):
         ...
 
 
-__extension Int(FromSQL):
-    def __init__(out self, value: ValueRef) raises:
-        """Initializes the type from a SQL value.
-
-        Args:
-            value: The SQL value to construct the type from.
-
-        Raises:
-            Error: If the value cannot be converted to the type.
-        """
-        self = Self(value.as_int64())
-
-
 __extension Optional(FromSQL):
     def __init__(out self, value: ValueRef) raises:
         # Assert T conforms to FromSQL at compile time.
@@ -41,7 +28,7 @@ __extension Optional(FromSQL):
             reflect[Self.T].name(),
             " does not implement `FromSQL`.",
         )
-        if value.isa[SQLite3Null]():
+        if value.isa[Null]():
             self = Optional[Self.T](None)
         else:
             self = Optional[Self.T](downcast[Self.T, FromSQL](value))
@@ -57,13 +44,7 @@ __extension String(FromSQL):
         Raises:
             Error: If the value cannot be converted to the type.
         """
-        self = Self(value.as_string_slice())
-
-
-# __extension StringSlice(FromSQL):
-#     def __init__(out self, value: ValueRef[Self.origin]) raises:
-#         var val = value.as_string_slice()
-#         self = val
+        self = Self(value.unsafe_as_string_slice())
 
 
 __extension Bool(FromSQL):
@@ -76,7 +57,8 @@ __extension Bool(FromSQL):
         Raises:
             Error: If the value cannot be converted to the type.
         """
-        self = value.as_int64() == 1
+        # SQLite has no boolean storage class: any non-zero INTEGER is true.
+        self = value.as_int64() != 0
 
 
 __extension NoneType(FromSQL):
@@ -102,9 +84,29 @@ __extension SIMD(FromSQL):
         Raises:
             Error: If the value cannot be converted to the type.
         """
-        comptime if dtype in (DType.float16, DType.float32, DType.float64):
-            self = Scalar[dtype](value.as_float64())
-        elif dtype in (
+        comptime assert Self.length == 1, "Only SIMD vectors of size 1 can be constructed from SQL parameters"
+        comptime float_types = [DType.float16, DType.float32, DType.float64]
+        comptime int_types = [
+            DType.int,
+            DType.int8,
+            DType.int16,
+            DType.int32,
+            DType.int64,
+            DType.uint,
+            DType.uint8,
+            DType.uint16,
+            DType.uint32,
+            DType.uint64,
+        ]
+        comptime assert Self.dtype in int_types or Self.dtype in float_types, String(
+            "To construct a SIMD type from a ValueRef, it must be one of the int or float dtypes. Received:"
+            " {Self.dtype}"
+        )
+
+        comptime if Self.dtype in (DType.float16, DType.float32, DType.float64):
+            self = Scalar[Self.dtype](value.as_float64())
+        elif Self.dtype in (
+            DType.int,
             DType.int8,
             DType.int16,
             DType.int32,
@@ -115,15 +117,12 @@ __extension SIMD(FromSQL):
             DType.uint32,
             DType.uint64,
         ):
-            self = Scalar[dtype](value.as_int64())
+            self = Scalar[Self.dtype](value.as_int64())
         else:
             raise Error("InvalidColumnTypeError: Unsupported value type")
 
 
 __extension List(FromSQL):
-    # def __init__(out self, value: ValueRef) raises where _type_is_eq_parse_time[
-    #     Self.T, Byte
-    # ]():
     def __init__(out self, value: ValueRef) raises:
         """Initializes the type from a SQL value.
 
@@ -133,7 +132,7 @@ __extension List(FromSQL):
         Raises:
             Error: If the value cannot be converted to the type.
         """
-        comptime assert _type_is_eq[Self.T, Byte](), String(
+        comptime assert Self.T == Byte, String(
             t"List can only be used with Byte type for `FromSQL`. {reflect[Self.T].name()} is not Byte."
         )
-        self = rebind_var[List[Self.T]](List[Byte](value.as_blob()))
+        self = rebind_var[List[Self.T]](List[Byte](value.unsafe_as_blob()))

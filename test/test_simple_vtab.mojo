@@ -2,7 +2,6 @@
 from std.ffi import c_int, c_uchar
 from slight.connection import Connection
 from slight.c.types import (
-    ImmutUntrackedOrigin,
     MutExternalPointer,
     _sqlite3_index_info_sqlite3_index_constraint_usage,
     sqlite3_connection,
@@ -43,13 +42,13 @@ struct SimpleCursor(Movable):
     var done: Bool
 
 
-def simple_connect(
+def simple_connect[origin: ImmOrigin, //](
     db: VTabConnection,
     aux: MutExternalPointer[NoneType],
     module_name: String,
     database_name: String,
     table_name: String,
-    argv: Span[String, ...],
+    argv: Span[String, origin],
 ) raises -> VTabConnectResult[SimpleVTab]:
     print("simple_connect called")
     var items = List[String]()
@@ -80,7 +79,7 @@ def simple_open(vtab: MutExternalPointer[SimpleVTab]) raises -> SimpleCursor:
 def simple_filter(
     cursor: MutExternalPointer[SimpleCursor],
     idx_num: c_int,
-    idx_str: Optional[StringSlice[ImmutUntrackedOrigin]],
+    idx_str: Optional[StringSpan[ImmUntrackedOrigin]],
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
     argc: c_int,
 ) raises:
@@ -99,7 +98,7 @@ def simple_eof(cursor: MutExternalPointer[SimpleCursor]) -> Bool:
 
 def simple_column(
     cursor: MutExternalPointer[SimpleCursor],
-    ctx: Context,
+    mut ctx: Context,
     col: c_int,
 ) raises:
     ctx.result_int64(Int64(cursor[].current))

@@ -1,9 +1,17 @@
+"""SQLite DB Connection."""
 from std.ffi import c_int
-from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
 from std.pathlib import Path
+from slight.c.types import sqlite3_blob, sqlite3_connection, MutExternalPointer
 from slight.busy import BusyHandlerFn
 from slight.api import sqlite_ffi
+from slight.backup import Backup
+from slight.blob import Blob
+from slight.checkpoint import CheckpointMode
 from slight.trace import TraceFn, TraceEventCodes
+from slight.hooks import CommitHookFn, RollbackHookFn, UpdateHookFn
+from slight.collation import CollationCompareFn
+from slight.progress import ProgressHandlerFn
+from slight.authorizer import AuthorizerFn
 from slight.column import ColumnMetadata
 from slight.context import Context
 from slight.flags import OpenFlag, PrepFlag
@@ -14,7 +22,7 @@ from slight.params import Params
 from slight.pragma import Sql
 from slight.raw_statement import RawStatement
 from slight.result import SQLite3Result
-from slight.row import Int, Row, RowTransformFn # RowIndex extension for Int
+from slight.row import Int, Row, RowTransformFn  # RowIndex extension for Int
 from slight.statement import Statement
 from slight.transaction import Savepoint, Transaction, TransactionBehavior
 from slight.types.from_sql import FromSQL
@@ -112,12 +120,12 @@ struct Connection(Movable):
         """
         connection = Self(InnerConnection(":memory:", flags))
 
-    # def __init__(out self):
-    #     """Initialize a new connection with an empty inner connection."""
-    #     self.db = InnerConnection()
-
     def __init__(out self, var conn: InnerConnection):
-        """Initialize a new connection with the given inner connection."""
+        """Initialize a new connection with the given inner connection.
+
+        Args:
+            conn: The inner connection to wrap.
+        """
         self.db = conn^
 
     def __init__(out self, var path: String) raises:
@@ -131,10 +139,8 @@ struct Connection(Movable):
         """
         self = Connection.open(path)
 
-    def __del__(deinit self):
+    def __deinit__(deinit self):
         """Closes the connection when it is deleted."""
-        # if self.db:
-        #     _ = self^.close()
         _ = self^.close()
 
     def __enter__(var self) -> Self:
@@ -144,6 +150,20 @@ struct Connection(Movable):
             The connection itself.
         """
         return self^
+    
+    def unsafe_ptr[
+        origin: Origin, address_space: AddressSpace, //
+    ](ref[origin, address_space] self) -> Pointer[sqlite3_connection, origin, address_space=address_space]:
+        """Retrieves a pointer to the underlying memory.
+
+        Parameters:
+            origin: The origin of the `InnerConnection`.
+            address_space: The `AddressSpace` of the `InnerConnection`.
+
+        Returns:
+            The pointer to the underlying memory.
+        """
+        return self.db.unsafe_ptr().unsafe_origin_cast[origin]()
 
     def raise_if_error(self, code: SQLite3Result) raises:
         """Raises if the SQLite error code is not `SQLITE_OK`.
@@ -198,6 +218,25 @@ struct Connection(Movable):
         """
         return self.db.is_busy()
 
+    def interrupt(mut self) -> None:
+        """Interrupts the longest-running query currently executing on this
+        connection, causing it to abort at its earliest opportunity.
+
+        It is safe to call this from a different thread than the one running
+        the query. Do not call it on a connection that is or might be closed
+        before this call returns.
+        """
+        self.db.interrupt()
+
+    def is_interrupted(self) -> Bool:
+        """Returns whether an interrupt is currently pending on this connection.
+
+        Returns:
+            True if `interrupt()` has been called and the interrupt is still
+            pending, False otherwise.
+        """
+        return self.db.is_interrupted()
+
     def changes(self) -> Int64:
         """Returns the number of rows that were changed, inserted, or deleted
         by the most recent SQL statement.
@@ -216,7 +255,7 @@ struct Connection(Movable):
         """
         return self.db.total_changes()
 
-    def prepare(self, sql: String, flags: PrepFlag = PrepFlag.PREPARE_PERSISTENT) raises -> Statement[origin_of(self)]:
+    def prepare(mut self, sql: String, flags: PrepFlag = PrepFlag.NONE) raises -> Statement[origin_of(self)]:
         """Prepares a SQL statement for execution.
 
         Args:
@@ -230,19 +269,20 @@ struct Connection(Movable):
             Error: If the underlying SQLite prepare call fails or if multiple statements are found in the SQL string.
         """
         var stmt, tail = self.db.prepare(sql.copy(), flags)
+        if not stmt:
+            raise Error("NoStatementError: Unable to prepare a valid statement from the SQL provided.")
 
         # If there is trailing SQL after the first statement that contains a valid SQL statement, raise an error.
         if tail > 0:
-            # TODO: Switch to grapheme slicing on next Mojo release.
-            var tail_stmt, _ = self.db.prepare(String(sql[byte=Int(tail) :]))
+            var tail_stmt, _ = self.db.prepare(String(sql[byte = Int(tail) :]))
             if tail_stmt:
                 raise Error(
                     "MultipleStatementsError: Prepared statement contains multiple SQL statements. Should be one."
                 )
 
-        return Statement(Pointer(to=self), RawStatement(stmt))
+        return Statement[origin_of(self)](Pointer(to=self), RawStatement(stmt.take()))
 
-    def execute[P: AnyType](self, var sql: String, params: P = ()) raises -> Int64:
+    def execute[P: AnyType](mut self, var sql: String, params: P = ()) raises -> Int64:
         """Executes a SQL statement with the given parameters.
 
         Parameters:
@@ -269,7 +309,7 @@ struct Connection(Movable):
         finally:
             _ = stmt^.finalize()
 
-    def execute_batch(self, sql: Some[Writable]) raises:
+    def execute_batch(mut self, sql: Some[Writable]) raises:
         """Executes a batch of SQL statements.
 
         Args:
@@ -281,14 +321,16 @@ struct Connection(Movable):
         var current_sql = String(sql)
         while current_sql.byte_length() > 0:
             # Is it possible to copy the sql string less here? I don't want to keep allocating strings.
-            var stmt, tail = self.db.prepare(current_sql.copy(), PrepFlag.PREPARE_PERSISTENT)
-            if stmt and Statement(Pointer(to=self), RawStatement(stmt.take())).step():
-                pass  # some pragmas return results
+            var stmt, tail = self.db.prepare(current_sql.copy(), PrepFlag.NONE)
+            if stmt:
+                var s = Statement[origin_of(self)](Pointer(to=self), RawStatement(stmt.take()))
+                if s.step():
+                    pass  # some pragmas return results
 
             if tail == 0 or Int(tail) >= current_sql.byte_length():
                 break
 
-            current_sql = String(current_sql[byte=Int(tail) :])
+            current_sql = String(StringSpan(current_sql)[byte = Int(tail) :])
 
     def path(self) -> Optional[Path]:
         """Returns the file path of the database.
@@ -306,32 +348,52 @@ struct Connection(Movable):
         """
         return self.db.last_insert_row_id()
 
-    # def one_column[P: AnyType, //, T: FromSQL](self, var sql: String, params: P = ()) raises -> T:
-    #     """Fetches a single column from the first row of the result set.
+    def one_column[T: Movable, P: AnyType](mut self, var sql: String, params: P = ()) raises -> T:
+        """Fetches a single column from the first row of the result set.
 
-    #     Parameters:
-    #         P: The type of the parameters to bind.
-    #         T: The type to retrieve the value as. Must be Copyable, Movable, and FromSQL.
+        This is a convenience method for queries that return a single scalar
+        value (e.g., `SELECT count(*) FROM users`), avoiding the need to
+        define a transform function.
 
-    #     Args:
-    #         sql: The SQL query to execute.
-    #         params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+        Parameters:
+            T: The type to retrieve the value as. Must conform to `FromSQL`.
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
 
-    #     Returns:
-    #         The value of the first column in the first row of the result set.
+        Args:
+            sql: The SQL query to execute.
+            params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
 
-    #     Raises:
-    #         Error: If the query fails or no rows are returned.
-    #     """
-    #     comptime assert conforms_to(P, Params), "`params` must conform to the `Params` trait. Try a tuple or a list of parameters."
-    #     def get_item(row: Row) raises -> T:
-    #         return row.get[T](0)
+        Returns:
+            The value of the first column in the first row of the result set.
 
-    #     return self.prepare(sql^).query[get_item](params)
+        Raises:
+            Error: If the query fails or no rows are returned.
+        """
+        comptime assert conforms_to(T, FromSQL), String(
+            "`T` must conform to the `FromSQL` trait. ",
+            reflect[T].name(),
+            " does not implement `FromSQL`.",
+        )
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ",
+            reflect[P].name(),
+            " does not implement `Params`. Try a tuple or a list of parameters.",
+        )
+        var stmt = self.prepare(sql^, PrepFlag.NONE)
+        var rows = stmt.query(params)
+        var row: Row[origin_of(self), origin_of(stmt)]
+        try:
+            row = next(rows)
+        except StopIteration:
+            raise Error("No rows returned by query.")
+        return row.get[T](0)
 
     def one_row[
-        T: Movable, P: AnyType, //, transform: RowTransformFn[T],
-    ](self, var sql: String, params: P = ()) raises -> T:
+        T: Movable,
+        P: AnyType,
+        //,
+        transform: RowTransformFn[T],
+    ](mut self, var sql: String, params: P = ()) raises -> T:
         """Executes a SQL query and returns a single row.
 
         Parameters:
@@ -360,6 +422,41 @@ struct Connection(Movable):
             return next(rows)
         except StopIteration:
             raise Error("No rows returned by query.")
+
+    def maybe_one_row[
+        T: Movable,
+        P: AnyType,
+        //,
+        transform: RowTransformFn[T],
+    ](mut self, var sql: String, params: P = ()) raises -> Optional[T]:
+        """Executes a SQL query and returns a single row, or None if no rows are returned.
+
+        Parameters:
+            T: The type to transform the row into.
+            P: The type of the parameters to bind. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+            transform: A function to transform the row into the desired type.
+
+        Args:
+            sql: The SQL query to execute.
+            params: The parameters to bind to the SQL query. Must conform to the `Params` trait (e.g., a tuple or a list of parameters).
+
+        Returns:
+            The single row returned by the query, or None if the query returned no rows.
+
+        Raises:
+            Error: If the query fails.
+        """
+        comptime assert conforms_to(P, Params), String(
+            "`params` must conform to the `Params` trait. ",
+            reflect[P].name(),
+            " does not implement `Params`. Try a tuple or a list of parameters.",
+        )
+        var stmt = self.prepare(sql^)
+        var rows = stmt.query[transform](params)
+        try:
+            return next(rows)
+        except StopIteration:
+            return None
 
     def column_exists(
         self,
@@ -491,12 +588,12 @@ struct Connection(Movable):
         else:
             raise self.decode_error(r)
 
-    def transaction(self, behavior: Optional[TransactionBehavior] = None) raises -> Transaction[origin_of(self)]:
+    def transaction(mut self, behavior: Optional[TransactionBehavior] = None) raises -> Transaction[origin_of(self)]:
         """Begin a new transaction with the default behavior (DEFERRED).
 
         The transaction defaults to rolling back when it is dropped. If you
         want the transaction to commit, you must call `commit()` or
-        `set_drop_behavior(DropBehavior.COMMIT())`.
+        `set_delete_behavior(DeleteBehavior.COMMIT())`.
 
         Args:
             behavior: The transaction behavior (DEFERRED, IMMEDIATE, or EXCLUSIVE).
@@ -507,31 +604,29 @@ struct Connection(Movable):
         Raises:
             Error: If the underlying SQLite call fails.
 
-                #### Example:
+        #### Example:
 
         ```mojo
         from slight import Connection
 
-        def perform_queries(mut conn: Connection) raises:
+        def perform_queries(conn: Connection) raises:
             var tx = conn.transaction()
-
-            _ = tx.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
-            _ = tx.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
-
+            _ = tx.execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
+            _ = tx.execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
             tx.commit()
         ```
         """
         if behavior:
-            return Transaction(Pointer(to=self), behavior.value())
+            return Transaction[origin_of(self)](Pointer(to=self), behavior.value())
         else:
-            return Transaction(Pointer(to=self))
+            return Transaction[origin_of(self)](Pointer(to=self))
 
-    def savepoint(self, name: Optional[String] = None) raises -> Savepoint[origin_of(self)]:
+    def savepoint(mut self, name: Optional[String] = None) raises -> Savepoint[origin_of(self)]:
         """Begin a new savepoint with the default behavior (DEFERRED).
 
         The savepoint defaults to rolling back when it is dropped. If you want
         the savepoint to commit, you must call `commit()` or
-        `set_drop_behavior(DropBehavior.COMMIT())`.
+        `set_delete_behavior(DeleteBehavior.COMMIT())`.
 
         Args:
             name: The name of the savepoint. If None, an unnamed savepoint is created.
@@ -547,25 +642,23 @@ struct Connection(Movable):
         ```mojo
         from slight import Connection
 
-        def perform_queries(mut conn: Connection) raises:
+        def perform_queries(conn: Connection) raises:
             var sp = conn.savepoint()
-
-            _ = sp.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
-            _ = sp.conn[].execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
-
+            _ = sp.execute("INSERT INTO users (name) VALUES (?)", ["Alice"])
+            _ = sp.execute("INSERT INTO users (name) VALUES (?)", ["Bob"])
             sp.commit()
         ```
         """
         if name:
-            return Savepoint(Pointer(to=self), name.value())
+            return Savepoint[origin_of(self)](Pointer(to=self), name.value())
         else:
-            return Savepoint(Pointer(to=self))
+            return Savepoint[origin_of(self)](Pointer(to=self))
 
     def pragma_query_value[
         T: Movable,
         //,
         transform: def(Row) raises thin -> T,
-    ](self, pragma: String, schema: Optional[String] = None,) raises -> T:
+    ](mut self, pragma: String, schema: Optional[String] = None) raises -> T:
         """Query the current value of a pragma.
 
         Some pragmas will return multiple rows/values which cannot be retrieved
@@ -606,9 +699,7 @@ struct Connection(Movable):
         query.push_pragma(pragma, schema)
         return self.one_row[transform](String(query))
 
-    def pragma_query[
-        callback: def(Row) raises thin -> None
-    ](self, schema: Optional[String], pragma: String) raises:
+    def pragma_query[callback: def(Row) raises thin -> None](mut self, schema: Optional[String], pragma: String) raises:
         """Query the current rows/values of a pragma.
 
         Prefer [PRAGMA function](https://sqlite.org/pragma.html#pragfunc) introduced in SQLite 3.20:
@@ -640,12 +731,13 @@ struct Connection(Movable):
         """
         var query = Sql()
         query.push_pragma(pragma, schema)
-        for row in self.prepare(String(query)).query(()):
+        var stmt = self.prepare(String(query))
+        for row in stmt.query(()):
             callback(row)
 
     def pragma[
         T: AnyType, //, callback: def(Row) raises thin -> None
-    ](self, pragma: StringSlice, value: T, schema: Optional[String] = None,) raises:
+    ](mut self, pragma: StringSpan, value: T, schema: Optional[String] = None,) raises:
         """Query the current value(s) of a pragma associated with a value.
 
         This method can be used with query-only pragmas which need an argument
@@ -690,12 +782,11 @@ struct Connection(Movable):
         sql.open_brace()
         sql.push_value(value)
         sql.close_brace()
-        for row in self.prepare(String(sql)).query(()):
+        var stmt = self.prepare(String(sql))
+        for row in stmt.query(()):
             callback(row)
 
-    def pragma_update[
-        T: AnyType, //
-    ](self, pragma: StringSlice, value: T, schema: Optional[String] = None,) raises:
+    def pragma_update[T: AnyType, //](mut self, pragma: StringSpan, value: T, schema: Optional[String] = None) raises:
         """Set a new value to a pragma.
 
         Some pragmas will return the updated value which cannot be retrieved
@@ -731,7 +822,7 @@ struct Connection(Movable):
 
     def pragma_update_and_check[
         T: Movable, V: AnyType, //, transform: def(Row) raises thin -> T
-    ](self, pragma: StringSlice, value: V, schema: Optional[String] = None) raises -> T:
+    ](mut self, pragma: StringSpan, value: V, schema: Optional[String] = None) raises -> T:
         """Set a new value to a pragma and return the updated value.
 
         Only a few pragmas automatically return the updated value.
@@ -782,7 +873,7 @@ struct Connection(Movable):
     def create_scalar_function[
         P: CopyDestructible, V: MoveDestructible, //, x_func: ScalarUDF[V]
     ](
-        self,
+        mut self,
         fn_name: String,
         n_arg: Int,
         user_data: P,
@@ -797,7 +888,7 @@ struct Connection(Movable):
         callbacks are set to NULL internally, as required by SQLite.
 
         Parameters:
-            P: The type of the application data to pass to the callback. Must be Copyable and ImplicitlyDestructible.
+            P: The type of the application data to pass to the callback. Must be Copyable and Deinitable.
             V: The return type of the scalar function. Must conform to `ToSQL`.
             x_func: The scalar function callback implementation.
 
@@ -820,7 +911,7 @@ struct Connection(Movable):
     def create_scalar_function[
         V: MoveDestructible, //, x_func: ScalarUDF[V]
     ](
-        self,
+        mut self,
         fn_name: String,
         n_arg: Int,
         flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
@@ -863,7 +954,7 @@ struct Connection(Movable):
         step_fn: AggregateStepUDF[A],
         final_fn: AggregateFinalUDF[A, T],
     ](
-        self,
+        mut self,
         fn_name: String,
         n_arg: Int,
         user_data: P,
@@ -911,7 +1002,7 @@ struct Connection(Movable):
         step_fn: AggregateStepUDF[A],
         final_fn: AggregateFinalUDF[A, T],
     ](
-        self,
+        mut self,
         fn_name: String,
         n_arg: Int,
         flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
@@ -959,7 +1050,7 @@ struct Connection(Movable):
         value_fn: WindowAggregateValueUDF[A, T],
         inverse_fn: WindowAggregateInverseUDF[A],
     ](
-        self,
+        mut self,
         fn_name: String,
         n_arg: Int,
         user_data: P,
@@ -997,7 +1088,10 @@ struct Connection(Movable):
             t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
         var result = self.db.create_window_function[init_fn, step_fn, final_fn, value_fn, inverse_fn](
-            fn_name, n_arg, flags, user_data,
+            fn_name,
+            n_arg,
+            flags,
+            user_data,
         )
         self.raise_if_error(result)
 
@@ -1011,7 +1105,7 @@ struct Connection(Movable):
         value_fn: WindowAggregateValueUDF[A, T],
         inverse_fn: WindowAggregateInverseUDF[A],
     ](
-        self,
+        mut self,
         fn_name: String,
         n_arg: Int,
         flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
@@ -1061,16 +1155,16 @@ struct Connection(Movable):
         eof_fn: VTabEofFn[C],
         column_fn: VTabColumnFn[C],
         rowid_fn: VTabRowidFn[C],
-    ](self, module_name: String) raises:
+    ](mut self, module_name: String) raises:
         """Register a read-only virtual table module with this connection.
 
         After registering, the module can be used with
         `CREATE VIRTUAL TABLE … USING module_name(…)` or as a table-valued
         function (e.g. `SELECT * FROM module_name(…)`).
 
-        The module lifetime is tied to the database connection. SQLite
-        automatically frees the internal `sqlite3_module` allocation when the
-        connection is closed or the module is explicitly unregistered.
+        The module lifetime is tied to the database connection. The internal
+        `sqlite3_module` allocation is owned by the connection and freed once
+        the connection has been closed and the module unregistered.
 
         Parameters:
             T: The user-provided virtual table state type.
@@ -1104,7 +1198,7 @@ struct Connection(Movable):
         ](module_name)
         self.raise_if_error(result)
 
-    def remove_function(self, fn_name: String, n_arg: Int) raises:
+    def remove_function(mut self, fn_name: String, n_arg: Int) raises:
         """Remove a user-defined function from a database connection.
 
         `fn_name` and `n_arg` should match the name and number of arguments
@@ -1123,7 +1217,7 @@ struct Connection(Movable):
         var result = self.db.remove_function(fn_name, n_arg)
         self.raise_if_error(result)
 
-    def busy_timeout(self, ms: Int) raises:
+    def busy_timeout(mut self, ms: Int) raises:
         """Set a busy handler that sleeps for a specified amount of time when a
         table is locked.
 
@@ -1147,7 +1241,7 @@ struct Connection(Movable):
         """
         self.raise_if_error(self.db.busy_timeout(c_int(ms)))
 
-    def register_busy_handler[callback: Optional[BusyHandlerFn]](self) raises:
+    def register_busy_handler(mut self, callback: BusyHandlerFn) raises:
         """Register a callback to handle `SQLITE_BUSY` errors.
 
         If `callback` is `None`, then `SQLITE_BUSY` is returned immediately
@@ -1168,21 +1262,21 @@ struct Connection(Movable):
         Newly created connections default to a `busy_timeout()` handler with a
         timeout of 5000ms, although this is subject to change.
 
-        Parameters:
+        Args:
             callback: Busy handler callback function.
 
         Raises:
             Error: If the underlying SQLite call fails.
         """
-        self.raise_if_error(self.db.busy_handler[callback]())
-    
-    def clear_busy_handler(self) raises:
+        self.raise_if_error(self.db.busy_handler(callback))
+
+    def clear_busy_handler(mut self) raises:
         """Clear the busy handler, if any.
-        
+
         Raises:
             Error: If the underlying SQLite call fails.
         """
-        self.raise_if_error(self.db.busy_handler[None]())
+        self.raise_if_error(self.db.clear_busy_handler())
 
     def limit(self, limit: Limit) raises -> Int32:
         """Returns the current value of a run-time `Limit`.
@@ -1201,7 +1295,7 @@ struct Connection(Movable):
             raise Error(t"{limit} is invalid")
         return rc
 
-    def set_limit(self, limit: Limit, new_val: Int32) raises -> Int32:
+    def set_limit(mut self, limit: Limit, new_val: Int32) raises -> Int32:
         """Changes a run-time `Limit`, returning the prior value.
 
         Args:
@@ -1221,7 +1315,7 @@ struct Connection(Movable):
             raise Error(t"{limit} is invalid")
         return rc
 
-    def register_trace_function[trace_fn: TraceFn](self, mask: TraceEventCodes) raises:
+    def register_trace_function(mut self, mask: TraceEventCodes, trace_fn: TraceFn) raises:
         """Register a trace callback.
 
         The callback will be invoked for each trace event whose type is
@@ -1230,22 +1324,157 @@ struct Connection(Movable):
         There can only be a single tracer per connection. Setting a new tracer
         replaces the previous one.
 
-        Parameters:
-            trace_fn: A `TraceFn` callback.
-
         Args:
             mask: Bitmask of `TraceEventCodes` to monitor.
+            trace_fn: A `TraceFn` callback.
 
         Raises:
             Error: If the underlying SQLite call fails.
         """
-        self.raise_if_error(self.db.trace_v2[trace_fn](mask))
-    
-    def clear_trace_function(self) raises:
-        """Clear the trace callback, if any."""
+        self.raise_if_error(self.db.trace_v2(mask, trace_fn))
+
+    def clear_trace_function(mut self) raises:
+        """Clear the trace callback, if any.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
         self.raise_if_error(self.db.clear_trace_v2())
 
-    def log(self, err_code: Int32, mut msg: String):
+    def register_commit_hook(mut self, callback: CommitHookFn):
+        """Register a callback invoked whenever a transaction is committed.
+
+        There can only be a single commit hook per connection. Registering a
+        new one replaces the previous one. Use `clear_commit_hook` to
+        unregister it.
+
+        Note: Returning `True` from `callback` converts the commit into a
+        rollback (SQLite semantics: a non-zero return aborts the commit).
+
+        Args:
+            callback: A `def() -> Bool` callback. `True` vetoes the commit.
+        """
+        self.db.register_commit_hook(callback)
+
+    def clear_commit_hook(mut self):
+        """Unregister the commit hook, if any."""
+        self.db.clear_commit_hook()
+
+    def register_rollback_hook(mut self, callback: RollbackHookFn):
+        """Register a callback invoked whenever a transaction is rolled back.
+
+        There can only be a single rollback hook per connection. Registering
+        a new one replaces the previous one. Use `clear_rollback_hook` to
+        unregister it.
+
+        Args:
+            callback: A `def() -> None` callback.
+        """
+        self.db.register_rollback_hook(callback)
+
+    def clear_rollback_hook(mut self):
+        """Unregister the rollback hook, if any."""
+        self.db.clear_rollback_hook()
+
+    def register_update_hook(mut self, callback: UpdateHookFn):
+        """Register a callback invoked whenever a row is inserted, updated,
+        or deleted in a rowid table.
+
+        There can only be a single update hook per connection. Registering a
+        new one replaces the previous one. Use `clear_update_hook` to
+        unregister it.
+
+        Args:
+            callback: A `def(UpdateOperation, String, String, Int64) -> None`
+                callback receiving the operation type, database name, table
+                name, and rowid of the affected row.
+        """
+        self.db.register_update_hook(callback)
+
+    def clear_update_hook(mut self):
+        """Unregister the update hook, if any."""
+        self.db.clear_update_hook()
+
+    def create_collation(
+        mut self, var name: String, compare: CollationCompareFn, flags: FunctionFlags = FunctionFlags.UTF8
+    ) raises:
+        """Define a new collating sequence for use in `ORDER BY`, `COLLATE`, indexes, etc.
+
+        Args:
+            name: Name of the collating sequence (as referenced by `COLLATE name` in SQL).
+            compare: A `def(Span[Byte], Span[Byte]) -> Int` comparator,
+                analogous to C's `strcmp`: negative if the left operand
+                sorts before the right, zero if equal, positive if the left
+                operand sorts after the right.
+            flags: Text encoding flags. Defaults to UTF-8.
+
+        Raises:
+            Error: If the collation could not be registered.
+        """
+        self.raise_if_error(self.db.create_collation(name, c_int(flags.value), compare))
+
+    def remove_collation(mut self, name: String, flags: FunctionFlags = FunctionFlags.UTF8) raises:
+        """Remove a previously registered collating sequence.
+
+        Args:
+            name: Name of the collating sequence to remove.
+            flags: Text encoding flags that were used to register it.
+                Defaults to UTF-8.
+
+        Raises:
+            Error: If the collation could not be removed.
+        """
+        var name_copy = name
+        self.raise_if_error(self.db.remove_collation(name_copy, c_int(flags.value)))
+
+    def register_progress_handler(mut self, n_ops: Int, callback: ProgressHandlerFn):
+        """Register a callback invoked approximately every `n_ops` virtual
+        machine instructions during query execution.
+
+        Note: Returning `True` from `callback` INTERRUPTS (aborts) the
+        currently running query.
+
+        There can only be a single progress handler per connection.
+        Registering a new one replaces the previous one. Use
+        `clear_progress_handler` to unregister it.
+
+        Args:
+            n_ops: Approximate number of VM instructions between invocations.
+            callback: A `def() -> Bool` callback. `True` interrupts the running query.
+        """
+        self.db.register_progress_handler(n_ops, callback)
+
+    def clear_progress_handler(mut self):
+        """Unregister the progress handler, if any."""
+        self.db.clear_progress_handler()
+
+    def register_authorizer(mut self, callback: AuthorizerFn) raises:
+        """Register an authorizer callback invoked during statement
+        preparation for each action requiring authorization.
+
+        There can only be a single authorizer per connection. Registering a
+        new one replaces the previous one. Use `clear_authorizer` to
+        unregister it. Registering (or clearing) an authorizer invalidates
+        all previously prepared statements.
+
+        Args:
+            callback: A callback receiving an `AuthAction` and up to four subject arguments, returning an
+                `AuthResult` (`OK`, `DENY`, or `IGNORE`).
+
+        Raises:
+            Error: If the authorizer could not be registered.
+        """
+        self.raise_if_error(self.db.register_authorizer(callback))
+
+    def clear_authorizer(mut self) raises:
+        """Unregister the authorizer callback, if any.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        self.raise_if_error(self.db.clear_authorizer())
+
+    def log(mut self, err_code: Int32, mut msg: String):
         """Write a message to the SQLite error log.
 
         Args:
@@ -1264,7 +1493,7 @@ struct Connection(Movable):
             Error: If the underlying SQLite call fails.
         """
         self.raise_if_error(self.db.set_extension_loading(enable=True))
-        return ExtensionLoadGuard(Pointer(to=self))
+        return ExtensionLoadGuard[origin_of(self)](Pointer(to=self))
 
     def disable_extension_loading(mut self) raises:
         """Disable extension loading for this connection.
@@ -1289,7 +1518,7 @@ struct Connection(Movable):
         """
         self.db.load_extension(dylib_path, entry_point)
 
-    def serialize(self, schema: String = "main") raises -> List[Byte]:
+    def serialize(mut self, schema: String = "main") raises -> List[Byte]:
         """Serializes a database into an in-memory byte buffer in the standard
         SQLite file format.
 
@@ -1306,7 +1535,7 @@ struct Connection(Movable):
             var data = db.serialize()
 
             var copy = Connection.open_in_memory()
-            copy.deserialize(data)
+            copy.deserialize(data^)
         ```
 
         Args:
@@ -1351,7 +1580,7 @@ struct Connection(Movable):
         """
         return self.db.is_locked(rc)
 
-    def wait_for_unlock_notify(self) -> SQLite3Result:
+    def wait_for_unlock_notify(mut self) -> SQLite3Result:
         """Block until an unlock-notify callback fires, then return SQLITE_OK.
 
         Should only be called after a `SQLITE_LOCKED` result in shared-cache mode.
@@ -1363,3 +1592,134 @@ struct Connection(Movable):
         """
         return self.db.wait_for_unlock_notify()
 
+    def wal_checkpoint(mut self, schema: Optional[String] = None) raises:
+        """Checkpoints the write-ahead log using the default (passive) mode.
+
+        This is equivalent to `wal_checkpoint_v2(CheckpointMode.PASSIVE, schema)`
+        but does not report the number of log/checkpointed frames.
+
+        Args:
+            schema: Name of the database schema to checkpoint (e.g. "main").
+                If None, all attached databases are checkpointed.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+        """
+        self.db.wal_checkpoint(schema.copy())
+
+    def wal_checkpoint_v2(mut self, mode: CheckpointMode, schema: Optional[String] = None) raises -> Tuple[Int, Int]:
+        """Checkpoints the write-ahead log with additional control over the
+        checkpoint operation.
+
+        Args:
+            mode: The checkpoint mode (PASSIVE, FULL, RESTART, or TRUNCATE).
+            schema: Name of the database schema to checkpoint (e.g. "main").
+                If None, all attached databases are checkpointed.
+
+        Returns:
+            A tuple `(log_frames, checkpointed_frames)` containing the total
+            number of frames in the WAL log, and the number of frames that
+            were checkpointed.
+
+        Raises:
+            Error: If the underlying SQLite call fails.
+
+        ```mojo
+        from slight import Connection
+        from slight.checkpoint import CheckpointMode
+
+        def checkpoint_wal(mut conn: Connection) raises:
+            var log_frames, checkpointed_frames = conn.wal_checkpoint_v2(CheckpointMode.FULL)
+        ```
+        """
+        return self.db.wal_checkpoint_v2(mode, schema.copy())
+
+    def backup(
+        mut self, mut dest: Connection, dest_schema: String = "main", source_schema: String = "main"
+    ) raises -> Backup[origin_of(dest), origin_of(self)]:
+        """Creates a handle for an incremental online backup, copying this
+        connection's database into `dest`.
+
+        Use this when you want fine-grained control over the backup (e.g. to
+        copy a fixed number of pages at a time). For the common one-shot case
+        of copying the entire database in a single call, use `backup_to()`
+        instead.
+
+        Args:
+            dest: A pointer to the destination connection.
+            dest_schema: Name of the destination database schema (e.g. "main").
+            source_schema: Name of the source database schema (e.g. "main").
+
+        Returns:
+            A new `Backup` handle.
+
+        Raises:
+            Error: If the backup operation could not be initialized.
+        """
+        return Backup[origin_of(dest), origin_of(self)](Pointer(to=dest), Pointer(to=self), dest_schema, source_schema)
+
+    def backup_to(mut self, mut dest: Connection, dest_schema: String = "main", source_schema: String = "main") raises:
+        """Performs a full online backup of this connection's database into
+        `dest`, running to completion in a single call.
+
+        This is a convenience wrapper that initializes a `Backup`, steps it
+        to completion, and finishes it.
+
+        ```mojo
+        from slight import Connection
+
+        def copy_database(mut source: Connection, mut dest: Connection) raises:
+            source.backup_to(dest)
+        ```
+
+        Args:
+            dest: The destination connection.
+            dest_schema: Name of the destination database schema (e.g. "main").
+            source_schema: Name of the source database schema (e.g. "main").
+
+        Raises:
+            Error: If the backup could not be initialized, or if it fails while copying pages.
+        """
+        var backup = Backup[origin_of(dest), origin_of(self)](Pointer(to=dest), Pointer(to=self), dest_schema, source_schema)
+        try:
+            while backup.step(-1):
+                pass
+        finally:
+            backup^.finish()
+
+    def blob_open[
+        read_only: Bool = False
+    ](mut self, var table: String, var column: String, row_id: Int64, *, var schema: String = "main") raises -> Blob[
+        origin_of(self), read_only
+    ]:
+        """Opens a BLOB for incremental I/O.
+
+        This is more efficient than loading an entire large BLOB value into
+        memory when only part of it needs to be read or written.
+
+        Parameters:
+            read_only: If True, opens the BLOB for reading only. If False,
+                opens the BLOB for reading and writing.
+
+        Args:
+            table: Name of the table containing the BLOB.
+            column: Name of the column containing the BLOB.
+            row_id: Row ID of the row containing the BLOB.
+            schema: Name of the database schema containing the table
+                (e.g. "main").
+
+        Returns:
+            A new `Blob` handle.
+
+        Raises:
+            Error: If the BLOB could not be opened.
+        """
+        var ppBlob = MutExternalPointer[sqlite3_blob].unsafe_dangling()
+        var flags: c_int = 0 if read_only else 1
+        var ppBlob_ptr = Pointer(to=ppBlob)
+        self.raise_if_error(
+            sqlite_ffi()[].blob_open(
+                self.unsafe_ptr(), schema, table, column, row_id, flags, ppBlob_ptr
+            )
+        )
+        return Blob[origin_of(self), read_only=read_only](Pointer(to=self), ppBlob)

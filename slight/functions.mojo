@@ -1,13 +1,16 @@
+"""Function creation helpers."""
 from std.ffi import c_int
+from std.memory.alloc import unsafe_alloc
 from std.sys import size_of
 from slight.c.types import MutExternalPointer, sqlite3_context, sqlite3_value
+from slight.types.to_sql import ToSQL, ToSqlOutput
 from slight.types.value_ref import ValueRef
 from slight.context import Context
 from slight.util import CopyDestructible, MoveDestructible
 
 
 @fieldwise_init
-struct FunctionFlags(ImplicitlyCopyable):
+struct FunctionFlags(TrivialRegisterPassable, Writable):
     """Function Flags for `sqlite3_create_function`.
 
     See [sqlite3_create_function](https://sqlite.org/c3ref/create_function.html)
@@ -52,32 +55,43 @@ struct FunctionFlags(ImplicitlyCopyable):
         return Self(self.value | other.value)
 
 
-def _default_destructor(pApp: Optional[MutExternalPointer[NoneType]]) abi("C"):
-    """Default destructor for user-defined function application data.
+def _typed_destructor[T: CopyDestructible](pApp: Optional[MutExternalPointer[NoneType]]) abi("C"):
+    """Destructor for user-defined function application data of type `T`.
 
-    This function is used as the destructor callback when creating user-defined functions
-    with application data. It checks if the provided pointer is valid and frees it if so.
+    Used as the destructor callback when creating user-defined functions with
+    application data. `ptr_copy` heap-copies a full `T` into the block that
+    SQLite hands back here, so the pointee's destructor must run before the
+    block is freed — otherwise any heap data owned by `T` (a `String`, `List`,
+    `Dict`, ...) is leaked.
+
+    This is parameterized on `T` so each instantiation knows the concrete type
+    to destroy; a single untyped `void*` destructor cannot do this correctly.
+
+    Parameters:
+        T: The type of the application data the pointer refers to.
 
     Args:
         pApp: A mutable external pointer to the application data.
     """
     if pApp:
-        pApp.value().free()
+        var ptr = pApp.value().unsafe_bitcast[T]()
+        ptr.unsafe_deinit_pointee()
+        ptr.unsafe_free()
 
 
 # For scalar functions, SQLite requires xFunc to be non-NULL and
 # xStep/xFinal to be NULL. We call the raw C API directly to pass
 # NULL for the unused callbacks.
-comptime ScalarUDF[V: MoveDestructible] = def(Context) raises thin -> V
+comptime ScalarUDF[V: MoveDestructible] = def(mut ctx: Context) raises thin -> V
 """User provided scalar function callback.
 
 Parameters:
     V: The return type of the scalar function, which must conform to `ToSQL`.
 """
 
+
 def _call_scalar_callback[
-    V: MoveDestructible, //,
-    func: ScalarUDF[V]
+    V: MoveDestructible, //, func: ScalarUDF[V]
 ](
     ctx: MutExternalPointer[sqlite3_context],
     argc: c_int,
@@ -98,9 +112,13 @@ def _call_scalar_callback[
         argc: The number of arguments passed to the function.
         argv: The arguments passed to the function.
     """
+    comptime assert conforms_to(V, ToSQL), String(
+        t"`func` must return a type that conforms to `ToSQL`. {reflect[V].name()} does not implement `ToSQL`."
+    )
+
     # Convert raw C callback to our Context wrapper and call the user-provided function
     var context = Context(ctx, argc, argv)
-    
+
     var fn_result: V
     try:
         fn_result = func(context)
@@ -108,16 +126,16 @@ def _call_scalar_callback[
         # If the user's function raises an error, we need to convert it to a SQLite error result.
         context.result_error(t"Error in scalar function: {e}")
         return
-    
-    var result: ValueRef[origin_of(fn_result)]
+
+    var result: ToSqlOutput[origin_of(fn_result)]
     try:
-        result = trait_downcast[ToSQL](fn_result).to_sql()
+        result = fn_result.to_sql()
     except e:
         context.result_error(t"Error converting result to SQL: {e}")
         return
-    
+
     # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
-    context.set_result(result)
+    context.set_result_output(result)
 
 
 comptime AggregateInitUDF[A: MoveDestructible] = def(mut ctx: Context) raises thin -> A
@@ -139,6 +157,7 @@ Parameters:
     A: The type of the aggregate context, which is updated by the step function and passed to this function.
     T: The return type of the final function, which must conform to `ToSQL`.
 """
+
 
 def _call_step_callback[
     A: MoveDestructible,
@@ -170,14 +189,14 @@ def _call_step_callback[
     var agg_context = context.aggregate_context[A](size_of[A]())
     # TODO: Throw sqlite3_result_error_nomem if we fail to allocate memory for the aggregate context.
     if not agg_context:
-        var agg_context_ptr = alloc[A](count=1)
+        var agg_context_ptr = unsafe_alloc[A](count=1)
         try:
-            agg_context_ptr[0] = init_fn(context)
+            agg_context_ptr.unsafe_write(init_fn(context))
         except e:
             # If the user's init function raises an error, we need to convert it to a SQLite error result.
             context.result_error(t"Error in aggregate init function: {e}")
             return
-        agg_context = Optional[UnsafePointer[A, MutUntrackedOrigin]](agg_context_ptr)
+        agg_context = Optional[Pointer[A, MutUntrackedOrigin]](agg_context_ptr)
 
     try:
         step_fn(context, agg_context.value()[])
@@ -207,6 +226,9 @@ def _call_final_callback[
     Args:
         ctx: The SQLite context for the aggregate function.
     """
+    comptime assert conforms_to(T, ToSQL), String(
+        t"`final_fn` must return a type that conforms to `ToSQL`. {reflect[T].name()} does not implement `ToSQL`."
+    )
     var context = Context(ctx)
     var agg_context = context.aggregate_context[A](0)
     if not agg_context:
@@ -221,16 +243,16 @@ def _call_final_callback[
         context.result_error(t"Error in aggregate final function: {e}")
         return
 
-    var result: ValueRef[origin_of(finalize_result)]
+    var result: ToSqlOutput[origin_of(finalize_result)]
     try:
-        result = trait_downcast[ToSQL](finalize_result).to_sql()
+        result = finalize_result.to_sql()
     except e:
         context.result_error(t"Error converting final result to SQL: {e}")
         return
 
     # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
     # ToSQL is implemented on most of the important stdlib types.
-    context.set_result(result)
+    context.set_result_output(result)
 
 
 comptime WindowAggregateValueUDF[A: CopyDestructible, T: MoveDestructible] = def(acc: Optional[A]) raises thin -> T
@@ -247,11 +269,9 @@ Parameters:
     A: The type of the aggregate context, which is updated by the xStep callback and passed to this function to compute the current value of the window function for window frames.
 """
 
+
 def _call_value_callback[
-    A: CopyDestructible,
-    T: MoveDestructible,
-    //,
-    value_fn: WindowAggregateValueUDF[A, T]
+    A: CopyDestructible, T: MoveDestructible, //, value_fn: WindowAggregateValueUDF[A, T]
 ](ctx: MutExternalPointer[sqlite3_context]) abi("C"):
     """The xValue callback for the window function.
 
@@ -266,6 +286,9 @@ def _call_value_callback[
     Args:
         ctx: The SQLite context for the window function.
     """
+    comptime assert conforms_to(T, ToSQL), String(
+        t"`value_fn` must return a type that conforms to `ToSQL`. {reflect[T].name()} does not implement `ToSQL`."
+    )
     var context = Context(ctx)
     # Set n_bytes to 0 so no unneccessary allocations occur
     var agg_context = context.aggregate_context[A](0)
@@ -280,16 +303,16 @@ def _call_value_callback[
         context.result_error(t"Error in window function value callback: {e}")
         return
 
-    var result: ValueRef[origin_of(value_result)]
+    var result: ToSqlOutput[origin_of(value_result)]
     try:
-        result = trait_downcast[ToSQL](value_result).to_sql()
+        result = value_result.to_sql()
     except e:
         context.result_error(t"Error converting window function value result to SQL: {e}")
         return
 
     # Convert the result of the user's `func` to the appropriate SQLite type and set it on the context.
     # ToSQL is implemented on most of the important stdlib types.
-    context.set_result(result)
+    context.set_result_output(result)
 
 
 def _call_inverse_callback[

@@ -4,10 +4,9 @@ This module provides utilities for building and executing SQLite PRAGMA statemen
 as well as helper methods for common pragma operations.
 """
 
-from std.ffi import CStringSlice
 from slight.c.types import SQLITE_MISUSE
 from slight.types.to_sql import ToSQL
-from slight.types.value_ref import SQLite3Integer, SQLite3Real, SQLite3Text
+from slight.types import value, value_ref
 
 
 struct Sql(Movable, Writable):
@@ -32,15 +31,15 @@ struct Sql(Movable, Writable):
         """
         writer.write(self.buf)
 
-    def as_string_slice(self) -> StringSlice[origin_of(self.buf)]:
+    def as_string_slice(self) -> StringSpan[origin_of(self.buf)]:
         """Get the current SQL statement as a string slice.
 
         Returns:
             A string slice containing the SQL statement.
         """
-        return StringSlice(self.buf)
+        return StringSpan(self.buf)
 
-    def push_pragma(mut self, pragma: StringSlice, schema: Optional[String] = None) raises:
+    def push_pragma(mut self, pragma: StringSpan, schema: Optional[String] = None) raises:
         """Push a PRAGMA statement prefix to the buffer.
 
         Args:
@@ -58,7 +57,7 @@ struct Sql(Movable, Writable):
 
         self.push_keyword(pragma)
 
-    def push_keyword(mut self, keyword: StringSlice) raises:
+    def push_keyword(mut self, keyword: StringSpan) raises:
         """Push a SQL keyword to the buffer.
 
         Args:
@@ -72,7 +71,7 @@ struct Sql(Movable, Writable):
         else:
             raise Error(SQLITE_MISUSE, 'Invalid keyword "' + keyword + '"')
 
-    def push_schema(mut self, schema: StringSlice):
+    def push_schema(mut self, schema: StringSpan):
         """Push a schema name to the buffer, escaping if necessary.
 
         Args:
@@ -80,7 +79,7 @@ struct Sql(Movable, Writable):
         """
         self.push_identifier(schema)
 
-    def push_identifier(mut self, s: StringSlice):
+    def push_identifier(mut self, s: StringSpan):
         """Push an identifier to the buffer, escaping if necessary.
 
         Args:
@@ -91,33 +90,47 @@ struct Sql(Movable, Writable):
         else:
             self.wrap_and_escape(s, '"')
 
-    def push_value[T: AnyType, //](mut self, value: T) raises:
+    def push_value[T: AnyType, //](mut self, val: T) raises:
         """Push a parameter value to the buffer.
 
         Parameters:
             T: The type of the parameter value.
 
         Args:
-            value: The parameter value to push.
+            val: The parameter value to push.
 
         Raises:
             Error: If the value type is unsupported.
         """
         comptime assert conforms_to(T, ToSQL), String(
-            "`value` must conform to `ToSQL` trait.", reflect[T].name(), " does not implement `ToSQL`."
+            t"`value` must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
-        var sql = trait_downcast[ToSQL](value).to_sql()
+        var output = val.to_sql()
 
-        if sql.isa[SQLite3Integer]():
-            self.push_int(Int(sql[SQLite3Integer].value))
-        elif sql.isa[SQLite3Real]():
-            self.push_real(sql[SQLite3Real].value)
-        elif sql.isa[SQLite3Text[sql.stmt]]():
-            self.push_string_literal(sql[SQLite3Text[sql.stmt]].value)
+        comptime value_origin = origin_of(val)
+        if output.isa[value.Value]():
+            ref owned = output[value.Value]
+            if owned.isa[value.Integer]():
+                self.push_int(Int(owned[value.Integer].value))
+            elif owned.isa[value.Real]():
+                self.push_real(owned[value.Real].value)
+            elif owned.isa[value.Text]():
+                self.push_string_literal(owned[value.Text].value)
+            else:
+                raise Error(SQLITE_MISUSE, " Unsupported parameter type for pragma value")
+            return
+
+        ref sql = output[value_ref.ValueRef[value_origin]]
+        if sql.isa[value_ref.Integer]():
+            self.push_int(Int(sql[value_ref.Integer].value))
+        elif sql.isa[value_ref.Real]():
+            self.push_real(sql[value_ref.Real].value)
+        elif sql.isa[value_ref.Text[value_origin]]():
+            self.push_string_literal(sql[value_ref.Text[value_origin]].value)
         else:
             raise Error(SQLITE_MISUSE, " Unsupported parameter type for pragma value")
 
-    def push_string_literal(mut self, s: StringSlice):
+    def push_string_literal(mut self, s: StringSpan):
         """Push a string literal to the buffer, properly escaped.
 
         Args:
@@ -161,7 +174,7 @@ struct Sql(Movable, Writable):
         """Push a closing parenthesis to the buffer."""
         self.buf.write_string(")")
 
-    def wrap_and_escape(mut self, s: StringSlice, quote: StringSlice):
+    def wrap_and_escape(mut self, s: StringSpan, quote: StringSpan):
         """Wrap a string in quotes and escape internal quotes by doubling.
 
         Args:
@@ -177,7 +190,7 @@ struct Sql(Movable, Writable):
         self.buf.write_string(quote)
 
 
-def is_identifier(s: StringSlice) -> Bool:
+def is_identifier(s: StringSpan) -> Bool:
     """Check if a string is a valid SQL identifier.
 
     Args:
@@ -201,7 +214,7 @@ def is_identifier(s: StringSlice) -> Bool:
     return True
 
 
-def is_identifier_start(c: StringSlice) -> Bool:
+def is_identifier_start(c: StringSpan) -> Bool:
     """Check if a character can start an identifier.
 
     Args:
@@ -229,7 +242,7 @@ def is_identifier_start(c: StringSlice) -> Bool:
     return False
 
 
-def is_identifier_continue(c: StringSlice) -> Bool:
+def is_identifier_continue(c: StringSpan) -> Bool:
     """Check if a character can continue an identifier.
 
     Args:

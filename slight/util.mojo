@@ -1,22 +1,25 @@
+"""Helper utilities."""
 from std.pathlib import Path
 from std.ffi import CStringSlice
+from std.memory.alloc import unsafe_alloc
 from slight.c.types import MutExternalPointer
 
-comptime CopyDestructible = Copyable & ImplicitlyDestructible
-comptime MoveDestructible = Movable & ImplicitlyDestructible
-comptime ColumnType = MoveDestructible & Defaultable
+comptime CopyDestructible = Copyable & Deinitable
+"""Trait alias for types that are both `Copyable` and `Deinitable`."""
+comptime MoveDestructible = Movable & Deinitable
+"""Trait alias for types that are both `Movable` and `Deinitable`."""
 
 
-def as_byte[char: StringSlice]() -> Byte:
-    """Convert a single-character StringSlice to a Byte.
+def as_byte[char: StringSpan]() -> Byte:
+    """Convert a single-character StringSpan to a Byte.
 
     Parameters:
-        char: A StringSlice that must contain exactly one character.
+        char: A StringSpan that must contain exactly one character.
 
     Returns:
         The Byte representation of the single character.
     """
-    comptime assert char.byte_length() == 1, "Expected a single-character StringSlice for Byte conversion"
+    comptime assert char.byte_length() == 1, "Expected a single-character StringSpan for Byte conversion"
     return char.as_bytes()[0]
 
 
@@ -27,15 +30,21 @@ def ptr_copy[T: CopyDestructible](data: T) -> MutExternalPointer[T]:
     This data can be freed on demand by the destructor callback, and we don't have to worry
     about Mojo's ASAP destruction.
 
+    Parameters:
+        T: The type of the value being copied.
+
+    Args:
+        data: The value to copy onto the heap.
+
     Returns:
         A mutable external pointer containing a copy of the value.
     """
-    var ptr = alloc[T](count=1)
-    ptr[0] = data.copy()
+    var ptr = unsafe_alloc[T](count=1)
+    ptr.unsafe_write(data.copy())
     return ptr
 
 
-def str_slice_to_path(s: CStringSlice[ImmutUntrackedOrigin]) -> Optional[Path]:
+def str_slice_to_path(s: CStringSlice[ImmUntrackedOrigin]) -> Optional[Path]:
     """Convert a String to a Path.
 
     Args:
@@ -44,16 +53,16 @@ def str_slice_to_path(s: CStringSlice[ImmutUntrackedOrigin]) -> Optional[Path]:
     Returns:
         A Path representing the input String.
     """
-    return Path(StringSlice(unsafe_from_utf8=s))
+    return Path(StringSpan(unsafe_from_utf8=s))
 
 
-def str_slice_to_string(s: StringSlice[ImmutUntrackedOrigin]) -> Optional[String]:
-    """Convert a StringSlice to a String.
+def str_slice_to_string(s: StringSpan[ImmUntrackedOrigin]) -> Optional[String]:
+    """Convert a StringSpan to a String.
 
     Args:
         s: The String to convert.
 
     Returns:
-        A newly allocated String copy of the StringSlice.
+        A newly allocated String copy of the StringSpan.
     """
     return String(s)

@@ -2,7 +2,6 @@
 from std.ffi import c_int, c_uchar
 from slight.connection import Connection
 from slight.c.types import (
-    ImmutUntrackedOrigin,
     MutExternalPointer,
     _sqlite3_index_info_sqlite3_index_constraint_usage,
     sqlite3_connection,
@@ -43,13 +42,13 @@ struct CounterCursor(Movable):
     var done: Bool
 
 
-def counter_connect(
+def counter_connect[origin: ImmOrigin, //](
     db: VTabConnection,
     aux: MutExternalPointer[NoneType],
     module_name: String,
     database_name: String,
     table_name: String,
-    argv: Span[String, ...],
+    argv: Span[String, origin],
 ) raises -> VTabConnectResult[CounterVTab]:
     print("counter_connect called, argc =", len(argv))
     var n = 5
@@ -83,7 +82,7 @@ def counter_open(vtab: MutExternalPointer[CounterVTab]) raises -> CounterCursor:
 def counter_filter(
     cursor: MutExternalPointer[CounterCursor],
     idx_num: c_int,
-    idx_str: Optional[StringSlice[ImmutUntrackedOrigin]],
+    idx_str: Optional[StringSpan[ImmUntrackedOrigin]],
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
     argc: c_int,
 ) raises:
@@ -102,7 +101,7 @@ def counter_eof(cursor: MutExternalPointer[CounterCursor]) -> Bool:
 
 def counter_column(
     cursor: MutExternalPointer[CounterCursor],
-    ctx: Context,
+    mut ctx: Context,
     col: c_int,
 ) raises:
     ctx.result_int64(Int64(cursor[].current))

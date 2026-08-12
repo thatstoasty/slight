@@ -1,3 +1,4 @@
+"""SQLite Result wrapper."""
 from slight.c.types import (
     SQLITE_ABORT,
     SQLITE_AUTH,
@@ -34,7 +35,7 @@ from slight.c.types import (
 )
 
 
-struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, TrivialRegisterPassable, Writable):
+struct SQLite3Result(Equatable, Intable, TrivialRegisterPassable, Writable):
     """A wrapper around SQLite result codes that provides more descriptive error handling and utilities."""
 
     var value: Int32
@@ -121,17 +122,6 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, TrivialRegisterPass
         """
         return Int(self.value)
 
-    def __eq__(self, other: Self) -> Bool:
-        """Checks if this SQLite3Result is equal to another SQLite3Result.
-
-        Args:
-            other: The other SQLite3Result to compare against.
-
-        Returns:
-            True if both SQLite3Result instances have the same result code value, False otherwise.
-        """
-        return self.value == other.value
-
     def __eq__(self, other: Int32) -> Bool:
         """Checks if this SQLite3Result is equal to a raw integer result code.
 
@@ -164,6 +154,9 @@ struct SQLite3Result(Equatable, ImplicitlyCopyable, Intable, TrivialRegisterPass
 
     def write_to(self, mut writer: Some[Writer]):
         """Writes a human-readable string representation of the SQLite3Result, including a description of the result code.
+
+        Args:
+            writer: The writer to write to.
         """
         if self.value == SQLITE_OK:
             writer.write(t"[SQLITE_OK ({self.value})] Successful result")

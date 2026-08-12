@@ -1,6 +1,7 @@
 from slight.connection import Connection
 from slight.row import Row
-from slight.statement import eq_ignore_ascii_case
+from slight.trace import StatementStatus
+from slight.types.value_ref import Null
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 
@@ -113,11 +114,19 @@ struct TestStruct(Defaultable, Movable):
 def test_query_as_type_named() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("""CREATE TABLE test (id INTEGER PRIMARY KEY NOT NULL, name TEXT NOT NULL, flag INTEGER);
-    INSERT INTO test(id, name) VALUES (1, "one");""")
+    INSERT INTO test(id, name, flag) VALUES (1, "one", 7);""")
 
-    var stmt = db.prepare("SELECT id FROM test where name = :name")
+    # Select every column the struct declares: a narrower SELECT makes the
+    # field-count check fail, which currently ends iteration silently and would
+    # make this test vacuous.
+    var stmt = db.prepare("SELECT id, name, flag FROM test where name = :name")
+    var seen = 0
     for row in stmt.query[T=TestStruct]({":name": "one"}):
+        seen += 1
         assert_equal(row.id, 1)
+        assert_equal(row.name, "one")
+        assert_equal(row.flag, 7)
+    assert_equal(seen, 1)
 
 
 def test_unbound_parameters_are_null() raises:
@@ -127,8 +136,9 @@ def test_unbound_parameters_are_null() raises:
     var stmt = db.prepare("INSERT INTO test (x, y) VALUES (:x, :y)")
     _ = stmt.execute({":x": "one"})
     def get_value(r: Row) raises -> NoneType:
-        var result = r.get_string_slice(0)
-        if not result:
+        # Exercises the get_ref() zero-copy escape hatch.
+        var result = r.get_ref(0)
+        if result.isa[Null]():
             return
         raise Error("Expected NULL value!")
 
@@ -195,6 +205,17 @@ def test_exists() raises:
 
 
 def test_list_params() raises:
+    var db = Connection.open_in_memory()
+
+    def get_string(r: Row) raises -> String:
+        return r.get[String](0)
+
+    var params: List[String] = ["abc"]
+    var s = db.one_row[get_string]("SELECT printf('[%s]', ?1)", params)
+    assert_equal(s, "[abc]")
+
+
+def test_array_params() raises:
     var db = Connection.open_in_memory()
 
     def get_string(r: Row) raises -> String:
@@ -362,21 +383,14 @@ def test_bind_parameters() raises:
 
 def test_empty_stmt() raises:
     var db = Connection.open_in_memory()
-
-    var stmt = db.prepare("")
-    assert_equal(stmt.column_count(), 0)
-    
-    # Empty statement should have no SQL
-    var sql = stmt.sql()
-    assert_true(sql is None or sql.value() == "")
-    
-    # Reset should work even on empty statement
-    stmt.reset()
+    with assert_raises(contains="NoStatementError"):
+        var stmt = db.prepare("")
 
 
 def test_comment_stmt() raises:
     var db = Connection.open_in_memory()
-    _ = db.prepare("/*SELECT 1;*/")
+    with assert_raises(contains="NoStatementError"):
+        _ = db.prepare("/*SELECT 1;*/")
 
 
 def test_comment_and_sql_stmt() raises:
@@ -386,8 +400,8 @@ def test_comment_and_sql_stmt() raises:
 
 def test_semi_colon_stmt() raises:
     var db = Connection.open_in_memory()
-    var stmt = db.prepare(";")
-    assert_equal(stmt.column_count(), 0)
+    with assert_raises(contains="NoStatementError"):
+        var stmt = db.prepare(";")
 
 
 def test_utf16_conversion() raises:
@@ -465,6 +479,94 @@ def test_column_name_reference() raises:
     # column name is not refreshed until statement is re-prepared
     var same_column_name = stmt.column_name(0)
     assert_equal(same_column_name, column_name)
+
+
+def test_get_status_is_zero_before_running() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare("SELECT 1")
+
+    # Counters start at zero on a freshly prepared statement.
+    assert_equal(stmt.get_status(StatementStatus.RUN), 0)
+    assert_equal(stmt.get_status(StatementStatus.VM_STEP), 0)
+
+
+def test_get_status_counts_runs() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE t(a INTEGER); INSERT INTO t VALUES (1),(2),(3);")
+    var stmt = db.prepare("SELECT a FROM t ORDER BY a")
+
+    while stmt.step():
+        pass
+    assert_equal(stmt.get_status(StatementStatus.RUN), 1)
+    assert_true(stmt.get_status(StatementStatus.VM_STEP) > 0)
+
+    # Counters accumulate across executions rather than resetting per run.
+    stmt.reset()
+    while stmt.step():
+        pass
+    assert_equal(stmt.get_status(StatementStatus.RUN), 2)
+
+
+def test_get_status_does_not_reset() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE t(a INTEGER); INSERT INTO t VALUES (1),(2);")
+    var stmt = db.prepare("SELECT a FROM t")
+
+    while stmt.step():
+        pass
+
+    var first = stmt.get_status(StatementStatus.VM_STEP)
+    var second = stmt.get_status(StatementStatus.VM_STEP)
+    assert_true(first > 0)
+    assert_equal(first, second)
+
+
+def test_reset_status_returns_prior_value_and_clears() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE t(a INTEGER); INSERT INTO t VALUES (1),(2),(3);")
+    var stmt = db.prepare("SELECT a FROM t ORDER BY a")
+
+    while stmt.step():
+        pass
+
+    var before = stmt.get_status(StatementStatus.VM_STEP)
+    assert_true(before > 0)
+
+    # reset_status reports the value it just cleared...
+    assert_equal(stmt.reset_status(StatementStatus.VM_STEP), before)
+    # ...and the counter is zero afterwards.
+    assert_equal(stmt.get_status(StatementStatus.VM_STEP), 0)
+
+
+def test_reset_status_only_clears_the_requested_counter() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE t(a INTEGER); INSERT INTO t VALUES (1),(2),(3);")
+    var stmt = db.prepare("SELECT a FROM t ORDER BY a")
+
+    while stmt.step():
+        pass
+
+    _ = stmt.reset_status(StatementStatus.VM_STEP)
+    # RUN is untouched by resetting VM_STEP.
+    assert_equal(stmt.get_status(StatementStatus.RUN), 1)
+
+
+def test_status_reflects_query_plan() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE t(a INTEGER); INSERT INTO t VALUES (3),(1),(2);")
+
+    # An ORDER BY over an unindexed column requires a sort and a full scan.
+    var sorted_stmt = db.prepare("SELECT a FROM t ORDER BY a")
+    while sorted_stmt.step():
+        pass
+    assert_true(sorted_stmt.get_status(StatementStatus.SORT) > 0)
+    assert_true(sorted_stmt.get_status(StatementStatus.FULLSCAN_STEP) > 0)
+
+    # A constant SELECT touches no table and needs no sort.
+    var trivial = db.prepare("SELECT 1")
+    _ = trivial.step()
+    assert_equal(trivial.get_status(StatementStatus.SORT), 0)
+    assert_equal(trivial.get_status(StatementStatus.FULLSCAN_STEP), 0)
 
 
 def main() raises:

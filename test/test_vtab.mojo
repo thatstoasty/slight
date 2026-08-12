@@ -1,7 +1,6 @@
 from std.ffi import c_int, c_uchar
 from slight.connection import Connection
 from slight.c.types import (
-    ImmutUntrackedOrigin,
     MutExternalPointer,
     _sqlite3_index_info_sqlite3_index_constraint_usage,
     sqlite3_connection,
@@ -54,13 +53,13 @@ struct GenerateSeriesCursor(Movable):
 
 # ---- xConnect / xCreate --------------------------------------------------
 
-def gs_connect(
+def gs_connect[origin: ImmOrigin, //](
     db: VTabConnection,
     aux: MutExternalPointer[NoneType],
     module_name: String,
     database_name: String,
     table_name: String,
-    argv: Span[String, ...],
+    argv: Span[String, origin],
 ) raises -> VTabConnectResult[GenerateSeriesVTab]:
     """Parse (start, stop, step) from module argv and declare the schema."""
     # argv[0] = module name, argv[1] = database name, argv[2+] = user args
@@ -101,18 +100,18 @@ def gs_best_index(
     """
     var n = Int(index_info[].nConstraint)
     for i in range(n):
-        if index_info[].aConstraint[i].usable == c_uchar(0):
+        if index_info[].aConstraint[unsafe_offset=i].usable == c_uchar(0):
             continue
-        var col = Int(index_info[].aConstraint[i].iColumn)
+        var col = Int(index_info[].aConstraint[unsafe_offset=i].iColumn)
         if col == 1:  # start
-            index_info[].aConstraintUsage[i].argvIndex = c_int(1)
-            index_info[].aConstraintUsage[i].omit = c_uchar(1)
+            index_info[].aConstraintUsage[unsafe_offset=i].argvIndex = c_int(1)
+            index_info[].aConstraintUsage[unsafe_offset=i].omit = c_uchar(1)
         elif col == 2:  # stop
-            index_info[].aConstraintUsage[i].argvIndex = c_int(2)
-            index_info[].aConstraintUsage[i].omit = c_uchar(1)
+            index_info[].aConstraintUsage[unsafe_offset=i].argvIndex = c_int(2)
+            index_info[].aConstraintUsage[unsafe_offset=i].omit = c_uchar(1)
         elif col == 3:  # step
-            index_info[].aConstraintUsage[i].argvIndex = c_int(3)
-            index_info[].aConstraintUsage[i].omit = c_uchar(1)
+            index_info[].aConstraintUsage[unsafe_offset=i].argvIndex = c_int(3)
+            index_info[].aConstraintUsage[unsafe_offset=i].omit = c_uchar(1)
     return False
 
 
@@ -130,7 +129,7 @@ def gs_open(vtab: MutExternalPointer[GenerateSeriesVTab]) raises -> GenerateSeri
 def gs_filter(
     cursor: MutExternalPointer[GenerateSeriesCursor],
     idx_num: c_int,
-    idx_str: Optional[StringSlice[ImmutUntrackedOrigin]],
+    idx_str: Optional[StringSpan[ImmUntrackedOrigin]],
     argv: MutExternalPointer[MutExternalPointer[sqlite3_value]],
     argc: c_int,
 ) raises:
@@ -141,11 +140,11 @@ def gs_filter(
     var stop: Int64 = cursor[].stop
     var step: Int64 = cursor[].step
     if argc > 0:
-        start = sqlite_ffi()[].value_int64(argv[0])
+        start = sqlite_ffi()[].value_int64(argv[unsafe_offset=0])
     if argc > 1:
-        stop = sqlite_ffi()[].value_int64(argv[1])
+        stop = sqlite_ffi()[].value_int64(argv[unsafe_offset=1])
     if argc > 2:
-        step = sqlite_ffi()[].value_int64(argv[2])
+        step = sqlite_ffi()[].value_int64(argv[unsafe_offset=2])
     if step <= 0:
         step = 1
     cursor[].start = start
@@ -172,7 +171,7 @@ def gs_eof(cursor: MutExternalPointer[GenerateSeriesCursor]) -> Bool:
 
 def gs_column(
     cursor: MutExternalPointer[GenerateSeriesCursor],
-    ctx: Context,
+    mut ctx: Context,
     col: c_int,
 ) raises:
     """Return the current value (column 0)."""

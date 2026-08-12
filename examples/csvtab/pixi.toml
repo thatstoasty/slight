@@ -1,6 +1,6 @@
 [workspace]
 authors = ["Mikhail Tavarez <miktavarez@gmail.com>"]
-channels = ["https://conda.modular.com/max", "conda-forge"]
+channels = ["https://conda.modular.com/max-nightly", "conda-forge"]
 name = "csvtab"
 platforms = ["osx-arm64", "linux-64", "linux-aarch64"]
 version = "0.1.0"
@@ -10,5 +10,5 @@ preview = ["pixi-build"]
 run = "mojo main.mojo"
 
 [dependencies]
-mojo = ">=1.0.0b1,<1.0.0b2"
+mojo = ">=1.0.0rc0,<1.0.0"
 slight = { path = "../../" }

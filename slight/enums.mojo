@@ -1,7 +1,9 @@
+"""Informational Enums."""
 from slight.c.types import ResultDestructorFn
 
+
 @fieldwise_init
-struct DataType(Equatable, Movable, TrivialRegisterPassable):
+struct DataType(Equatable, TrivialRegisterPassable, Writable):
     """Fundamental Datatypes.
 
     Every value in SQLite has one of five fundamental datatypes:
@@ -27,17 +29,6 @@ struct DataType(Equatable, Movable, TrivialRegisterPassable):
     comptime NULL = Self(5)
     """`SQLITE_NULL`: NULL."""
 
-    def __eq__(self, other: Self) -> Bool:
-        """Checks if this value is equal to `other`.
-
-        Args:
-            other: The other `DataType` to compare against.
-
-        Returns:
-            True if both `DataType` instances have the same value, False otherwise.
-        """
-        return self.value == other.value
-
     def __eq__(self, other: Int32) -> Bool:
         """Checks if this value is equal to a raw integer value.
 
@@ -51,7 +42,7 @@ struct DataType(Equatable, Movable, TrivialRegisterPassable):
 
 
 @fieldwise_init
-struct TextEncoding(Movable, TrivialRegisterPassable):
+struct TextEncoding(TrivialRegisterPassable, Writable):
     """Text Encodings.
 
     These constant define integer codes that represent the various
@@ -63,8 +54,9 @@ struct TextEncoding(Movable, TrivialRegisterPassable):
     comptime UTF8 = Self(1)
     """`SQLITE_UTF8`: UTF-8 encoding."""
 
+
 @fieldwise_init
-struct DestructorHint(Movable, TrivialRegisterPassable):
+struct DestructorHint(TrivialRegisterPassable, Writable):
     """If the destructor argument is `SQLITE_STATIC`, it means that the content pointer is constant
     and will never change. It does not need to be destroyed. The
     `SQLITE_TRANSIENT` value means that the content will likely change in
@@ -77,9 +69,9 @@ struct DestructorHint(Movable, TrivialRegisterPassable):
 
     var value: Int
     """Internal enum value."""
-    comptime STATIC = Self(0)
+    comptime STATIC = 0
     """`SQLITE_STATIC`: The content pointer is constant and will never change."""
-    comptime TRANSIENT = Self(-1)
+    comptime TRANSIENT = -1
     """`SQLITE_TRANSIENT`: The content will likely change in the near future and SQLite should make its own private copy of the content before returning."""
 
     # Why do I have to do this cursed conversion?
@@ -90,7 +82,7 @@ struct DestructorHint(Movable, TrivialRegisterPassable):
         Returns:
             A function pointer representing the `SQLITE_STATIC` destructor.
         """
-        return UnsafePointer(to=Self.STATIC.value).bitcast[ResultDestructorFn]()[]
+        return Pointer(to=Self.STATIC).unsafe_bitcast[ResultDestructorFn]()[]
 
     @staticmethod
     def transient_destructor() -> ResultDestructorFn:
@@ -99,4 +91,4 @@ struct DestructorHint(Movable, TrivialRegisterPassable):
         Returns:
             A function pointer representing the `SQLITE_TRANSIENT` destructor.
         """
-        return UnsafePointer(to=Self.TRANSIENT.value).bitcast[ResultDestructorFn]()[]
+        return Pointer(to=Self.TRANSIENT).unsafe_bitcast[ResultDestructorFn]()[]

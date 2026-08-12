@@ -2,7 +2,7 @@ from slight.connection import Connection
 from slight.context import Context
 from slight.functions import FunctionFlags
 from slight.row import Row
-from slight.types.value_ref import SQLite3Null, SQLite3Blob, ValueRef
+from slight.types.value_ref import Null, Blob, ValueRef
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 
@@ -11,17 +11,17 @@ from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal,
 # ===----------------------------------------------------------------------=== #
 
 
-def double_it(ctx: Context) raises -> Int64:
+def double_it(mut ctx: Context) raises -> Int64:
     """Return the first argument multiplied by 2."""
     return ctx.get_int64(0) * 2
 
 
-def add_two(ctx: Context) raises -> Float64:
+def add_two(mut ctx: Context) raises -> Float64:
     """Return the sum of the first two arguments as a Float64."""
     return ctx.get_double(0) + ctx.get_double(1)
 
 
-def greet(ctx: Context) raises -> String:
+def greet(mut ctx: Context) raises -> String:
     """Return a greeting string from two text arguments."""
     var name = ctx.get_text(0)
     if not name:
@@ -29,19 +29,19 @@ def greet(ctx: Context) raises -> String:
     return String(t"Hello, {name.value()}!")
 
 
-def constant_42(ctx: Context) raises -> Int64:
+def constant_42(mut ctx: Context) raises -> Int64:
     """Return 42 regardless of arguments (zero-arg function)."""
     return 42
 
 
-def user_data_adder(ctx: Context) raises -> Int64:
+def user_data_adder(mut ctx: Context) raises -> Int64:
     """Add the user_data value (Int64) to the first argument."""
     var user_data = ctx.user_data()
-    var offset = user_data.value().bitcast[Int64]()[] if user_data else 0
+    var offset = user_data.value().unsafe_bitcast[Int64]()[] if user_data else 0
     return ctx.get_int64(0) + offset
 
 
-def nullable_double(ctx: Context) raises -> Optional[Int64]:
+def nullable_double(mut ctx: Context) raises -> Optional[Int64]:
     """Return arg*2 if arg is non-zero, else None (NULL)."""
     var v = ctx.get_int64(0)
     if v == 0:
@@ -54,7 +54,7 @@ def nullable_double(ctx: Context) raises -> Optional[Int64]:
 # ===----------------------------------------------------------------------=== #
 
 
-def _setup_numbers_table(db: Connection) raises:
+def _setup_numbers_table(mut db: Connection) raises:
     """Helper: create a numbers table with values 1-5."""
     db.execute_batch(
         """
@@ -197,7 +197,7 @@ def test_remove_function() raises:
         _ = db.one_row[get_int]("SELECT double_it(5)")
 
 
-def my_concat(ctx: Context) raises -> String:
+def my_concat(mut ctx: Context) raises -> String:
     """Concatenate all string arguments into a single string."""
     var ret = ""
     for idx in range(len(ctx)):
@@ -221,13 +221,13 @@ def test_varargs_function() raises:
     assert_equal(db.one_row[get_text]("SELECT my_concat('a', 'b', 'c')"), "abc")
 
 
-def blob_len(ctx: Context) raises -> Int:
+def blob_len(mut ctx: Context) raises -> Int:
     """Return the length of a blob argument, or 0 if NULL."""
     var raw = ctx.get_raw(0)
-    if raw.isa[SQLite3Null]():
+    if raw.isa[Null]():
         return 0
-    if raw.isa[SQLite3Blob[origin_of(raw)]]():
-        return len(raw[SQLite3Blob[origin_of(raw)]].value)
+    if raw.isa[Blob[origin_of(raw)]]():
+        return len(raw[Blob[origin_of(raw)]].value)
     return 0
 
 
