@@ -5,7 +5,7 @@ from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal,
 from slight import SIMD, Bool, Int, Params, Row, String
 
 
-def assert_current_sum(x: Int, conn: Connection) raises:
+def assert_current_sum(x: Int, mut conn: Connection) raises:
     """Assert that the sum of all values in foo equals x."""
     def get_int(r: Row) raises -> Int:
         return r.get[Int](0)

@@ -82,7 +82,7 @@ def _typed_destructor[T: CopyDestructible](pApp: Optional[MutExternalPointer[Non
 # For scalar functions, SQLite requires xFunc to be non-NULL and
 # xStep/xFinal to be NULL. We call the raw C API directly to pass
 # NULL for the unused callbacks.
-comptime ScalarUDF[V: MoveDestructible] = def(Context) raises thin -> V
+comptime ScalarUDF[V: MoveDestructible] = def(mut ctx: Context) raises thin -> V
 """User provided scalar function callback.
 
 Parameters:

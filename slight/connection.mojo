@@ -218,7 +218,7 @@ struct Connection(Movable):
         """
         return self.db.is_busy()
 
-    def interrupt(self) -> None:
+    def interrupt(mut self) -> None:
         """Interrupts the longest-running query currently executing on this
         connection, causing it to abort at its earliest opportunity.
 
@@ -255,7 +255,7 @@ struct Connection(Movable):
         """
         return self.db.total_changes()
 
-    def prepare(self, sql: String, flags: PrepFlag = PrepFlag.NONE) raises -> Statement[origin_of(self)]:
+    def prepare(mut self, sql: String, flags: PrepFlag = PrepFlag.NONE) raises -> Statement[origin_of(self)]:
         """Prepares a SQL statement for execution.
 
         Args:
@@ -269,6 +269,8 @@ struct Connection(Movable):
             Error: If the underlying SQLite prepare call fails or if multiple statements are found in the SQL string.
         """
         var stmt, tail = self.db.prepare(sql.copy(), flags)
+        if not stmt:
+            raise Error("NoStatementError: Unable to prepare a valid statement from the SQL provided.")
 
         # If there is trailing SQL after the first statement that contains a valid SQL statement, raise an error.
         if tail > 0:
@@ -278,9 +280,9 @@ struct Connection(Movable):
                     "MultipleStatementsError: Prepared statement contains multiple SQL statements. Should be one."
                 )
 
-        return Statement(Pointer(to=self), RawStatement(stmt))
+        return Statement[origin_of(self)](Pointer(to=self), RawStatement(stmt.take()))
 
-    def execute[P: AnyType](self, var sql: String, params: P = ()) raises -> Int64:
+    def execute[P: AnyType](mut self, var sql: String, params: P = ()) raises -> Int64:
         """Executes a SQL statement with the given parameters.
 
         Parameters:
@@ -307,7 +309,7 @@ struct Connection(Movable):
         finally:
             _ = stmt^.finalize()
 
-    def execute_batch(self, sql: Some[Writable]) raises:
+    def execute_batch(mut self, sql: Some[Writable]) raises:
         """Executes a batch of SQL statements.
 
         Args:
@@ -320,8 +322,10 @@ struct Connection(Movable):
         while current_sql.byte_length() > 0:
             # Is it possible to copy the sql string less here? I don't want to keep allocating strings.
             var stmt, tail = self.db.prepare(current_sql.copy(), PrepFlag.NONE)
-            if stmt and Statement(Pointer(to=self), RawStatement(stmt.take())).step():
-                pass  # some pragmas return results
+            if stmt:
+                var s = Statement[origin_of(self)](Pointer(to=self), RawStatement(stmt.take()))
+                if s.step():
+                    pass  # some pragmas return results
 
             if tail == 0 or Int(tail) >= current_sql.byte_length():
                 break
@@ -344,7 +348,7 @@ struct Connection(Movable):
         """
         return self.db.last_insert_row_id()
 
-    def one_column[T: Movable, P: AnyType](self, var sql: String, params: P = ()) raises -> T:
+    def one_column[T: Movable, P: AnyType](mut self, var sql: String, params: P = ()) raises -> T:
         """Fetches a single column from the first row of the result set.
 
         This is a convenience method for queries that return a single scalar
@@ -389,7 +393,7 @@ struct Connection(Movable):
         P: AnyType,
         //,
         transform: RowTransformFn[T],
-    ](self, var sql: String, params: P = ()) raises -> T:
+    ](mut self, var sql: String, params: P = ()) raises -> T:
         """Executes a SQL query and returns a single row.
 
         Parameters:
@@ -424,7 +428,7 @@ struct Connection(Movable):
         P: AnyType,
         //,
         transform: RowTransformFn[T],
-    ](self, var sql: String, params: P = ()) raises -> Optional[T]:
+    ](mut self, var sql: String, params: P = ()) raises -> Optional[T]:
         """Executes a SQL query and returns a single row, or None if no rows are returned.
 
         Parameters:
@@ -584,7 +588,7 @@ struct Connection(Movable):
         else:
             raise self.decode_error(r)
 
-    def transaction(self, behavior: Optional[TransactionBehavior] = None) raises -> Transaction[origin_of(self)]:
+    def transaction(mut self, behavior: Optional[TransactionBehavior] = None) raises -> Transaction[origin_of(self)]:
         """Begin a new transaction with the default behavior (DEFERRED).
 
         The transaction defaults to rolling back when it is dropped. If you
@@ -613,11 +617,11 @@ struct Connection(Movable):
         ```
         """
         if behavior:
-            return Transaction(Pointer(to=self), behavior.value())
+            return Transaction[origin_of(self)](Pointer(to=self), behavior.value())
         else:
-            return Transaction(Pointer(to=self))
+            return Transaction[origin_of(self)](Pointer(to=self))
 
-    def savepoint(self, name: Optional[String] = None) raises -> Savepoint[origin_of(self)]:
+    def savepoint(mut self, name: Optional[String] = None) raises -> Savepoint[origin_of(self)]:
         """Begin a new savepoint with the default behavior (DEFERRED).
 
         The savepoint defaults to rolling back when it is dropped. If you want
@@ -646,15 +650,15 @@ struct Connection(Movable):
         ```
         """
         if name:
-            return Savepoint(Pointer(to=self), name.value())
+            return Savepoint[origin_of(self)](Pointer(to=self), name.value())
         else:
-            return Savepoint(Pointer(to=self))
+            return Savepoint[origin_of(self)](Pointer(to=self))
 
     def pragma_query_value[
         T: Movable,
         //,
         transform: def(Row) raises thin -> T,
-    ](self, pragma: String, schema: Optional[String] = None) raises -> T:
+    ](mut self, pragma: String, schema: Optional[String] = None) raises -> T:
         """Query the current value of a pragma.
 
         Some pragmas will return multiple rows/values which cannot be retrieved
@@ -695,7 +699,7 @@ struct Connection(Movable):
         query.push_pragma(pragma, schema)
         return self.one_row[transform](String(query))
 
-    def pragma_query[callback: def(Row) raises thin -> None](self, schema: Optional[String], pragma: String) raises:
+    def pragma_query[callback: def(Row) raises thin -> None](mut self, schema: Optional[String], pragma: String) raises:
         """Query the current rows/values of a pragma.
 
         Prefer [PRAGMA function](https://sqlite.org/pragma.html#pragfunc) introduced in SQLite 3.20:
@@ -727,12 +731,13 @@ struct Connection(Movable):
         """
         var query = Sql()
         query.push_pragma(pragma, schema)
-        for row in self.prepare(String(query)).query(()):
+        var stmt = self.prepare(String(query))
+        for row in stmt.query(()):
             callback(row)
 
     def pragma[
         T: AnyType, //, callback: def(Row) raises thin -> None
-    ](self, pragma: StringSpan, value: T, schema: Optional[String] = None,) raises:
+    ](mut self, pragma: StringSpan, value: T, schema: Optional[String] = None,) raises:
         """Query the current value(s) of a pragma associated with a value.
 
         This method can be used with query-only pragmas which need an argument
@@ -777,10 +782,11 @@ struct Connection(Movable):
         sql.open_brace()
         sql.push_value(value)
         sql.close_brace()
-        for row in self.prepare(String(sql)).query(()):
+        var stmt = self.prepare(String(sql))
+        for row in stmt.query(()):
             callback(row)
 
-    def pragma_update[T: AnyType, //](self, pragma: StringSpan, value: T, schema: Optional[String] = None) raises:
+    def pragma_update[T: AnyType, //](mut self, pragma: StringSpan, value: T, schema: Optional[String] = None) raises:
         """Set a new value to a pragma.
 
         Some pragmas will return the updated value which cannot be retrieved
@@ -816,7 +822,7 @@ struct Connection(Movable):
 
     def pragma_update_and_check[
         T: Movable, V: AnyType, //, transform: def(Row) raises thin -> T
-    ](self, pragma: StringSpan, value: V, schema: Optional[String] = None) raises -> T:
+    ](mut self, pragma: StringSpan, value: V, schema: Optional[String] = None) raises -> T:
         """Set a new value to a pragma and return the updated value.
 
         Only a few pragmas automatically return the updated value.
@@ -867,7 +873,7 @@ struct Connection(Movable):
     def create_scalar_function[
         P: CopyDestructible, V: MoveDestructible, //, x_func: ScalarUDF[V]
     ](
-        self,
+        mut self,
         fn_name: String,
         n_arg: Int,
         user_data: P,
@@ -905,7 +911,7 @@ struct Connection(Movable):
     def create_scalar_function[
         V: MoveDestructible, //, x_func: ScalarUDF[V]
     ](
-        self,
+        mut self,
         fn_name: String,
         n_arg: Int,
         flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
@@ -948,7 +954,7 @@ struct Connection(Movable):
         step_fn: AggregateStepUDF[A],
         final_fn: AggregateFinalUDF[A, T],
     ](
-        self,
+        mut self,
         fn_name: String,
         n_arg: Int,
         user_data: P,
@@ -996,7 +1002,7 @@ struct Connection(Movable):
         step_fn: AggregateStepUDF[A],
         final_fn: AggregateFinalUDF[A, T],
     ](
-        self,
+        mut self,
         fn_name: String,
         n_arg: Int,
         flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
@@ -1044,7 +1050,7 @@ struct Connection(Movable):
         value_fn: WindowAggregateValueUDF[A, T],
         inverse_fn: WindowAggregateInverseUDF[A],
     ](
-        self,
+        mut self,
         fn_name: String,
         n_arg: Int,
         user_data: P,
@@ -1099,7 +1105,7 @@ struct Connection(Movable):
         value_fn: WindowAggregateValueUDF[A, T],
         inverse_fn: WindowAggregateInverseUDF[A],
     ](
-        self,
+        mut self,
         fn_name: String,
         n_arg: Int,
         flags: FunctionFlags = FunctionFlags.UTF8 | FunctionFlags.DETERMINISTIC,
@@ -1192,7 +1198,7 @@ struct Connection(Movable):
         ](module_name)
         self.raise_if_error(result)
 
-    def remove_function(self, fn_name: String, n_arg: Int) raises:
+    def remove_function(mut self, fn_name: String, n_arg: Int) raises:
         """Remove a user-defined function from a database connection.
 
         `fn_name` and `n_arg` should match the name and number of arguments
@@ -1211,7 +1217,7 @@ struct Connection(Movable):
         var result = self.db.remove_function(fn_name, n_arg)
         self.raise_if_error(result)
 
-    def busy_timeout(self, ms: Int) raises:
+    def busy_timeout(mut self, ms: Int) raises:
         """Set a busy handler that sleeps for a specified amount of time when a
         table is locked.
 
@@ -1235,7 +1241,7 @@ struct Connection(Movable):
         """
         self.raise_if_error(self.db.busy_timeout(c_int(ms)))
 
-    def register_busy_handler(self, callback: BusyHandlerFn) raises:
+    def register_busy_handler(mut self, callback: BusyHandlerFn) raises:
         """Register a callback to handle `SQLITE_BUSY` errors.
 
         If `callback` is `None`, then `SQLITE_BUSY` is returned immediately
@@ -1264,7 +1270,7 @@ struct Connection(Movable):
         """
         self.raise_if_error(self.db.busy_handler(callback))
 
-    def clear_busy_handler(self) raises:
+    def clear_busy_handler(mut self) raises:
         """Clear the busy handler, if any.
 
         Raises:
@@ -1289,7 +1295,7 @@ struct Connection(Movable):
             raise Error(t"{limit} is invalid")
         return rc
 
-    def set_limit(self, limit: Limit, new_val: Int32) raises -> Int32:
+    def set_limit(mut self, limit: Limit, new_val: Int32) raises -> Int32:
         """Changes a run-time `Limit`, returning the prior value.
 
         Args:
@@ -1309,7 +1315,7 @@ struct Connection(Movable):
             raise Error(t"{limit} is invalid")
         return rc
 
-    def register_trace_function(self, mask: TraceEventCodes, trace_fn: TraceFn) raises:
+    def register_trace_function(mut self, mask: TraceEventCodes, trace_fn: TraceFn) raises:
         """Register a trace callback.
 
         The callback will be invoked for each trace event whose type is
@@ -1327,7 +1333,7 @@ struct Connection(Movable):
         """
         self.raise_if_error(self.db.trace_v2(mask, trace_fn))
 
-    def clear_trace_function(self) raises:
+    def clear_trace_function(mut self) raises:
         """Clear the trace callback, if any.
 
         Raises:
@@ -1335,7 +1341,7 @@ struct Connection(Movable):
         """
         self.raise_if_error(self.db.clear_trace_v2())
 
-    def register_commit_hook(self, callback: CommitHookFn):
+    def register_commit_hook(mut self, callback: CommitHookFn):
         """Register a callback invoked whenever a transaction is committed.
 
         There can only be a single commit hook per connection. Registering a
@@ -1350,11 +1356,11 @@ struct Connection(Movable):
         """
         self.db.register_commit_hook(callback)
 
-    def clear_commit_hook(self):
+    def clear_commit_hook(mut self):
         """Unregister the commit hook, if any."""
         self.db.clear_commit_hook()
 
-    def register_rollback_hook(self, callback: RollbackHookFn):
+    def register_rollback_hook(mut self, callback: RollbackHookFn):
         """Register a callback invoked whenever a transaction is rolled back.
 
         There can only be a single rollback hook per connection. Registering
@@ -1366,11 +1372,11 @@ struct Connection(Movable):
         """
         self.db.register_rollback_hook(callback)
 
-    def clear_rollback_hook(self):
+    def clear_rollback_hook(mut self):
         """Unregister the rollback hook, if any."""
         self.db.clear_rollback_hook()
 
-    def register_update_hook(self, callback: UpdateHookFn):
+    def register_update_hook(mut self, callback: UpdateHookFn):
         """Register a callback invoked whenever a row is inserted, updated,
         or deleted in a rowid table.
 
@@ -1385,12 +1391,12 @@ struct Connection(Movable):
         """
         self.db.register_update_hook(callback)
 
-    def clear_update_hook(self):
+    def clear_update_hook(mut self):
         """Unregister the update hook, if any."""
         self.db.clear_update_hook()
 
     def create_collation(
-        self, var name: String, compare: CollationCompareFn, flags: FunctionFlags = FunctionFlags.UTF8
+        mut self, var name: String, compare: CollationCompareFn, flags: FunctionFlags = FunctionFlags.UTF8
     ) raises:
         """Define a new collating sequence for use in `ORDER BY`, `COLLATE`, indexes, etc.
 
@@ -1407,7 +1413,7 @@ struct Connection(Movable):
         """
         self.raise_if_error(self.db.create_collation(name, c_int(flags.value), compare))
 
-    def remove_collation(self, name: String, flags: FunctionFlags = FunctionFlags.UTF8) raises:
+    def remove_collation(mut self, name: String, flags: FunctionFlags = FunctionFlags.UTF8) raises:
         """Remove a previously registered collating sequence.
 
         Args:
@@ -1421,7 +1427,7 @@ struct Connection(Movable):
         var name_copy = name
         self.raise_if_error(self.db.remove_collation(name_copy, c_int(flags.value)))
 
-    def register_progress_handler(self, n_ops: Int, callback: ProgressHandlerFn):
+    def register_progress_handler(mut self, n_ops: Int, callback: ProgressHandlerFn):
         """Register a callback invoked approximately every `n_ops` virtual
         machine instructions during query execution.
 
@@ -1438,11 +1444,11 @@ struct Connection(Movable):
         """
         self.db.register_progress_handler(n_ops, callback)
 
-    def clear_progress_handler(self):
+    def clear_progress_handler(mut self):
         """Unregister the progress handler, if any."""
         self.db.clear_progress_handler()
 
-    def register_authorizer(self, callback: AuthorizerFn) raises:
+    def register_authorizer(mut self, callback: AuthorizerFn) raises:
         """Register an authorizer callback invoked during statement
         preparation for each action requiring authorization.
 
@@ -1460,7 +1466,7 @@ struct Connection(Movable):
         """
         self.raise_if_error(self.db.register_authorizer(callback))
 
-    def clear_authorizer(self) raises:
+    def clear_authorizer(mut self) raises:
         """Unregister the authorizer callback, if any.
 
         Raises:
@@ -1468,7 +1474,7 @@ struct Connection(Movable):
         """
         self.raise_if_error(self.db.clear_authorizer())
 
-    def log(self, err_code: Int32, mut msg: String):
+    def log(mut self, err_code: Int32, mut msg: String):
         """Write a message to the SQLite error log.
 
         Args:
@@ -1487,7 +1493,7 @@ struct Connection(Movable):
             Error: If the underlying SQLite call fails.
         """
         self.raise_if_error(self.db.set_extension_loading(enable=True))
-        return ExtensionLoadGuard(Pointer(to=self))
+        return ExtensionLoadGuard[origin_of(self)](Pointer(to=self))
 
     def disable_extension_loading(mut self) raises:
         """Disable extension loading for this connection.
@@ -1512,7 +1518,7 @@ struct Connection(Movable):
         """
         self.db.load_extension(dylib_path, entry_point)
 
-    def serialize(self, schema: String = "main") raises -> List[Byte]:
+    def serialize(mut self, schema: String = "main") raises -> List[Byte]:
         """Serializes a database into an in-memory byte buffer in the standard
         SQLite file format.
 
@@ -1574,7 +1580,7 @@ struct Connection(Movable):
         """
         return self.db.is_locked(rc)
 
-    def wait_for_unlock_notify(self) -> SQLite3Result:
+    def wait_for_unlock_notify(mut self) -> SQLite3Result:
         """Block until an unlock-notify callback fires, then return SQLITE_OK.
 
         Should only be called after a `SQLITE_LOCKED` result in shared-cache mode.
@@ -1586,7 +1592,7 @@ struct Connection(Movable):
         """
         return self.db.wait_for_unlock_notify()
 
-    def wal_checkpoint(self, schema: Optional[String] = None) raises:
+    def wal_checkpoint(mut self, schema: Optional[String] = None) raises:
         """Checkpoints the write-ahead log using the default (passive) mode.
 
         This is equivalent to `wal_checkpoint_v2(CheckpointMode.PASSIVE, schema)`
@@ -1601,7 +1607,7 @@ struct Connection(Movable):
         """
         self.db.wal_checkpoint(schema.copy())
 
-    def wal_checkpoint_v2(self, mode: CheckpointMode, schema: Optional[String] = None) raises -> Tuple[Int, Int]:
+    def wal_checkpoint_v2(mut self, mode: CheckpointMode, schema: Optional[String] = None) raises -> Tuple[Int, Int]:
         """Checkpoints the write-ahead log with additional control over the
         checkpoint operation.
 
@@ -1650,7 +1656,7 @@ struct Connection(Movable):
         Raises:
             Error: If the backup operation could not be initialized.
         """
-        return Backup(Pointer(to=dest), Pointer(to=self), dest_schema, source_schema)
+        return Backup[origin_of(dest), origin_of(self)](Pointer(to=dest), Pointer(to=self), dest_schema, source_schema)
 
     def backup_to(mut self, mut dest: Connection, dest_schema: String = "main", source_schema: String = "main") raises:
         """Performs a full online backup of this connection's database into
@@ -1674,7 +1680,7 @@ struct Connection(Movable):
         Raises:
             Error: If the backup could not be initialized, or if it fails while copying pages.
         """
-        var backup = Backup(Pointer(to=dest), Pointer(to=self), dest_schema, source_schema)
+        var backup = Backup[origin_of(dest), origin_of(self)](Pointer(to=dest), Pointer(to=self), dest_schema, source_schema)
         try:
             while backup.step(-1):
                 pass
@@ -1716,4 +1722,4 @@ struct Connection(Movable):
                 self.unsafe_ptr(), schema, table, column, row_id, flags, ppBlob_ptr
             )
         )
-        return Blob[read_only=read_only](Pointer(to=self), ppBlob)
+        return Blob[origin_of(self), read_only=read_only](Pointer(to=self), ppBlob)

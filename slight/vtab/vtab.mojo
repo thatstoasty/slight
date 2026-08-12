@@ -268,9 +268,9 @@ Parameters:
 """
 
 comptime VTabColumnFn[C: MoveDestructible] = def(
-    MutExternalPointer[C],
-    Context,
-    c_int,
+    cursor: MutExternalPointer[C],
+    mut ctx: Context,
+    col: c_int,
 ) raises thin
 """User-provided xColumn callback.
 

@@ -100,7 +100,7 @@ def fake_eof(cursor: MutExternalPointer[FakeCursor]) -> Bool:
 
 def fake_column(
     cursor: MutExternalPointer[FakeCursor],
-    ctx: Context,
+    mut ctx: Context,
     col: c_int,
 ) raises:
     ctx.result_text(cursor[].rows[cursor[].row_idx][Int(col)])

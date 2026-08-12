@@ -9,7 +9,7 @@ from slight.row import Row
 from slight.transaction import DeleteBehavior, Savepoint, Transaction, TransactionBehavior
 
 
-def print_account_balances(db: Connection) raises:
+def print_account_balances(mut db: Connection) raises:
     """Helper function to print all account balances."""
     print("Current account balances:")
     var stmt = db.prepare("SELECT name, balance FROM accounts ORDER BY name")
@@ -83,7 +83,7 @@ def example_savepoints() raises:
         INSERT INTO inventory VALUES ('Apples', 100);
     """)
 
-    def print_inventory(conn: Connection) raises:
+    def print_inventory(mut conn: Connection) raises:
         var stmt = conn.prepare("SELECT item, quantity FROM inventory")
         for row in stmt.query(()):
             print("  ", row.get[String](0), ":", row.get[Int](1))

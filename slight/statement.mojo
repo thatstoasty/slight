@@ -9,6 +9,7 @@ from slight.sqlite_string import SQLiteMallocString
 from slight.connection import Connection
 from slight.params import List, Params
 from slight.raw_statement import RawStatement
+from slight.trace import StatementStatus
 from slight.result import SQLite3Result
 from slight.row import MappedRows, Row, Rows, TypedRows, RowTransformFn
 from slight.types.from_sql import FromSQL
@@ -111,7 +112,7 @@ def eq_ignore_ascii_case(a: ImmSpan[Byte, ...], b: ImmSpan[Byte, ...]) -> Bool:
     return True
 
 
-struct Statement[conn: ImmOrigin](Movable):
+struct Statement[conn: MutOrigin](Movable):
     """A prepared SQL statement that can be executed multiple times with different parameters.
 
     This struct wraps a SQLite prepared statement and provides methods for binding parameters,
@@ -270,7 +271,7 @@ struct Statement[conn: ImmOrigin](Movable):
         """
         self.connection[].raise_if_error(self.stmt^.finalize())
 
-    def step(self) raises -> Bool:
+    def step(mut self) raises -> Bool:
         """Executes the statement and advances to the next row.
 
         Returns:
@@ -291,7 +292,7 @@ struct Statement[conn: ImmOrigin](Movable):
             else:
                 raise Error("Unknown error occurred during step execution: ", r)
 
-    def reset(self) raises -> None:
+    def reset(mut self) raises -> None:
         """Resets the statement to its initial state for re-execution.
 
         This allows the statement to be executed again with the same or different
@@ -302,7 +303,7 @@ struct Statement[conn: ImmOrigin](Movable):
         """
         self.connection[].raise_if_error(self.stmt.reset())
 
-    def _execute(self) raises -> Int64:
+    def _execute(mut self) raises -> Int64:
         """Executes the statement.
 
         This is a private function meant to be called by the public execute methods, which handle parameter binding.
@@ -332,7 +333,7 @@ struct Statement[conn: ImmOrigin](Movable):
             else:
                 raise Error("Unknown error occurred during step execution: ", r)
 
-    def execute[P: AnyType](self, params: P = ()) raises -> Int64:
+    def execute[P: AnyType](mut self, params: P = ()) raises -> Int64:
         """Executes the statement with the given parameters and returns the number of affected rows.
 
         This method is intended for statements that don't return rows (INSERT, UPDATE, DELETE).
@@ -357,7 +358,7 @@ struct Statement[conn: ImmOrigin](Movable):
         params.bind(self)
         return self._execute()
 
-    def bind_null(self, index: UInt) raises -> None:
+    def bind_null(mut self, index: UInt) raises -> None:
         """Binds a NULL value to the specified parameter.
 
         Args:
@@ -368,7 +369,7 @@ struct Statement[conn: ImmOrigin](Movable):
         """
         self.connection[].raise_if_error(self.stmt.bind_null(index))
 
-    def bind_int64(self, index: UInt, value: Int64) raises -> None:
+    def bind_int64(mut self, index: UInt, value: Int64) raises -> None:
         """Binds a 64-bit integer value to the specified parameter.
 
         Args:
@@ -380,7 +381,7 @@ struct Statement[conn: ImmOrigin](Movable):
         """
         self.connection[].raise_if_error(self.stmt.bind_int64(index, value))
 
-    def bind_double(self, index: UInt, value: Float64) raises -> None:
+    def bind_double(mut self, index: UInt, value: Float64) raises -> None:
         """Binds a double-precision float value to the specified parameter.
 
         Args:
@@ -392,7 +393,7 @@ struct Statement[conn: ImmOrigin](Movable):
         """
         self.connection[].raise_if_error(self.stmt.bind_double(index, value))
 
-    def bind_text[origin: ImmOrigin, //](self, index: UInt, value: StringSpan[origin]) raises -> None:
+    def bind_text[origin: ImmOrigin, //](mut self, index: UInt, value: StringSpan[origin]) raises -> None:
         """Binds a text string value to the specified parameter.
 
         The text is borrowed rather than copied on the Mojo side; SQLite is
@@ -413,7 +414,7 @@ struct Statement[conn: ImmOrigin](Movable):
         # Enforce transient destructor so sqlite copies the data.
         self.connection[].raise_if_error(self.stmt.bind_text(index, value, DestructorHint.transient_destructor()))
 
-    def bind_blob[origin: ImmOrigin, //](self, index: UInt, value: ImmSpan[Byte, origin]) raises -> None:
+    def bind_blob[origin: ImmOrigin, //](mut self, index: UInt, value: ImmSpan[Byte, origin]) raises -> None:
         """Binds a blob value to the specified parameter.
 
         Args:
@@ -437,7 +438,7 @@ struct Statement[conn: ImmOrigin](Movable):
         """
         return self.stmt.bind_parameter_index(name^)
 
-    def bind_parameter[T: AnyType](self, parameter: T, index: UInt) raises:
+    def bind_parameter[T: AnyType](mut self, parameter: T, index: UInt) raises:
         """Binds a parameter to a specific position in the statement.
 
         Parameters:
@@ -487,8 +488,16 @@ struct Statement[conn: ImmOrigin](Movable):
             self.bind_blob(index, borrowed[value_ref.Blob[param_origin]].value)
         else:
             raise Error("Unsupported parameter type")
+    
+    def bind_parameter_count(self) -> Int32:
+        """Returns the number of parameters in the prepared statement.
 
-    def query[P: AnyType, //](self, params: P = ()) raises -> Rows[Self.conn, origin_of(self)]:
+        Returns:
+            The number of SQL parameters (?, ?NNN, :VVV, @VVV, $VVV) in the statement.
+        """
+        return self.stmt.bind_parameter_count()
+
+    def query[P: AnyType, //](mut self, params: P = ()) raises -> Rows[Self.conn, origin_of(self)]:
         """Executes the statement as a query and returns an iterator over the result rows.
 
         This method is intended for SELECT statements that return data.
@@ -517,7 +526,7 @@ struct Statement[conn: ImmOrigin](Movable):
         P: AnyType,
         //,
         transform: RowTransformFn[T],
-    ](self, params: P = ()) raises -> MappedRows[transform[Self.conn, origin_of(self)]]:
+    ](mut self, params: P = ()) raises -> MappedRows[transform[Self.conn, origin_of(self)]]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
         This method applies a transformation function to each row returned by the query,
@@ -546,7 +555,7 @@ struct Statement[conn: ImmOrigin](Movable):
         P: AnyType,
         //,
         T: MoveDestructible,
-    ](self, params: P = ()) raises -> TypedRows[Self.conn, origin_of(self), T]:
+    ](mut self, params: P = ()) raises -> TypedRows[Self.conn, origin_of(self), T]:
         """Executes the query and returns a mapped iterator that transforms each row.
 
         This method applies a transformation function to each row returned by the query,
@@ -570,7 +579,7 @@ struct Statement[conn: ImmOrigin](Movable):
         )
         return TypedRows[Self.conn, origin_of(self), T](self.query(params))
 
-    def exists[P: AnyType](self, params: P = ()) raises -> Bool:
+    def exists[P: AnyType](mut self, params: P = ()) raises -> Bool:
         """Checks if the query returns at least one row.
 
         This is a convenience method that executes the query and returns True
@@ -599,7 +608,7 @@ struct Statement[conn: ImmOrigin](Movable):
         except StopIteration:
             return False
 
-    def one_row[T: Movable, P: AnyType, //, transform: RowTransformFn[T]](self, params: P = ()) raises -> T:
+    def one_row[T: Movable, P: AnyType, //, transform: RowTransformFn[T]](mut self, params: P = ()) raises -> T:
         """Executes a SQL query and returns a single row.
 
         Parameters:
@@ -627,7 +636,7 @@ struct Statement[conn: ImmOrigin](Movable):
 
     def maybe_one_row[
         T: Movable, P: AnyType, //, transform: RowTransformFn[T]
-    ](self, params: P = ()) raises -> Optional[T]:
+    ](mut self, params: P = ()) raises -> Optional[T]:
         """Executes a SQL query and returns a single row, or None if no rows are returned.
 
         Parameters:
@@ -653,7 +662,7 @@ struct Statement[conn: ImmOrigin](Movable):
         except StopIteration:
             return None
 
-    def one_column[T: Movable, P: AnyType](self, params: P = ()) raises -> T:
+    def one_column[T: Movable, P: AnyType](mut self, params: P = ()) raises -> T:
         """Fetches a single column from the first row of the result set.
 
         This is a convenience method for queries that return a single scalar
@@ -687,7 +696,7 @@ struct Statement[conn: ImmOrigin](Movable):
             raise Error("No rows returned by query.")
         return row.get[T](0)
 
-    def clear_bindings(self) raises -> None:
+    def clear_bindings(mut self) raises -> None:
         """Clears all bound parameters from the statement.
 
         This resets the statement's parameter bindings, allowing you to
@@ -762,7 +771,7 @@ struct Statement[conn: ImmOrigin](Movable):
 
         raise Error("InvalidColumnNameError: no column with the specified name exists.")
 
-    def insert[P: AnyType](self, params: P = ()) raises -> Int64:
+    def insert[P: AnyType](mut self, params: P = ()) raises -> Int64:
         """Executes an INSERT statement and returns the last inserted row ID.
 
         This is a convenience method for executing INSERT statements that
@@ -810,6 +819,42 @@ struct Statement[conn: ImmOrigin](Movable):
             True if the statement is read-only, False otherwise.
         """
         return self.stmt.is_read_only()
+
+    def get_status(self, status: StatementStatus) -> Int32:
+        """Returns the current value of a status counter for this statement.
+
+        Counters accumulate across executions of the statement; the counter is
+        left unchanged by this call. Use `reset_status` to read and reset it.
+
+        ```mojo
+        from slight import Connection
+        from slight.trace import StatementStatus
+
+        def main() raises:
+            var conn = Connection.open_in_memory()
+            var stmt = conn.prepare("SELECT 1")
+            _ = stmt.step()
+            print(stmt.get_status(StatementStatus.VM_STEP))
+        ```
+
+        Args:
+            status: Which counter to read.
+
+        Returns:
+            The current value of the requested counter.
+        """
+        return self.stmt.get_status(status)
+
+    def reset_status(mut self, status: StatementStatus) -> Int32:
+        """Returns the current value of a status counter, then resets it to zero.
+
+        Args:
+            status: Which counter to read and reset.
+
+        Returns:
+            The value of the counter before it was reset.
+        """
+        return self.stmt.reset_status(status)
 
     def column_names(self) raises -> List[StringSpan[origin_of(self)]]:
         """Get all the column names in the result set of the prepared statement.

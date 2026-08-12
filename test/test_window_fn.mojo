@@ -32,7 +32,7 @@ def win_sum_value(acc: Optional[Int64]) raises -> Optional[Int64]:
 # Window function tests
 # ===----------------------------------------------------------------------=== #
 
-def _setup_numbers_table(db: Connection) raises:
+def _setup_numbers_table(mut db: Connection) raises:
     """Helper: create a numbers table with values 1-5."""
     db.execute_batch(
         """

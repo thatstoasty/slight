@@ -4,7 +4,7 @@ from slight.c.types import MutExternalPointer, sqlite3_connection
 from slight.result import SQLite3Result
 
 
-def error_msg[conn_origin: ImmOrigin](db: ImmPointer[sqlite3_connection, conn_origin], code: SQLite3Result) -> Optional[String]:
+def error_msg[conn_origin: ImmOrigin, //](db: ImmPointer[sqlite3_connection, conn_origin], code: SQLite3Result) -> Optional[String]:
     """Checks for the error message set in sqlite3, or what the description of the provided code is.
 
     Args:
@@ -26,7 +26,7 @@ def error_msg[conn_origin: ImmOrigin](db: ImmPointer[sqlite3_connection, conn_or
     return String(unsafe_from_utf8_ptr=ptr.value())
 
 
-def raise_if_error[conn_origin: ImmOrigin](db: ImmPointer[sqlite3_connection, conn_origin], code: SQLite3Result) raises:
+def raise_if_error[conn_origin: ImmOrigin, //](db: ImmPointer[sqlite3_connection, conn_origin], code: SQLite3Result) raises:
     """Raises if the SQLite error code is not `SQLITE_OK`.
 
     Args:
@@ -42,7 +42,7 @@ def raise_if_error[conn_origin: ImmOrigin](db: ImmPointer[sqlite3_connection, co
     raise Error(error_from_sqlite_code(code, error_msg(db, code)))
 
 
-def decode_error[conn_origin: ImmOrigin](db: ImmPointer[sqlite3_connection, conn_origin], code: SQLite3Result) -> Error:
+def decode_error[conn_origin: ImmOrigin, //](db: ImmPointer[sqlite3_connection, conn_origin], code: SQLite3Result) -> Error:
     """Returns an Error if the SQLite error code is not `SQLITE_OK`.
 
     Args:

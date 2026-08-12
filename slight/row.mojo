@@ -79,7 +79,7 @@ __extension StringSpan(RowIndex):
         return stmt.column_index(self)
 
 
-# comptime RowTransformFn[T: Movable, conn: ImmOrigin, statement: ImmOrigin] = def(Row[conn, statement]) raises -> T
+# comptime RowTransformFn[T: Movable, conn: MutOrigin, statement: MutOrigin] = def(Row[conn, statement]) raises -> T
 # """A type alias for a function that transforms a Row into a value of type T.
 
 # Parameters:
@@ -91,13 +91,13 @@ __extension StringSpan(RowIndex):
 # TODO: I tried to include the connection and statement origins in the RowTransformFn type alias,
 # but it causes parameter binding issues in the connection class.
 # And I don't want to constrain functionality more.
-comptime RowTransformFn[T: Movable] = def[conn: ImmOrigin, statement: ImmOrigin](Row[conn, statement]) raises thin -> T
+comptime RowTransformFn[T: Movable] = def[conn: MutOrigin, statement: MutOrigin](Row[conn, statement]) raises thin -> T
 """A type alias for a function that transforms a Row into a value of type T.
 
 Parameters:
     T: The target type to transform the Row into.
 """
-comptime BoundRowTransformFn[T: Movable, conn: ImmOrigin, statement: ImmOrigin] = def(
+comptime BoundRowTransformFn[T: Movable, conn: MutOrigin, statement: MutOrigin] = def(
     Row[conn, statement]
 ) raises thin -> T
 """A type alias for a function that transforms a Row into a value of type T.
@@ -110,7 +110,7 @@ Parameters:
 
 
 @fieldwise_init
-struct Row[conn: ImmOrigin, statement: ImmOrigin](Copyable, Writable):
+struct Row[conn: MutOrigin, statement: MutOrigin](Copyable, Writable):
     """Represents a single row in the result set of a SQL query.
 
     A `Row` is only meaningful while the statement is positioned on it.
@@ -208,7 +208,7 @@ struct Row[conn: ImmOrigin, statement: ImmOrigin](Copyable, Writable):
 
 
 @fieldwise_init
-struct Rows[conn: ImmOrigin, statement: ImmOrigin](Copyable, Iterator):
+struct Rows[conn: MutOrigin, statement: MutOrigin](Copyable, Iterator):
     """An iterator over rows returned by a SQL query.
 
     Parameters:
@@ -292,7 +292,7 @@ struct Rows[conn: ImmOrigin, statement: ImmOrigin](Copyable, Iterator):
 
 
 struct MappedRows[
-    T: Movable, conn: ImmOrigin, statement: ImmOrigin, //, transform: BoundRowTransformFn[T, conn, statement]
+    T: Movable, conn: MutOrigin, statement: MutOrigin, //, transform: BoundRowTransformFn[T, conn, statement]
 ](Copyable, Iterator):
     """An iterator that transforms rows using a mapping function.
 
@@ -369,7 +369,7 @@ def __all_dtors_are_trivial[T: AnyType]() -> Bool:
     return True
 
 
-struct TypedRows[conn: ImmOrigin, statement: ImmOrigin, T: MoveDestructible](Copyable, Iterator):
+struct TypedRows[conn: MutOrigin, statement: MutOrigin, T: MoveDestructible](Copyable, Iterator):
     """An iterator that transforms rows using a mapping function.
 
     Parameters:
@@ -392,7 +392,8 @@ struct TypedRows[conn: ImmOrigin, statement: ImmOrigin, T: MoveDestructible](Cop
         """
         self.rows = rows.copy()
 
-    def _transform(self, row: Row[Self.conn, Self.statement], out result: Self.T) raises:
+    @staticmethod
+    def _transform(row: Row[Self.conn, Self.statement], out result: Self.T) raises:
         """Transforms a Row into the target type T.
 
         Args:
@@ -421,7 +422,7 @@ struct TypedRows[conn: ImmOrigin, statement: ImmOrigin, T: MoveDestructible](Cop
         comptime field_names = r.field_names()
         comptime field_types = r.field_types()
 
-        var column_count = self.rows.stmt[].column_count()
+        var column_count = row.stmt[].column_count()
         if field_count != Int(column_count):
             raise Error(
                 (
@@ -459,7 +460,7 @@ struct TypedRows[conn: ImmOrigin, statement: ImmOrigin, T: MoveDestructible](Cop
         """
         var result = self.rows.__next__()
         try:
-            return self._transform(result)
+            return Self._transform(result)
         except e:
             raise StopIteration()
 

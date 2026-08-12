@@ -98,7 +98,7 @@ def simple_eof(cursor: MutExternalPointer[SimpleCursor]) -> Bool:
 
 def simple_column(
     cursor: MutExternalPointer[SimpleCursor],
-    ctx: Context,
+    mut ctx: Context,
     col: c_int,
 ) raises:
     ctx.result_int64(Int64(cursor[].current))

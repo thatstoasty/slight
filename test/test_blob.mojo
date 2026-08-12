@@ -2,7 +2,9 @@
 
 from std.testing import assert_equal, assert_raises, TestSuite
 
+from std.ffi import c_int
 from slight import Connection, Row
+from slight.api import sqlite_ffi
 
 
 def test_blob_read_matches_inserted_data() raises:
@@ -75,7 +77,15 @@ def test_blob_write_to_read_only_fails() raises:
     # to confirm SQLite itself rejects the write with SQLITE_READONLY.
     var write_failed = False
     try:
-        blob.conn[].db.blob_write(blob.handle, Span(patch), 0)
+        var span = Span(patch)
+        blob._conn[].raise_if_error(
+            sqlite_ffi()[].blob_write(
+                blob.unsafe_ptr(),
+                span.unsafe_ptr().unsafe_bitcast[NoneType](),
+                c_int(len(span)),
+                c_int(0),
+            )
+        )
     except:
         write_failed = True
 

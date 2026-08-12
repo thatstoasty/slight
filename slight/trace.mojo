@@ -356,7 +356,7 @@ struct TraceEvent:
             The current value of the counter.
         """
         var stmt = self._p.unsafe_bitcast[sqlite3_stmt]()
-        return Int32(sqlite_ffi()[].stmt_status(stmt, c_int(status.value), c_int(0)).value)
+        return sqlite_ffi()[].stmt_status(stmt, c_int(status.value), c_int(0))
 
     def is_autocommit(self) -> Bool:
         """Test whether the connection is in auto-commit mode.

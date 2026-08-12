@@ -741,7 +741,7 @@ def csv_eof(cursor: MutExternalPointer[CsvCursor]) -> Bool:
 
 def csv_column(
     cursor: MutExternalPointer[CsvCursor],
-    ctx: Context,
+    mut ctx: Context,
     col: c_int,
 ) raises:
     """Return the value of column ``col`` from the current row as TEXT.

@@ -103,7 +103,7 @@ struct TransactionState(Equatable, ImplicitlyCopyable, TrivialRegisterPassable):
         return self.value == other.value
 
 
-struct Transaction[conn_origin: ImmOrigin](Movable):
+struct Transaction[conn_origin: MutOrigin](Movable):
     """Represents a transaction on a database connection.
 
     Parameters:
@@ -384,7 +384,7 @@ struct Transaction[conn_origin: ImmOrigin](Movable):
             raise Error("Transaction deleted unexpectedly")
 
 
-struct Savepoint[conn_origin: ImmOrigin](Movable):
+struct Savepoint[conn_origin: MutOrigin](Movable):
     """Represents a savepoint on a database connection.
 
     Parameters:

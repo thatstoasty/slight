@@ -22,7 +22,7 @@ def free_auxdata(ptr: Optional[MutExternalPointer[NoneType]]) abi("C"):
 # ===----------------------------------------------------------------------=== #
 
 
-def detect_first_call(ctx: Context) raises -> Int64:
+def detect_first_call(mut ctx: Context) raises -> Int64:
     """Returns 1 on the first call (no auxdata set), 0 on subsequent calls.
 
     Allocates and stores a sentinel Int64 as auxdata at index 0 on the first
@@ -37,7 +37,7 @@ def detect_first_call(ctx: Context) raises -> Int64:
     return Int64(0)
 
 
-def round_trip_auxdata(ctx: Context) raises -> Int64:
+def round_trip_auxdata(mut ctx: Context) raises -> Int64:
     """Stores (arg * 2) as auxdata at index 0, then reads and returns it.
 
     Tests that a value stored with set_auxdata is immediately visible via
@@ -51,7 +51,7 @@ def round_trip_auxdata(ctx: Context) raises -> Int64:
     return stored.value().unsafe_bitcast[Int64]()[]
 
 
-def overwrite_auxdata(ctx: Context) raises -> Int64:
+def overwrite_auxdata(mut ctx: Context) raises -> Int64:
     """Sets auxdata at index 0 twice and returns the value from the second set.
 
     Verifies that a second call to set_auxdata on the same index replaces the
@@ -67,7 +67,7 @@ def overwrite_auxdata(ctx: Context) raises -> Int64:
     return stored.value().unsafe_bitcast[Int64]()[]
 
 
-def sum_two_auxdata(ctx: Context) raises -> Int64:
+def sum_two_auxdata(mut ctx: Context) raises -> Int64:
     """Caches each integer argument at its own auxdata index and returns their sum.
 
     On the first call, stores ctx.get_int64(0) at auxdata index 0 and
@@ -90,7 +90,7 @@ def sum_two_auxdata(ctx: Context) raises -> Int64:
 # ===----------------------------------------------------------------------=== #
 
 
-def _setup_rows_table(db: Connection) raises:
+def _setup_rows_table(mut db: Connection) raises:
     """Create table t with three rows (values 1, 2, 3)."""
     db.execute_batch(
         """

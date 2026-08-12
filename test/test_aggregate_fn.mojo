@@ -51,7 +51,7 @@ def concat_finalize(mut ctx: Context, acc: String) raises -> String:
     return acc.copy()
 
 
-def _setup_numbers_table(db: Connection) raises:
+def _setup_numbers_table(mut db: Connection) raises:
     """Helper: create a numbers table with values 1-5."""
     db.execute_batch(
         """

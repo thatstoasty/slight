@@ -23,6 +23,9 @@ from slight.c.types import (
     SQLITE_DESERIALIZE_READONLY,
     SQLITE_DESERIALIZE_RESIZEABLE,
 )
+from slight.connection import Connection
+from slight.statement import Statement
+from slight.raw_statement import RawStatement
 from slight.checkpoint import CheckpointMode
 from slight.blob import Blob
 from slight.busy import BusyHandlerFn, _busy_handler_callback
@@ -257,7 +260,10 @@ struct InnerConnection(Deinitable where False, Movable):
                 tail = 0
             else:
                 tail = UInt(n)
-        return stmt, tail
+        
+        if not stmt:
+            return (None, tail)
+        return stmt.value(), tail
 
     def path(self) -> Optional[Path]:
         """Returns the file path of the database.
@@ -1221,7 +1227,7 @@ struct InnerConnection(Deinitable where False, Movable):
         """
         return is_locked(self.unsafe_ptr(), rc)
 
-    def wait_for_unlock_notify(self) -> SQLite3Result:
+    def wait_for_unlock_notify(mut self) -> SQLite3Result:
         """Block until an unlock-notify callback fires, then return SQLITE_OK.
 
         Should only be called after a `SQLITE_LOCKED` result in shared-cache mode.

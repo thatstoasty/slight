@@ -101,7 +101,7 @@ def counter_eof(cursor: MutExternalPointer[CounterCursor]) -> Bool:
 
 def counter_column(
     cursor: MutExternalPointer[CounterCursor],
-    ctx: Context,
+    mut ctx: Context,
     col: c_int,
 ) raises:
     ctx.result_int64(Int64(cursor[].current))

@@ -171,7 +171,7 @@ def gs_eof(cursor: MutExternalPointer[GenerateSeriesCursor]) -> Bool:
 
 def gs_column(
     cursor: MutExternalPointer[GenerateSeriesCursor],
-    ctx: Context,
+    mut ctx: Context,
     col: c_int,
 ) raises:
     """Return the current value (column 0)."""
