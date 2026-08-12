@@ -110,10 +110,10 @@ from slight.connection import Connection
 
 def main() raises:
     # Open an in-memory database
-    var db = Connection.open_in_memory()
-    
+    var memory_db = Connection.open_in_memory()
+
     # Or open a file-based database
-    var db = Connection.open("my_database.db")
+    var file_db = Connection.open("my_database.db")
 ```
 
 ### Creating Tables and Inserting Data
@@ -191,12 +191,18 @@ from slight.connection import Connection
 from slight.row import Row
 from slight import Int, String
 
+# `Defaultable` is required for the reflection-based `query[User]()` below:
+# it lets slight default-construct the struct before filling in each field.
 @fieldwise_init
-struct User(Writable):
+struct User(Defaultable, Movable, Writable):
     var id: Int
     var name: String
 
-    def write_to[W: Writer, //](self, mut writer: W):
+    def __init__(out self):
+        self.id = 0
+        self.name = ""
+
+    def write_to(self, mut writer: Some[Writer]):
         writer.write("User(id=", self.id, ", name=", self.name, ")")
 
 def main() raises:
@@ -394,7 +400,7 @@ def main() raises:
     )
 
     def get_row(row: Row) raises -> String:
-        return t"{row.get[Int64](0)} | {row.get[Int64](1)}"
+        return String(t"{row.get[Int64](0)} | {row.get[Int64](1)}")
 
     # Sliding window: sum of current row and the one before it
     var stmt = db.prepare("""
@@ -435,7 +441,7 @@ For more control, register a callback that receives the retry count and returns 
 ```mojo
 from slight.connection import Connection
 
-def my_busy_handler(count: Int32) -> Bool:
+def my_busy_handler(count: Int32) abi("C") -> Bool:
     # Retry up to 5 times
     return count < 5
 
@@ -443,7 +449,7 @@ def main() raises:
     var db = Connection.open("my_database.db")
 
     # Register a custom busy handler
-    db.register_busy_handler[my_busy_handler]()
+    db.register_busy_handler(my_busy_handler)
 
     # Clear the busy handler (SQLITE_BUSY is returned immediately on lock)
     db.clear_busy_handler()
@@ -512,8 +518,8 @@ def main() raises:
     var db = Connection.open_in_memory()
 
     # Enable tracing for statement and profile events
-    db.register_trace_function[my_tracer](
-        TraceEventCodes.STMT | TraceEventCodes.PROFILE,
+    db.register_trace_function(
+        TraceEventCodes.STMT | TraceEventCodes.PROFILE, my_tracer
     )
 
     _ = db.execute("CREATE TABLE log (msg TEXT)")
@@ -558,9 +564,9 @@ def my_update_hook(op: UpdateOperation, db_name: String, table_name: String, row
 def main() raises:
     var db = Connection.open_in_memory()
 
-    db.register_commit_hook[my_commit_hook]()
-    db.register_rollback_hook[my_rollback_hook]()
-    db.register_update_hook[my_update_hook]()
+    db.register_commit_hook(my_commit_hook)
+    db.register_rollback_hook(my_rollback_hook)
+    db.register_update_hook(my_update_hook)
 
     db.execute_batch("CREATE TABLE t (id INTEGER)")
     _ = db.execute("INSERT INTO t (id) VALUES (?1)", (1,))
@@ -581,17 +587,25 @@ Define custom string comparison functions for use with `COLLATE` in SQL:
 from slight.connection import Connection
 
 def case_insensitive_compare(left: Span[Byte, ImmUntrackedOrigin], right: Span[Byte, ImmUntrackedOrigin]) -> Int:
-    # A real implementation would lowercase/normalize before comparing.
-    if left < right:
+    # Compare byte-by-byte, folding ASCII upper-case to lower-case.
+    var n = min(len(left), len(right))
+    for i in range(n):
+        var l = left[i] + 32 if left[i] >= 65 and left[i] <= 90 else left[i]
+        var r = right[i] + 32 if right[i] >= 65 and right[i] <= 90 else right[i]
+        if l < r:
+            return -1
+        if l > r:
+            return 1
+    if len(left) < len(right):
         return -1
-    elif left > right:
+    if len(left) > len(right):
         return 1
     return 0
 
 def main() raises:
     var db = Connection.open_in_memory()
 
-    db.create_collation[case_insensitive_compare]("NOCASE_CUSTOM")
+    db.create_collation("NOCASE_CUSTOM", case_insensitive_compare)
 
     db.execute_batch("CREATE TABLE t (name TEXT)")
     _ = db.execute("INSERT INTO t (name) VALUES (?1)", ("Bob",))
@@ -621,7 +635,7 @@ def main() raises:
     var db = Connection.open_in_memory()
 
     # Invoke the handler roughly every 1000 VM instructions
-    db.register_progress_handler[my_progress_handler](1000)
+    db.register_progress_handler(1000, my_progress_handler)
 
     _ = db.execute("SELECT 1")
 
@@ -636,14 +650,15 @@ Register a callback invoked during statement preparation for every action that r
 
 ```mojo
 from slight.authorizer import AuthAction, AuthResult
+from slight.c.types import ImmExternalStringSlice
 from slight.connection import Connection
 
 def deny_drops(
     action: AuthAction,
-    arg1: Optional[String],
-    arg2: Optional[String],
-    db_name: Optional[String],
-    trigger_or_view: Optional[String],
+    arg1: Optional[ImmExternalStringSlice],
+    arg2: Optional[ImmExternalStringSlice],
+    db_name: Optional[ImmExternalStringSlice],
+    trigger_or_view: Optional[ImmExternalStringSlice],
 ) -> AuthResult:
     if action == AuthAction.DROP_TABLE:
         return AuthResult.DENY
@@ -653,7 +668,7 @@ def main() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE t (x INTEGER)")
 
-    db.register_authorizer[deny_drops]()
+    db.register_authorizer(deny_drops)
 
     # This raises, because DROP TABLE is denied.
     # db.execute_batch("DROP TABLE t")
@@ -782,13 +797,23 @@ def main() raises:
 Pass `read_only=True` to `deserialize` to load the buffer as a read-only database, rejecting any writes:
 
 ```mojo
-var snapshot = Connection.open_in_memory()
-snapshot.deserialize(data^, read_only=True)
+from slight.connection import Connection
 
-try:
-    _ = snapshot.execute("DELETE FROM users")
-except e:
-    print("Write rejected:", e)  # attempt to write a readonly database
+def main() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""
+        CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);
+        INSERT INTO users VALUES (1, 'Alice');
+    """)
+    var data = db.serialize()
+
+    var snapshot = Connection.open_in_memory()
+    snapshot.deserialize(data^, read_only=True)
+
+    try:
+        _ = snapshot.execute("DELETE FROM users")
+    except e:
+        print("Write rejected:", e)  # attempt to write a readonly database
 ```
 
 > **Note:** `deserialize` transfers ownership of the buffer to SQLite, which frees it when the connection closes (or when that schema is deserialized into again). By default the deserialized database is writable and SQLite is allowed to grow the underlying buffer as it expands; with `read_only=True` it cannot be modified or resized.
@@ -847,16 +872,17 @@ def main() raises:
     source.execute_batch("CREATE TABLE t (value INTEGER)")
 
     var dest = Connection.open_in_memory()
-    var backup = source.backup(Pointer(to=dest))
+    var backup = source.backup(dest)
 
     # Copy 5 pages at a time until the backup is complete.
-    while backup.step(5):
-        print("remaining pages:", backup.remaining(), "/", backup.pagecount())
-
-    backup^.finish()
+    try:
+        while backup.step(5):
+            print("remaining pages:", backup.remaining(), "/", backup.page_count())
+    finally:
+        backup^.finish()
 ```
 
-> **Note:** A `Backup` finishes itself automatically when it goes out of scope, absorbing any error that occurs while doing so. Call `.finish()` explicitly if you want to observe that error.
+> **Note:** A `Backup` must be finished explicitly — the compiler enforces it, so forgetting `.finish()` is a compile error. Since `finish()` consumes the handle, wrap the copy loop in `try` / `finally` so it is released even if a step raises.
 
 ### Incremental BLOB I/O
 
@@ -868,27 +894,41 @@ from slight.connection import Connection
 def main() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE images (id INTEGER PRIMARY KEY, data BLOB)")
-    _ = db.execute("INSERT INTO images (id, data) VALUES (1, ?1)", [List[Byte](1, 2, 3, 4, 5, 6, 7, 8)])
+    var original: List[Byte] = [1, 2, 3, 4, 5, 6, 7, 8]
+    _ = db.execute("INSERT INTO images (id, data) VALUES (1, ?1)", [original.copy()])
 
-    var blob = db.blob_open("images", "data", row_id=1)
-    print("size:", blob.bytes())
+    var blob = db.blob_open("images", "data", 1)
+    try:
+        print("size:", len(blob))
 
-    # Read the first 4 bytes.
-    var chunk = blob.read(4, offset=0)
-
-    blob^.close()
+        # Read the first 4 bytes.
+        var chunk = blob.read(4, offset=0)
+        print("first 4 bytes:", chunk[0], chunk[1], chunk[2], chunk[3])
+    finally:
+        blob^.close()
 ```
 
 Open with `read_only=False` to write into the BLOB in place:
 
 ```mojo
-var blob = db.blob_open("images", "data", row_id=1, read_only=False)
-var patch: List[Byte] = [9, 9, 9]
-blob.write(Span(patch), offset=2)
-blob^.close()
+from slight.connection import Connection
+
+def main() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE images (id INTEGER PRIMARY KEY, data BLOB)")
+    var original: List[Byte] = [1, 2, 3, 4, 5, 6, 7, 8]
+    _ = db.execute("INSERT INTO images (id, data) VALUES (1, ?1)", [original.copy()])
+
+    # `read_only` is a compile-time parameter; it defaults to False (writable).
+    var blob = db.blob_open[read_only=False]("images", "data", 1)
+    var patch: List[Byte] = [9, 9, 9]
+    try:
+        blob.write(Span(patch), offset=2)
+    finally:
+        blob^.close()
 ```
 
-> **Note:** A `Blob` closes itself automatically when it goes out of scope, absorbing any error that occurs while doing so (mirroring `Statement`'s cleanup model). Call `.close()` explicitly if you want to observe that error. Writing requires the BLOB to have been opened with `read_only=False`.
+> **Note:** A `Blob` must be closed explicitly — the compiler enforces it, so forgetting `.close()` is a compile error rather than a leak. Because `close()` consumes the `Blob`, wrap the body in `try` / `finally` so the handle is still released if an operation raises. Writing requires the BLOB to have been opened with `read_only=False`, which is a compile-time parameter (`blob_open[read_only=False](...)`).
 
 ### WAL Checkpointing
 
@@ -910,15 +950,64 @@ def main() raises:
 `wal_checkpoint_v2` additionally accepts a `CheckpointMode` and reports how many frames were in the WAL log and how many were checkpointed:
 
 ```mojo
+from std import tempfile
+from std.pathlib import Path
 from slight.checkpoint import CheckpointMode
+from slight.connection import Connection
 
-var log_frames, checkpointed_frames = db.wal_checkpoint_v2(CheckpointMode.FULL)
-print(checkpointed_frames, "/", log_frames, "frames checkpointed")
+def main() raises:
+    # WAL mode needs a real file on disk, so use a temporary directory.
+    with tempfile.TemporaryDirectory() as tmp:
+        var db = Connection.open(Path(tmp) / "app.db")
+        db.execute_batch("PRAGMA journal_mode=WAL")
+        db.execute_batch("CREATE TABLE t (value INTEGER)")
+        _ = db.execute("INSERT INTO t (value) VALUES (?1)", (1,))
+
+        var log_frames, checkpointed_frames = db.wal_checkpoint_v2(CheckpointMode.FULL)
+        print(checkpointed_frames, "/", log_frames, "frames checkpointed")
 ```
 
 `CheckpointMode` has four variants: `PASSIVE` (the default, non-blocking), `FULL`, `RESTART`, and `TRUNCATE` (each progressively more aggressive about blocking writers/readers and truncating the WAL file — see the [SQLite documentation](https://www.sqlite.org/c3ref/wal_checkpoint_v2.html) for details).
 
 > **Note:** WAL mode requires a real file on disk; it does not apply to in-memory databases (`Connection.open_in_memory()`).
+
+### Statement Status Counters
+
+SQLite tracks per-statement counters describing how a prepared statement actually
+executed — how many virtual-machine steps it took, whether it had to sort, how
+many times it ran. `get_status` reads a counter without disturbing it, and
+`reset_status` reads it and clears it back to zero:
+
+```mojo
+from slight.connection import Connection
+from slight.trace import StatementStatus
+
+def main() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("""
+        CREATE TABLE t (value INTEGER);
+        INSERT INTO t VALUES (3), (1), (2);
+    """)
+
+    var stmt = db.prepare("SELECT value FROM t ORDER BY value")
+    while stmt.step():
+        pass
+
+    print("runs:      ", stmt.get_status(StatementStatus.RUN))
+    print("vm steps:  ", stmt.get_status(StatementStatus.VM_STEP))
+    print("sorts:     ", stmt.get_status(StatementStatus.SORT))
+    print("full scans:", stmt.get_status(StatementStatus.FULLSCAN_STEP))
+
+    # Read-and-clear, so the next measurement starts from zero.
+    _ = stmt.reset_status(StatementStatus.VM_STEP)
+```
+
+Counters accumulate across executions rather than resetting per run, so a
+statement executed twice reports `RUN == 2`. `StatementStatus` covers
+`FULLSCAN_STEP`, `SORT`, `AUTOINDEX`, `VM_STEP`, `REPREPARE`, `RUN`,
+`FILTER_MISS`, `FILTER_HIT`, and `MEMUSED`; see the
+[SQLite documentation](https://www.sqlite.org/c3ref/c_stmtstatus_counter.html)
+for what each one measures.
 
 ## Supported Types
 
@@ -945,6 +1034,40 @@ print(checkpointed_frames, "/", log_frames, "frames checkpointed")
 | `Bool` | INTEGER (0/1) |
 | `None` | NULL |
 | `Optional[T]` | NULLABLE COLUMN refers to the sqlite to mojo type mappings above |
+
+#### Implementing `ToSQL` for your own types
+
+`to_sql` returns a `ToSqlOutput`, which is either a **borrowed** `ValueRef` or an
+**owned** `Value`. Return a `ValueRef` when the SQL representation already exists
+in memory (the bytes of a `String`, the elements of a `List[Byte]`, a scalar), so
+nothing is allocated. Return a `Value` when the representation has to be
+*computed* and therefore has nowhere to be borrowed from — a date formatted as
+ISO text, a UUID, an enum rendered as a string:
+
+```mojo
+from slight.connection import Connection
+from slight.types import value
+from slight.types.to_sql import ToSQL, ToSqlOutput
+
+@fieldwise_init
+struct Date(Movable):
+    var year: Int
+    var month: Int
+    var day: Int
+
+__extension Date(ToSQL):
+    def to_sql(ref self) raises -> ToSqlOutput[origin_of(self)]:
+        # The ISO string exists nowhere in `self`, so it must be owned.
+        return ToSqlOutput[origin_of(self)](
+            value.Value(value.Text(String(self.year, "-", self.month, "-", self.day)))
+        )
+
+def main() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE events (occurred_on TEXT)")
+    _ = db.execute("INSERT INTO events VALUES (?1)", (Date(2026, 8, 11),))
+    print(db.one_column[String]("SELECT occurred_on FROM events"))
+```
 
 ### Parameter Binding (Params)
 
@@ -982,13 +1105,12 @@ And took notes from:
 ## TODO
 
 - Support features for different compilation options.
-- Creating custom collations.
 - Add subtype support for UDF results.
 - Made `Row.get` more flexible and ergonomic by allowing users to specify the column using any type that implements a `RowIndex` trait, which would include both `UInt/Int` for positional access and `String` for named access. But instead of checking for types that implement `RowIndex` and `FromSQL` at compilation time, I want to enforce these constraints via the type checker by using trait parameters. This would make the API safer and more user-friendly, as users would get immediate feedback if they try to use unsupported types for column access or retrieval. However, extensions are not fully baked yet and exposing them to users is a worse developer experience than just doing runtime checks and leaving the `get` function signature a bit more vague. I have left this as a TODO for now. Once the extension system is more ergonomic and less buggy, I can re-enable this feature and provide a much better API for column access in `Row.get`.
 - Same goes for parameter binding. Any type that implements a `Params` trait can be used as parameters for queries, but currently this is not enforced by the type checker. For now, functions accept `AnyType` for parameters and we perform a comptime assert to check if the provided type conforms to the `Params` trait, which is a bit clunky. Ideally, we would want to enforce this constraint directly in the function signature, but due to limitations in the current trait system and extension system, this is not possible without causing issues for users who just want to use simple tuples or lists for parameters. Once the trait and extension systems are more robust, I can re-enable this feature and provide a much cleaner API for parameter binding.
-- Assess origins of `ValueRef` in general, because I'm pretty sure I have a few incorrect origins being used.
+- The binding layers now thread real origins through `sqlite3*`, `sqlite3_stmt*`, and `sqlite3_context*` arguments (immutable for read-only calls, mutable for the rest) instead of the blanket untracked origin they used before. The remaining known gap is that column accessors (`unsafe_column_text`, `unsafe_column_blob`, `Row.get_ref`) can only be bounded by the *statement*, while SQLite actually invalidates those pointers on the next `step`/`reset`/`finalize`. That bound is not expressible today, and Mojo does not yet enforce borrow exclusivity, so those accessors carry an `unsafe_` prefix and copy-before-you-step is the caller's responsibility. Revisit once origins can express it.
 - I would like `RowTransformFn` to be properly parametrized on the connection and statement origins for `Row`, but I can't get partial parameter binding working for `Connection` functions. Maybe I'll revisit that one day.
 - Improve CSV Reader logic.
 - Add a `prepare_cached` on `Connection` that caches and reuses compiled `Statement`s by SQL text (like `rusqlite`'s `CachedStatement`). Attempted this and hit a wall: `RawStatement` is `@explicit_destroy` (intentionally, since it wraps a `sqlite3_stmt*`), which rules out `Dict[String, RawStatement]` as a cache (the compiler crashes trying to bind `RawStatement` to `Dict`'s `V: Copyable & Deinitable` value-type constraint) and also rules out `List[RawStatement]` (a `List` of non-`ImplicitlyDeletable` elements must be explicitly destroyed via `destroy_with()`, which doesn't actually exist on `List` in the current stdlib). Revisit once there's a container type that supports non-implicitly-destructible values, or once `RawStatement` gains some other cache-friendly ownership story.
 - `Transaction.prepare`/`Savepoint.prepare` are intentionally not forwarded to the underlying `Connection.prepare` (unlike `execute`, `execute_batch`, `one_row`, `maybe_one_row`, `one_column`, `last_insert_row_id`, `changes`, which are). `Connection.prepare`'s return type is `Statement[origin_of(self)]`, and when called through `self.conn[]` inside a thin wrapper, the compiler treats the resulting origin as a distinct derived origin (`origin_of(conn_origin)`) rather than `Self.conn_origin` itself, so no return-type annotation I tried satisfied the borrow checker. Use `tx.prepare(...)` / `sp.prepare(...)` directly for now.
-- I need to look over what functions should borrow self mutably for Connection and Statement. It doesn't feel correct to take a Connection mutably then run a query that modifies the DB connection it wraps?
+- `Connection` and `Statement` now take `mut self` for anything that mutates the underlying handle (preparing, binding, stepping, registering callbacks) and plain `self` for read-only queries. This is why `prepare`, `execute`, and `query` need a `var db`/`var stmt` binding rather than a temporary.
