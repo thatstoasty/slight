@@ -1032,6 +1032,7 @@ for what each one measures.
 | `Float16`, `Float32`, `Float64` | REAL |
 | `String`, `StringLiteral`, `StringSpan` | TEXT |
 | `Bool` | INTEGER (0/1) |
+| `List[Byte]`, `Span[Byte]` | BLOB |
 | `None` | NULL |
 | `Optional[T]` | NULLABLE COLUMN refers to the sqlite to mojo type mappings above |
 
@@ -1071,12 +1072,13 @@ def main() raises:
 
 ### Parameter Binding (Params)
 
-For parameter binding, **only Tuples support heterogeneous types**. Lists and Dicts require all parameters to be of the same type, because we do not have Trait objects yet.
+For parameter binding, **only Tuples support heterogeneous types**. Lists and Dicts require all parameters to be of the same type, because we do not have Trait objects yet. For positional parameters, I recommend using Tuple or Array over List, as their size is known at compile time. That enables loop unrolling or just compiling out branches entirely if no parameters are passed like `params=[]` or `params=()`.
 
 | Mojo Type | Binding Style | Heterogeneous Supported? |
 | ----------- | --------------- | ------------------------- |
 | `Tuple` | Positional parameters (`?1`, `?2`, etc.) | Yes |
 | `List` | Positional parameters (`?1`, `?2`, etc.) | No |
+| `Array` | Positional parameters (`?1`, `?2`, etc.) | No |
 | `Dict` | Named parameters (`:name`, `@name`, `$name` ) | No |
 
 ## More Examples
