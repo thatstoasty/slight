@@ -12,7 +12,7 @@ See:
 - https://www.sqlite.org/c3ref/c_alter_table.html
 """
 
-from std.ffi import c_char, c_int, CStringSlice
+from std.ffi import c_char, c_int, CStringSpan
 from slight.c.types import MutExternalPointer, ImmExternalPointer, ImmExternalStringSlice
 
 
@@ -110,7 +110,7 @@ def _to_string_span(ptr: ImmExternalPointer[c_char]) -> Optional[ImmExternalStri
     Returns:
         `None` if `ptr` is NULL, otherwise the decoded `StringSpan`.
     """
-    return StringSpan(unsafe_from_utf8=CStringSlice(unsafe_from_ptr=ptr))
+    return StringSpan(unsafe_from_utf8=CStringSpan(unsafe_from_ptr=ptr))
 
 
 def _authorizer_callback(

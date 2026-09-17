@@ -1,5 +1,5 @@
 """SQLite Function Evaluation Context."""
-from std.ffi import c_int, CStringSlice
+from std.ffi import c_int, CStringSpan
 from slight.c.types import MutExternalPointer, sqlite3_connection, sqlite3_context, sqlite3_value, ResultDestructorFn
 from slight.api import sqlite_ffi
 from slight.types import value_ref, value
@@ -150,8 +150,8 @@ struct Context(Boolable, Movable, Sized):
         debug_assert(idx < len(self), "Argument index out of bounds")
         return sqlite_ffi()[].value_double(self._args[idx])
 
-    def get_text(self, idx: Int) -> Optional[CStringSlice[origin_of(self)]]:
-        """Returns the `idx`th argument as a CStringSlice.
+    def get_text(self, idx: Int) -> Optional[CStringSpan[origin_of(self)]]:
+        """Returns the `idx`th argument as a CStringSpan.
 
         This calls `sqlite3_value_text` directly. The returned slice
         references memory managed by SQLite and is valid for the duration
@@ -161,7 +161,7 @@ struct Context(Boolable, Movable, Sized):
             idx: The 0-based argument index.
 
         Returns:
-            The argument value as a CStringSlice.
+            The argument value as a CStringSpan.
         """
         debug_assert(idx < len(self), "Argument index out of bounds")
         var text = sqlite_ffi()[].value_text(self._args[idx])
@@ -170,7 +170,7 @@ struct Context(Boolable, Movable, Sized):
 
         # We're laundering the origin here. It should be safe because the value should
         # live as long as the context is alive. That conveys more information than using an external origin.
-        return CStringSlice(
+        return CStringSpan(
             unsafe_from_ptr=text.value().unsafe_ptr().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)](),
         )
 

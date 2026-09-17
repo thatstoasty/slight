@@ -20,34 +20,29 @@ test_readme_examples = "python3 utils/test_readme_examples.py"
 lint_docs = "mojo doc --Werror --diagnose-missing-doc-strings -o /dev/null ./slight"
 format = "mojo format slight --line-length 120"
 
-# Build and publish
-build = { cmd = "pixi build -o ." }
-publish = { cmd = "find . -name 'slight-*.conda' | xargs pixi upload https://prefix.dev/api/v1/upload/mojo-community" }
-build_and_publish = [{ task = "build" }, { task = "publish" }]
-
 [package]
 name = "slight"
-version = "0.3.0"
+version = "0.3.1"
 
 [package.build]
-backend = { name = "pixi-build-mojo", version = "0.1.*" }
+backend = { name = "pixi-build-mojo", version = "0.*" }
 
 [dependencies]
-mojo = ">=1.0.0,<1.1.0"
-sqlite = ">=3.53.2,<4"
+mojo = ">=1.1.0,<1.2.0"
+sqlite = ">=3.50.4,<4"
 
 # TODO: json feature should be optional when Mojo supports conditional dependencies.
 # emberjson = { git = "https://github.com/bgreni/EmberJson", tag = "0.3.2" }
 
 [package.build-dependencies]
-mojo-compiler = ">=1.0.0,<1.1.0"
+mojo-compiler = ">=1.1.0,<1.2.0"
 
 [package.host-dependencies]
-mojo-compiler = ">=1.0.0,<1.1.0"
+mojo-compiler = ">=1.1.0,<1.2.0"
 sqlite = ">=3.50.4,<4"
 # emberjson = { git = "https://github.com/bgreni/EmberJson", tag = "0.3.2" }
 
 [package.run-dependencies]
-mojo-compiler = ">=1.0.0,<1.1.0"
+mojo-compiler = ">=1.1.0,<1.2.0"
 sqlite = ">=3.50.4,<4"
 # emberjson = { git = "https://github.com/bgreni/EmberJson", tag = "0.3.2" }

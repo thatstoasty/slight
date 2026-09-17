@@ -128,16 +128,16 @@ __extension Tuple(Params):
         Raises:
             Error: If the parameters cannot be bound to the statement.
         """
-        comptime parameter_count = len(Self.element_types)
+        comptime parameter_count = len(Self.Ts)
         comptime if parameter_count > 0:
             var expected = Int(stmt.bind_parameter_count())
             var index = 0
             comptime for i in range(parameter_count):
-                comptime assert conforms_to(Self.element_types[i], ToSQL), String(
+                comptime assert conforms_to(Self.Ts[i], ToSQL), String(
                     "All elements of the tuple must conform to `ToSQL`. Element at index ",
                     i,
                     "of type ",
-                    reflect[Self.element_types[i]].name(),
+                    reflect[Self.Ts[i]].name(),
                     " does not conform to `ToSQL`",
                 )
                 index += 1  # The leftmost SQL parameter has an index of 1.

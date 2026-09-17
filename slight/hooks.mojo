@@ -13,7 +13,7 @@ See:
 - https://www.sqlite.org/c3ref/update_hook.html
 """
 
-from std.ffi import c_char, c_int, CStringSlice
+from std.ffi import c_char, c_int, CStringSpan
 from std.memory import MutPointer
 from slight.c.types import (
     MutExternalPointer,
@@ -162,8 +162,8 @@ def _update_hook_callback(
     """
     var fn_as_int = Int(ctx)
     var callback = Pointer(to=fn_as_int).unsafe_bitcast[UpdateHookFn]()[]
-    var db_str = String(CStringSlice(unsafe_from_ptr=db_name.unsafe_mut_cast[False]().unsafe_bitcast[Int8]()))
-    var table_str = String(CStringSlice(unsafe_from_ptr=table_name.unsafe_mut_cast[False]().unsafe_bitcast[Int8]()))
+    var db_str = String(CStringSpan(unsafe_from_ptr=db_name.unsafe_mut_cast[False]().unsafe_bitcast[Int8]()))
+    var table_str = String(CStringSpan(unsafe_from_ptr=table_name.unsafe_mut_cast[False]().unsafe_bitcast[Int8]()))
     callback(
         UpdateOperation(Int32(op)),
         db_str,

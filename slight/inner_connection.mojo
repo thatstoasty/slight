@@ -1,5 +1,5 @@
 """SQLite Inner DB Connection."""
-from std.ffi import c_char, c_int, CStringSlice
+from std.ffi import c_char, c_int, CStringSpan
 from std.memory.alloc import Allocation, dealloc
 from std.pathlib import Path
 from slight.c.types import (
@@ -238,7 +238,7 @@ struct InnerConnection(Deinitable where False, Movable):
             Will return an `Error` if the underlying SQLite prepare call fails.
         """
         var stmt: Optional[MutExternalPointer[sqlite3_stmt]] = None
-        var str = sql.as_c_string_slice().unsafe_ptr()
+        var str = sql.as_c_string_span().ptr()
         var c_tail = Pointer(to=str)
 
         try:
@@ -251,7 +251,7 @@ struct InnerConnection(Deinitable where False, Movable):
             raise e^
 
         var tail: UInt = 0
-        var tail_len = len(CStringSlice(unsafe_from_ptr=c_tail[]).as_bytes())
+        var tail_len = len(CStringSpan(unsafe_from_ptr=c_tail[]).as_bytes())
         if tail_len > 0:
             var n = sql.byte_length() - tail_len
 

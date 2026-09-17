@@ -2,7 +2,7 @@
 from std.os import abort
 from std.sys import stderr
 from std.utils import Variant
-from std.ffi import CStringSlice
+from std.ffi import CStringSpan
 from slight.c.raw_bindings import sqlite3_stmt
 from slight.c.types import MutExternalPointer, ResultDestructorFn
 from slight.sqlite_string import SQLiteMallocString
@@ -201,7 +201,7 @@ struct Statement[conn: MutOrigin](Movable):
         """
         var text = self.stmt.unsafe_column_text(idx)
 
-        var c_str_slice = CStringSlice(
+        var c_str_slice = CStringSpan(
             unsafe_from_ptr=text.unsafe_ptr().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)]()
         )
         return StringSpan(unsafe_from_utf8=c_str_slice)
@@ -746,7 +746,7 @@ struct Statement[conn: MutOrigin](Movable):
         if not name:
             raise Error("InvalidColumnIndexError: column index is out of bounds.")
 
-        var c_str_slice = CStringSlice(
+        var c_str_slice = CStringSpan(
             unsafe_from_ptr=name.value().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)]()
         )
         return StringSpan(unsafe_from_utf8=c_str_slice)

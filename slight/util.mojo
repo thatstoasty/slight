@@ -1,6 +1,6 @@
 """Helper utilities."""
 from std.pathlib import Path
-from std.ffi import CStringSlice
+from std.ffi import CStringSpan
 from std.memory.alloc import unsafe_alloc
 from slight.c.types import MutExternalPointer
 
@@ -44,7 +44,7 @@ def ptr_copy[T: CopyDestructible](data: T) -> MutExternalPointer[T]:
     return ptr
 
 
-def str_slice_to_path(s: CStringSlice[ImmUntrackedOrigin]) -> Optional[Path]:
+def str_slice_to_path(s: CStringSpan[ImmUntrackedOrigin]) -> Optional[Path]:
     """Convert a String to a Path.
 
     Args:
