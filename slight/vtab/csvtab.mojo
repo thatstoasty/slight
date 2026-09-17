@@ -482,14 +482,14 @@ def csv_connect[
         raise Error("no CSV file specified")
 
     # Open the CSV file to determine schema and data_start_offset.
-    # Use as_c_string_slice().unsafe_ptr() — the same pattern as the rest of the
+    # Use as_c_string_span().ptr() — the same pattern as the rest of the
     # bindings — so fopen receives typed ImmPointer[c_char] args.  This
     # prevents LLVM from dead-store-eliminating the string buffer contents in
     # AOT-compiled code (unlike passing the pointer cast to Int).
     var open_mode = "r"
     var fp = fopen(
-        filename.as_c_string_slice().unsafe_ptr(),
-        open_mode.as_c_string_slice().unsafe_ptr(),
+        filename.as_c_string_span().ptr(),
+        open_mode.as_c_string_span().ptr(),
     )
     if not fp:
         raise Error(t"cannot open CSV file: {filename}")
@@ -675,12 +675,12 @@ def csv_filter(
         _ = fclose(cursor[].fp)
         cursor[].fp = None
 
-    # Open a fresh file handle.  See csv_connect for the as_c_string_slice()
+    # Open a fresh file handle.  See csv_connect for the as_c_string_span()
     # pattern rationale.
     var xf_open_mode = "r"
     var fp = fopen(
-        cursor[].filename.as_c_string_slice().unsafe_ptr(),
-        xf_open_mode.as_c_string_slice().unsafe_ptr(),
+        cursor[].filename.as_c_string_span().ptr(),
+        xf_open_mode.as_c_string_span().ptr(),
     )
     if not fp:
         raise Error(t"cannot open CSV file: {cursor[].filename}")

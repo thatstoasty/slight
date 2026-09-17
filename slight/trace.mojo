@@ -14,7 +14,7 @@ See:
 - https://www.sqlite.org/c3ref/c_stmtstatus_counter.html
 """
 
-from std.ffi import c_char, c_int, CStringSlice
+from std.ffi import c_char, c_int, CStringSpan
 from slight.c.raw_bindings import sqlite3_connection, sqlite3_stmt
 from slight.c.types import MutExternalPointer
 from slight.api import sqlite_ffi
@@ -301,7 +301,7 @@ struct TraceEvent:
             The SQL text as a `String`.
         """
         var ptr = self._x.unsafe_bitcast[c_char]().unsafe_mut_cast[False]()
-        return String(CStringSlice(unsafe_from_ptr=ptr))
+        return String(CStringSpan(unsafe_from_ptr=ptr))
 
     def stmt_sql(self) -> String:
         """Return the SQL text from the statement handle.
@@ -315,7 +315,7 @@ struct TraceEvent:
         var sql_ptr = sqlite_ffi()[].sql(stmt)
         if not sql_ptr:
             return ""
-        return String(CStringSlice(unsafe_from_ptr=sql_ptr.value()))
+        return String(CStringSpan(unsafe_from_ptr=sql_ptr.value()))
 
     def expanded_sql(self) raises -> String:
         """Return expanded SQL (parameters substituted) from the statement.

@@ -1,5 +1,5 @@
 """Raw SQLite statment wrapper."""
-from std.ffi import c_int, CStringSlice
+from std.ffi import c_int, CStringSpan
 from std.os import abort
 from slight.c.types import ImmExternalPointer, MutExternalPointer, ResultDestructorFn, sqlite3_stmt
 from slight.api import sqlite_ffi
@@ -86,8 +86,8 @@ struct RawStatement(Deinitable where False, Movable):
             raise Error("Unexpected SQLITE_TEXT column type with NULL data.")
 
         return StringSpan(
-            unsafe_from_utf8=CStringSlice(
-                unsafe_from_ptr=text.take().unsafe_ptr().unsafe_origin_cast[origin_of(self)]()
+            unsafe_from_utf8=CStringSpan(
+                unsafe_from_ptr=text.take().ptr().unsafe_origin_cast[origin_of(self)]()
             )
         )
 
@@ -257,7 +257,7 @@ struct RawStatement(Deinitable where False, Movable):
         if not sql_ptr:
             return None
         return StringSpan(
-            unsafe_from_utf8=CStringSlice(unsafe_from_ptr=sql_ptr.value().unsafe_origin_cast[origin_of(self)]())
+            unsafe_from_utf8=CStringSpan(unsafe_from_ptr=sql_ptr.value().unsafe_origin_cast[origin_of(self)]())
         )
 
     def expanded_sql(self) raises -> Optional[SQLiteMallocString]:

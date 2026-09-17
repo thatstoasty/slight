@@ -1,5 +1,5 @@
 """SQLite Bindings for Slight."""
-from std.ffi import c_char, c_int, c_uchar, c_uint, CStringSlice
+from std.ffi import c_char, c_int, c_uchar, c_uint, CStringSpan
 from std.memory import MutOpaquePointer, MutPointer
 from std.pathlib import Path
 from slight.c.raw_bindings import _sqlite3
@@ -45,7 +45,7 @@ from slight.enums import DestructorHint, TextEncoding
 
 
 def _opt_ptr(mut opt: Optional[String]) -> Optional[ImmPointer[c_char, origin_of(opt._value)]]:
-    return opt.value().as_c_string_slice().unsafe_ptr() if opt else None
+    return opt.value().as_c_string_span().ptr() if opt else None
 
 
 def _opt_int_to_ptr(mut x: Optional[c_int]) -> Optional[MutPointer[c_int, origin_of(x._value)]]:
@@ -623,10 +623,10 @@ struct sqlite3(Movable):
         """
         if zVfs:
             return self.lib.sqlite3_open_v2(
-                filename.as_c_string_slice().unsafe_ptr(), ppDb, flags, zVfs.value().as_c_string_slice().unsafe_ptr()
+                filename.as_c_string_span().ptr(), ppDb, flags, zVfs.value().as_c_string_span().ptr()
             )
         else:
-            return self.lib.sqlite3_open_v2(filename.as_c_string_slice().unsafe_ptr(), ppDb, flags)
+            return self.lib.sqlite3_open_v2(filename.as_c_string_span().ptr(), ppDb, flags)
 
     def errcode[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
         """Retrieve the most recent error code for a database connection.
@@ -784,7 +784,7 @@ struct sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         return self.lib.sqlite3_prepare_v2(
-            db, zSql.as_c_string_slice().unsafe_ptr(), nByte, Pointer(to=ppStmt), Pointer(to=pzTail)
+            db, zSql.as_c_string_span().ptr(), nByte, Pointer(to=ppStmt), Pointer(to=pzTail)
         )
 
     def prepare_v3[conn_origin: MutOrigin, sql: ImmOrigin, tail: MutOrigin, //](
@@ -1052,7 +1052,7 @@ struct sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         return self.lib.sqlite3_bind_pointer[](
-            pStmt, idx, value, typeStr.as_c_string_slice().unsafe_ptr(), destructor_callback
+            pStmt, idx, value, typeStr.as_c_string_span().ptr(), destructor_callback
         )
 
     def bind_zeroblob[stmt_origin: MutOrigin, //](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int, n: c_int) -> SQLite3Result:
@@ -1121,7 +1121,7 @@ struct sqlite3(Movable):
         Returns:
             Index of the parameter (1-based), or 0 if not found.
         """
-        return self.lib.sqlite3_bind_parameter_index(pStmt, zName.as_c_string_slice().unsafe_ptr())
+        return self.lib.sqlite3_bind_parameter_index(pStmt, zName.as_c_string_span().ptr())
 
     def clear_bindings[stmt_origin: MutOrigin, //](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin]) -> SQLite3Result:
         """Reset All Bindings On A Prepared Statement.
@@ -1191,11 +1191,11 @@ struct sqlite3(Movable):
         # if not ptr:
         #     return None
 
-        # return CStringSlice(unsafe_from_ptr=ptr).get_immutable()
+        # return CStringSpan(unsafe_from_ptr=ptr).get_immutable()
 
     def column_table_name(
         self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], idx: c_int
-    ) -> Optional[CStringSlice[ImmUntrackedOrigin]]:
+    ) -> Optional[CStringSpan[ImmUntrackedOrigin]]:
         """Get the table name of a column.
 
         This function returns the name of the table that is the origin of
@@ -1213,11 +1213,11 @@ struct sqlite3(Movable):
         if not ptr:
             return None
 
-        return CStringSlice(unsafe_from_ptr=ptr.take())
+        return CStringSpan(unsafe_from_ptr=ptr.take())
 
     def column_origin_name(
         self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], idx: c_int
-    ) raises -> CStringSlice[ImmUntrackedOrigin]:
+    ) raises -> CStringSpan[ImmUntrackedOrigin]:
         """Get the origin column name.
 
         This function returns the name of the table column that is the origin
@@ -1242,11 +1242,11 @@ struct sqlite3(Movable):
                 t" compiled with `SQLITE_ENABLE_COLUMN_METADATA` enabled."
             )
 
-        return CStringSlice(unsafe_from_ptr=ptr.take())
+        return CStringSpan(unsafe_from_ptr=ptr.take())
 
     def column_decltype(
         self, pStmt: MutExternalPointer[sqlite3_stmt], idx: c_int
-    ) raises -> CStringSlice[ImmUntrackedOrigin]:
+    ) raises -> CStringSpan[ImmUntrackedOrigin]:
         """Get the declared datatype of a column.
 
         This function returns the declared datatype of a result column. The
@@ -1268,7 +1268,7 @@ struct sqlite3(Movable):
         if not ptr:
             raise Error(t"Declared datatype not available for column index: {idx}. Index may be out of range.")
 
-        return CStringSlice(unsafe_from_ptr=ptr.take())
+        return CStringSpan(unsafe_from_ptr=ptr.take())
 
     def step[stmt_origin: MutOrigin, //](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin]) -> SQLite3Result:
         """Execute a prepared statement.
@@ -1342,7 +1342,7 @@ struct sqlite3(Movable):
 
     def column_text[stmt_origin: ImmOrigin, //](
         self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int
-    ) -> Optional[CStringSlice[ImmUntrackedOrigin]]:
+    ) -> Optional[CStringSpan[ImmUntrackedOrigin]]:
         """Retrieve column data as UTF-8 text.
 
         This function returns the value of the specified column as a UTF-8
@@ -1360,7 +1360,7 @@ struct sqlite3(Movable):
         if not ptr:
             return None
 
-        return CStringSlice(unsafe_from_ptr=ptr.take().unsafe_bitcast[Int8]())
+        return CStringSpan(unsafe_from_ptr=ptr.take().unsafe_bitcast[Int8]())
 
     def column_value(
         self, pStmt: MutExternalPointer[sqlite3_stmt], iCol: c_int
@@ -1475,7 +1475,7 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_remove_function(
             db,
-            zFunctionName.as_c_string_slice().unsafe_ptr(),
+            zFunctionName.as_c_string_span().ptr(),
             nArg,
         )
 
@@ -1515,7 +1515,7 @@ struct sqlite3(Movable):
         """
         var func_name = String(zFunctionName)
         return self.lib.sqlite3_create_scalar_function(
-            db, func_name.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, pApp, xFunc, destructor_callback
+            db, func_name.as_c_string_span().ptr(), nArg, eTextRep, pApp, xFunc, destructor_callback
         )
 
     def create_scalar_function[conn_origin: MutOrigin, //](
@@ -1545,7 +1545,7 @@ struct sqlite3(Movable):
         """
         var func_name = String(zFunctionName)
         return self.lib.sqlite3_create_scalar_function(
-            db, func_name.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, xFunc
+            db, func_name.as_c_string_span().ptr(), nArg, eTextRep, xFunc
         )
 
     def create_aggregate_function[
@@ -1586,7 +1586,7 @@ struct sqlite3(Movable):
         """
         var func_name = String(zFunctionName)
         return self.lib.sqlite3_create_aggregate_function(
-            db, func_name.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, pApp, xStep, xFinal, destructor_callback
+            db, func_name.as_c_string_span().ptr(), nArg, eTextRep, pApp, xStep, xFinal, destructor_callback
         )
 
     def create_aggregate_function[conn_origin: MutOrigin, //](
@@ -1618,7 +1618,7 @@ struct sqlite3(Movable):
         """
         var func_name = String(zFunctionName)
         return self.lib.sqlite3_create_aggregate_function(
-            db, func_name.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, xStep, xFinal
+            db, func_name.as_c_string_span().ptr(), nArg, eTextRep, xStep, xFinal
         )
 
     def create_window_function[
@@ -1664,7 +1664,7 @@ struct sqlite3(Movable):
         var func_name = String(zFunctionName)
         return self.lib.sqlite3_create_window_function(
             db,
-            func_name.as_c_string_slice().unsafe_ptr(),
+            func_name.as_c_string_span().ptr(),
             nArg,
             eTextRep,
             pApp,
@@ -1708,7 +1708,7 @@ struct sqlite3(Movable):
         """
         var func_name = String(zFunctionName)
         return self.lib.sqlite3_create_window_function(
-            db, func_name.as_c_string_slice().unsafe_ptr(), nArg, eTextRep, xStep, xFinal, xValue, xInverse
+            db, func_name.as_c_string_span().ptr(), nArg, eTextRep, xStep, xFinal, xValue, xInverse
         )
 
     def aggregate_count(self, ctx: MutExternalPointer[sqlite3_context]) -> SQLite3Result:
@@ -1858,7 +1858,7 @@ struct sqlite3(Movable):
         Raises:
             Error: If the pointer value cannot be retrieved, which may indicate that the type string does not match or the value is not a pointer.
         """
-        var ptr = self.lib.sqlite3_value_pointer(value, typeStr.as_c_string_slice().unsafe_ptr())
+        var ptr = self.lib.sqlite3_value_pointer(value, typeStr.as_c_string_span().ptr())
         if not ptr:
             raise Error(
                 t"Failed to retrieve pointer value for type: {typeStr}. Type string may not match or value may not be a"
@@ -2073,7 +2073,7 @@ struct sqlite3(Movable):
             msg: Error message string.
             n: Number of bytes in the error message.
         """
-        self.lib.sqlite3_result_error(ctx, msg.as_c_string_slice().unsafe_ptr(), n)
+        self.lib.sqlite3_result_error(ctx, msg.as_c_string_span().ptr(), n)
 
     def result_error_toobig[origin: MutOrigin, //](self, ctx: MutPointer[sqlite3_context, origin]):
         """Set The Result Of A Function To "Too Big" Error.
@@ -2146,7 +2146,7 @@ struct sqlite3(Movable):
             encoding: Text encoding (SQLITE_UTF8 or SQLITE_UTF16).
             destructor_callback: Callback to free the string.
         """
-        self.lib.sqlite3_result_text64(ctx, value.as_c_string_slice().unsafe_ptr(), n, encoding, destructor_callback)
+        self.lib.sqlite3_result_text64(ctx, value.as_c_string_span().ptr(), n, encoding, destructor_callback)
 
     def result_value[origin: MutOrigin, //](self, ctx: MutPointer[sqlite3_context, origin], value: MutExternalPointer[sqlite3_value]):
         """Set The Result Of A Function To A Copy Of Another Value.
@@ -2181,7 +2181,7 @@ struct sqlite3(Movable):
             typeStr: Type identifier string for the pointer.
             destructor_callback: Callback to free the pointer.
         """
-        self.lib.sqlite3_result_pointer(ctx, ptr, typeStr.as_c_string_slice().unsafe_ptr(), destructor_callback)
+        self.lib.sqlite3_result_pointer(ctx, ptr, typeStr.as_c_string_span().ptr(), destructor_callback)
 
     def result_zeroblob[origin: MutOrigin, //](self, ctx: MutPointer[sqlite3_context, origin], n: c_int):
         """Set The Result Of A Function To A Zero-filled BLOB.
@@ -2236,7 +2236,7 @@ struct sqlite3(Movable):
             Result code (SQLITE_OK on success).
         """
         return self.lib.sqlite3_create_collation_v2(
-            db, zName.as_c_string_slice().unsafe_ptr(), eTextRep, pArg, xCompare, destructor_callback
+            db, zName.as_c_string_span().ptr(), eTextRep, pArg, xCompare, destructor_callback
         )
 
     def collation_needed[
@@ -2358,7 +2358,7 @@ struct sqlite3(Movable):
         return self.lib.sqlite3_table_column_metadata(
             db,
             db_ptr,
-            zTableName.as_c_string_slice().unsafe_ptr(),
+            zTableName.as_c_string_span().ptr(),
             col_name_ptr,
             Pointer(to=dt_ptr),
             Pointer(to=coll_seq_ptr),
@@ -2389,7 +2389,7 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_load_extension(
             db,
-            zFile.as_c_string_slice().unsafe_ptr(),
+            zFile.as_c_string_span().ptr(),
             _opt_ptr(zProc),
             Pointer(to=pzErrMsg),
         )
@@ -2437,7 +2437,7 @@ struct sqlite3(Movable):
 
     def db_name[conn_origin: MutOrigin, //](
         self, db: MutPointer[sqlite3_connection, conn_origin], N: c_int
-    ) -> Optional[CStringSlice[ImmUntrackedOrigin]]:
+    ) -> Optional[CStringSpan[ImmUntrackedOrigin]]:
         """Return The Name Of An Attached Database.
 
         This routine returns the name of the Nth attached database.
@@ -2453,11 +2453,11 @@ struct sqlite3(Movable):
         if not ptr:
             return None
 
-        return CStringSlice(unsafe_from_ptr=ptr.take())
+        return CStringSpan(unsafe_from_ptr=ptr.take())
 
     def db_filename[conn_origin: ImmOrigin, //](
         self, db: ImmPointer[sqlite3_connection, conn_origin], mut zDbName: String
-    ) -> Optional[CStringSlice[ImmUntrackedOrigin]]:
+    ) -> Optional[CStringSpan[ImmUntrackedOrigin]]:
         """Return The Filename For A Database Connection.
 
         This routine returns the filename associated with a database connection.
@@ -2469,11 +2469,11 @@ struct sqlite3(Movable):
         Returns:
             Filename or None if not available.
         """
-        var ptr = self.lib.sqlite3_db_filename(db, zDbName.as_c_string_slice().unsafe_ptr())
+        var ptr = self.lib.sqlite3_db_filename(db, zDbName.as_c_string_span().ptr())
         if not ptr:
             return None
 
-        return CStringSlice(unsafe_from_ptr=ptr.take())
+        return CStringSpan(unsafe_from_ptr=ptr.take())
 
     def db_readonly[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin], mut zDbName: String) -> SQLite3Result:
         """Determine If A Database Is Read-Only.
@@ -2488,7 +2488,7 @@ struct sqlite3(Movable):
         Returns:
             1 if read-only, 0 if read-write, -1 if unknown.
         """
-        return self.lib.sqlite3_db_readonly(db, zDbName.as_c_string_slice().unsafe_ptr())
+        return self.lib.sqlite3_db_readonly(db, zDbName.as_c_string_span().ptr())
 
     def txn_state[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin], mut zSchema: String) -> SQLite3Result:
         """Determine The Transaction State Of A Database.
@@ -2502,7 +2502,7 @@ struct sqlite3(Movable):
         Returns:
             Transaction state (SQLITE_TXN_NONE, SQLITE_TXN_READ, SQLITE_TXN_WRITE).
         """
-        return self.lib.sqlite3_txn_state(db, zSchema.as_c_string_slice().unsafe_ptr())
+        return self.lib.sqlite3_txn_state(db, zSchema.as_c_string_span().ptr())
 
     def next_stmt[conn_origin: ImmOrigin, //](
         self, pDb: ImmPointer[sqlite3_connection, conn_origin], pStmt: Optional[MutExternalPointer[sqlite3_stmt]]
@@ -2669,9 +2669,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_blob_open(
             db,
-            zDb.as_c_string_slice().unsafe_ptr(),
-            zTable.as_c_string_slice().unsafe_ptr(),
-            zColumn.as_c_string_slice().unsafe_ptr(),
+            zDb.as_c_string_span().ptr(),
+            zTable.as_c_string_span().ptr(),
+            zColumn.as_c_string_span().ptr(),
             iRow,
             flags,
             ppBlob,
@@ -2797,7 +2797,7 @@ struct sqlite3(Movable):
         Returns:
             Result code (SQLITE_OK on success).
         """
-        return self.lib.sqlite3_file_control(db, zDbName.as_c_string_slice().unsafe_ptr(), op, pArg)
+        return self.lib.sqlite3_file_control(db, zDbName.as_c_string_span().ptr(), op, pArg)
 
     def backup_init[dest_origin: MutOrigin, source_origin: MutOrigin, //](
         self,
@@ -2821,7 +2821,7 @@ struct sqlite3(Movable):
             Backup handle or NULL on error.
         """
         return self.lib.sqlite3_backup_init(
-            pDest, zDestName.as_c_string_slice().unsafe_ptr(), pSource, zSourceName.as_c_string_slice().unsafe_ptr()
+            pDest, zDestName.as_c_string_span().ptr(), pSource, zSourceName.as_c_string_span().ptr()
         )
 
     def backup_step(self, p: MutExternalPointer[sqlite3_backup], nPage: c_int) -> SQLite3Result:
@@ -2913,7 +2913,7 @@ struct sqlite3(Movable):
             iErrCode: Error code associated with the message.
             zFormat: Printf-style format string for the message.
         """
-        self.lib.sqlite3_log(iErrCode, zFormat.as_c_string_slice().unsafe_ptr())
+        self.lib.sqlite3_log(iErrCode, zFormat.as_c_string_span().ptr())
 
     def wal_hook[
         arg_origin: MutOrigin, conn_origin: MutOrigin, //
@@ -3051,7 +3051,7 @@ struct sqlite3(Movable):
 
     def vtab_collation(
         self, pIdxInfo: MutExternalPointer[sqlite3_index_info], iCons: c_int
-    ) -> Optional[CStringSlice[ImmUntrackedOrigin]]:
+    ) -> Optional[CStringSpan[ImmUntrackedOrigin]]:
         """Get The Collation For A Virtual Table Constraint.
 
         This routine returns the name of the collation sequence for a constraint
@@ -3068,7 +3068,7 @@ struct sqlite3(Movable):
         if not ptr:
             return None
 
-        return CStringSlice(unsafe_from_ptr=ptr.take())
+        return CStringSpan(unsafe_from_ptr=ptr.take())
 
     def vtab_distinct(self, pIdxInfo: MutExternalPointer[sqlite3_index_info]) -> SQLite3Result:
         """Determine If A Virtual Table Query Is DISTINCT.
@@ -3113,7 +3113,7 @@ struct sqlite3(Movable):
         var name = String(module_name)
         return self.lib.sqlite3_create_module_v2(
             db,
-            name.as_c_string_slice().unsafe_ptr(),
+            name.as_c_string_span().ptr(),
             module_ptr,
             None,
             DestructorHint.static_destructor(),
@@ -3136,7 +3136,7 @@ struct sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self.lib.sqlite3_declare_vtab(db, schema_sql.as_c_string_slice().unsafe_ptr())
+        return self.lib.sqlite3_declare_vtab(db, schema_sql.as_c_string_span().ptr())
 
     def db_cacheflush[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
         """Flush Dirty Pages To Disk.
@@ -3179,7 +3179,7 @@ struct sqlite3(Movable):
             The serialized database buffer, or None on error. The buffer
             remains mutable so the caller can free it after copying out of it.
         """
-        var ptr = self.lib.sqlite3_serialize(db, zSchema.as_c_string_slice().unsafe_ptr(), piSize, mFlags)
+        var ptr = self.lib.sqlite3_serialize(db, zSchema.as_c_string_span().ptr(), piSize, mFlags)
         if not ptr:
             return None
 
@@ -3212,4 +3212,4 @@ struct sqlite3(Movable):
         Returns:
             Result code (SQLITE_OK on success).
         """
-        return self.lib.sqlite3_deserialize(db, zSchema.as_c_string_slice().unsafe_ptr(), pData, szDb, szBuf, mFlags)
+        return self.lib.sqlite3_deserialize(db, zSchema.as_c_string_span().ptr(), pData, szDb, szBuf, mFlags)

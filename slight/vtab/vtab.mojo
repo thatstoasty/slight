@@ -1,5 +1,5 @@
 """Generic `VTab`/`VTabCursor` machinery for implementing SQLite virtual tables in Mojo."""
-from std.ffi import c_char, c_int, CStringSlice
+from std.ffi import c_char, c_int, CStringSpan
 from std.memory.alloc import alloc, dealloc, Layout, Allocation, unsafe_alloc
 from slight.api import sqlite_ffi
 from slight.c.types import (
@@ -566,7 +566,7 @@ def _vtab_xFilter[
     # Convert nullable idxStr C pointer to Optional[StringSpan].
     var idx_str: Optional[StringSpan[ImmUntrackedOrigin]] = None
     if idxStr:
-        idx_str = StringSpan(unsafe_from_utf8=CStringSlice(unsafe_from_ptr=idxStr.value()))
+        idx_str = StringSpan(unsafe_from_utf8=CStringSpan(unsafe_from_ptr=idxStr.value()))
 
     try:
         filter_fn(

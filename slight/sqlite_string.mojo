@@ -1,7 +1,7 @@
 """SQLite String Wrapper."""
 from slight.c.types import MutExternalPointer
 from slight.api import sqlite_ffi
-from std.ffi import c_char, CStringSlice
+from std.ffi import c_char, CStringSpan
 
 
 @fieldwise_init
@@ -35,10 +35,10 @@ struct SQLiteMallocString(Movable):
             .unsafe_address_space_cast[address_space]()
         )
 
-    def as_string_slice(self) -> CStringSlice[origin_of(self)]:
-        """Returns the C string to a `CStringSlice`.
+    def as_string_slice(self) -> CStringSpan[origin_of(self)]:
+        """Returns the C string to a `CStringSpan`.
 
         Returns:
-            A `CStringSlice` representing the C string.
+            A `CStringSpan` representing the C string.
         """
-        return CStringSlice(unsafe_from_ptr=self.unsafe_ptr())
+        return CStringSpan(unsafe_from_ptr=self.unsafe_ptr())
