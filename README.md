@@ -2,7 +2,7 @@
 
 `slight` is a Mojo wrapper around the SQLite3 C library, providing a safe and ergonomic interface for interacting with SQLite databases in Mojo applications.
 
-![Mojo Version](https://img.shields.io/badge/Mojo%F0%9F%94%A5-1.0.0-orange)
+![Mojo Version](https://img.shields.io/badge/Mojo%F0%9F%94%A5-1.1.0-orange)
 ![Build Status](https://github.com/thatstoasty/slight/actions/workflows/build.yml/badge.svg)
 ![Test Status](https://github.com/thatstoasty/slight/actions/workflows/test.yml/badge.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -50,7 +50,7 @@ There's two ways to build `slight` from source: directly from the Git repository
 Run the following commands in your terminal:
 
 ```bash
-pixi add slight --git "https://github.com/thatstoasty/slight.git" --tag "v0.3.0" && pixi install
+pixi add slight --git "https://github.com/thatstoasty/slight.git" --tag "v0.3.1" && pixi install
 ```
 
 #### Building from source: Local
