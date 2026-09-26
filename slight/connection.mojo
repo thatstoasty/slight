@@ -150,7 +150,7 @@ struct Connection(Movable):
             The connection itself.
         """
         return self^
-    
+
     def unsafe_ptr[
         origin: Origin, address_space: AddressSpace, //
     ](ref[origin, address_space] self) -> Pointer[sqlite3_connection, origin, address_space=address_space]:
@@ -381,12 +381,10 @@ struct Connection(Movable):
         )
         var stmt = self.prepare(sql^, PrepFlag.NONE)
         var rows = stmt.query(params)
-        var row: Row[origin_of(self), origin_of(stmt)]
-        try:
-            row = next(rows)
-        except StopIteration:
+        var row = rows.next()
+        if not row:
             raise Error("No rows returned by query.")
-        return row.get[T](0)
+        return row.value().get[T](0)
 
     def one_row[
         T: Movable,
@@ -418,10 +416,9 @@ struct Connection(Movable):
         )
         var stmt = self.prepare(sql^)
         var rows = stmt.query[transform](params)
-        try:
-            return next(rows)
-        except StopIteration:
+        if not rows._advance():
             raise Error("No rows returned by query.")
+        return rows._current()
 
     def maybe_one_row[
         T: Movable,
@@ -453,10 +450,7 @@ struct Connection(Movable):
         )
         var stmt = self.prepare(sql^)
         var rows = stmt.query[transform](params)
-        try:
-            return next(rows)
-        except StopIteration:
-            return None
+        return rows.next()
 
     def column_exists(
         self,
@@ -732,8 +726,10 @@ struct Connection(Movable):
         var query = Sql()
         query.push_pragma(pragma, schema)
         var stmt = self.prepare(String(query))
-        for row in stmt.query(()):
+        var rows = stmt.query(())
+        for row in rows:
             callback(row)
+        rows.raise_if_error()
 
     def pragma[
         T: AnyType, //, callback: def(Row) raises thin -> None
@@ -783,8 +779,10 @@ struct Connection(Movable):
         sql.push_value(value)
         sql.close_brace()
         var stmt = self.prepare(String(sql))
-        for row in stmt.query(()):
+        var rows = stmt.query(())
+        for row in rows:
             callback(row)
+        rows.raise_if_error()
 
     def pragma_update[T: AnyType, //](mut self, pragma: StringSpan, value: T, schema: Optional[String] = None) raises:
         """Set a new value to a pragma.
@@ -1680,7 +1678,9 @@ struct Connection(Movable):
         Raises:
             Error: If the backup could not be initialized, or if it fails while copying pages.
         """
-        var backup = Backup[origin_of(dest), origin_of(self)](Pointer(to=dest), Pointer(to=self), dest_schema, source_schema)
+        var backup = Backup[origin_of(dest), origin_of(self)](
+            Pointer(to=dest), Pointer(to=self), dest_schema, source_schema
+        )
         try:
             while backup.step(-1):
                 pass
@@ -1718,8 +1718,6 @@ struct Connection(Movable):
         var flags: c_int = 0 if read_only else 1
         var ppBlob_ptr = Pointer(to=ppBlob)
         self.raise_if_error(
-            sqlite_ffi()[].blob_open(
-                self.unsafe_ptr(), schema, table, column, row_id, flags, ppBlob_ptr
-            )
+            sqlite_ffi()[].blob_open(self.unsafe_ptr(), schema, table, column, row_id, flags, ppBlob_ptr)
         )
         return Blob[origin_of(self), read_only=read_only](Pointer(to=self), ppBlob)

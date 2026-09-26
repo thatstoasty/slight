@@ -355,6 +355,9 @@ struct Statement[conn: MutOrigin](Movable):
         comptime assert conforms_to(P, Params), String(
             "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
+        # Binding to a statement that has been stepped but not reset fails with SQLITE_MISUSE.
+        # The result is ignored: it repeats the error of the previous step, which was already reported.
+        _ = self.stmt.reset()
         params.bind(self)
         return self._execute()
 
@@ -488,7 +491,7 @@ struct Statement[conn: MutOrigin](Movable):
             self.bind_blob(index, borrowed[value_ref.Blob[param_origin]].value)
         else:
             raise Error("Unsupported parameter type")
-    
+
     def bind_parameter_count(self) -> Int32:
         """Returns the number of parameters in the prepared statement.
 
@@ -518,6 +521,9 @@ struct Statement[conn: MutOrigin](Movable):
         comptime assert conforms_to(P, Params), String(
             "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
+        # `Rows` resets the statement when it is destroyed, but reset here too in case the
+        # statement was stepped manually. The result repeats the previous step's error, if any.
+        _ = self.stmt.reset()
         params.bind(self)
         return Rows(Pointer(to=self))
 
@@ -602,11 +608,9 @@ struct Statement[conn: MutOrigin](Movable):
             "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         var rows = self.query(params)
-        try:
-            _ = rows.__next__()
+        if rows.next():
             return True
-        except StopIteration:
-            return False
+        return False
 
     def one_row[T: Movable, P: AnyType, //, transform: RowTransformFn[T]](mut self, params: P = ()) raises -> T:
         """Executes a SQL query and returns a single row.
@@ -629,10 +633,9 @@ struct Statement[conn: MutOrigin](Movable):
             "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         var rows = self.query[transform](params)
-        try:
-            return next(rows)
-        except StopIteration:
+        if not rows._advance():
             raise Error("No rows returned by query.")
+        return rows._current()
 
     def maybe_one_row[
         T: Movable, P: AnyType, //, transform: RowTransformFn[T]
@@ -657,10 +660,7 @@ struct Statement[conn: MutOrigin](Movable):
             "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         var rows = self.query[transform](params)
-        try:
-            return next(rows)
-        except StopIteration:
-            return None
+        return rows.next()
 
     def one_column[T: Movable, P: AnyType](mut self, params: P = ()) raises -> T:
         """Fetches a single column from the first row of the result set.
@@ -689,12 +689,10 @@ struct Statement[conn: MutOrigin](Movable):
             "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         var rows = self.query(params)
-        var row: Row[Self.conn, origin_of(self)]
-        try:
-            row = next(rows)
-        except StopIteration:
+        var row = rows.next()
+        if not row:
             raise Error("No rows returned by query.")
-        return row.get[T](0)
+        return row.value().get[T](0)
 
     def clear_bindings(mut self) raises -> None:
         """Clears all bound parameters from the statement.

@@ -569,6 +569,160 @@ def test_status_reflects_query_plan() raises:
     assert_equal(trivial.get_status(StatementStatus.FULLSCAN_STEP), 0)
 
 
+# ===----------------------------------------------------------------------=== #
+# Row iteration: error reporting and statement reset
+# ===----------------------------------------------------------------------=== #
+
+# `abs()` of the minimum Int64 overflows, so this query fails while stepping to its second row.
+comptime OVERFLOW_ON_ROW_2 = (
+    "SELECT abs(x) FROM (SELECT 1 AS x UNION ALL SELECT -9223372036854775808 UNION ALL SELECT 3)"
+)
+
+
+def _get_int(r: Row) raises -> Int64:
+    return r.get[Int64](0)
+
+
+@fieldwise_init
+struct _IntRow(Defaultable, Movable):
+    var x: Int64
+
+    def __init__(out self):
+        self.x = 0
+
+
+def test_rows_next_raises_step_error() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare(OVERFLOW_ON_ROW_2)
+    var rows = stmt.query()
+    assert_equal(rows.next().value().get[Int64](0), 1)
+    with assert_raises(contains="integer overflow"):
+        _ = rows.next()
+    # A failed statement is finished: it must not silently restart the query.
+    assert_false(rows.next())
+
+
+def test_for_loop_stores_step_error() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare(OVERFLOW_ON_ROW_2)
+    var rows = stmt.query()
+    var seen = 0
+    for _ in rows:
+        seen += 1
+    assert_equal(seen, 1)
+    with assert_raises(contains="integer overflow"):
+        rows.raise_if_error()
+
+
+def test_for_loop_without_error_does_not_raise() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare("SELECT 1 UNION ALL SELECT 2")
+    var rows = stmt.query()
+    var seen = 0
+    for _ in rows:
+        seen += 1
+    assert_equal(seen, 2)
+    rows.raise_if_error()
+
+
+def test_one_row_raises_step_error() raises:
+    var db = Connection.open_in_memory()
+    with assert_raises(contains="integer overflow"):
+        _ = db.one_row[_get_int]("SELECT abs(-9223372036854775808)")
+    with assert_raises(contains="integer overflow"):
+        _ = db.one_column[Int64]("SELECT abs(-9223372036854775808)")
+
+
+def test_mapped_rows_collect_raises_transform_error() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare("SELECT 1 UNION ALL SELECT 'text' UNION ALL SELECT 3")
+    with assert_raises(contains="InvalidColumnType"):
+        _ = stmt.query[_get_int]().collect()
+
+
+def test_mapped_rows_collect_raises_step_error() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare(OVERFLOW_ON_ROW_2)
+    with assert_raises(contains="integer overflow"):
+        _ = stmt.query[_get_int]().collect()
+
+
+def test_mapped_rows_for_loop_stores_error() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare("SELECT 1 UNION ALL SELECT 'text' UNION ALL SELECT 3")
+    var mapped = stmt.query[_get_int]()
+    var seen = 0
+    for _ in mapped:
+        seen += 1
+    assert_equal(seen, 1)
+    with assert_raises(contains="InvalidColumnType"):
+        mapped.raise_if_error()
+
+
+def test_typed_rows_collect_raises_conversion_error() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare("SELECT 1 UNION ALL SELECT 'text'")
+    with assert_raises(contains="InvalidColumnType"):
+        _ = stmt.query[T=_IntRow]().collect()
+
+
+def test_statement_reusable_after_early_exit() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare("SELECT 1 UNION ALL SELECT 2")
+    # Each call must start from the first row, not continue where the last one stopped.
+    assert_true(stmt.exists())
+    assert_true(stmt.exists())
+    assert_true(stmt.exists())
+    assert_equal(stmt.one_row[_get_int](), 1)
+    assert_equal(stmt.one_row[_get_int](), 1)
+    assert_equal(stmt.one_column[Int64](), 1)
+
+
+def test_break_resets_statement() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare("SELECT ?1 UNION ALL SELECT ?1 + 1")
+    for row in stmt.query([10]):
+        assert_equal(row.get[Int64](0), 10)
+        break
+    # Binding would fail with SQLITE_MISUSE if the statement had been left mid-query.
+    var got = stmt.query[_get_int]([20]).collect()
+    assert_equal(len(got), 2)
+    assert_equal(got[0], 20)
+    assert_equal(got[1], 21)
+
+
+def test_break_on_named_rows_reads_row() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare("SELECT 5 UNION ALL SELECT 6")
+    var rows = stmt.query()
+    for row in rows:
+        assert_equal(row.get[Int64](0), 5)
+        break
+    assert_equal(stmt.one_column[Int64](), 5)
+
+
+def test_row_keeps_rows_alive() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare("SELECT 7")
+    var rows = stmt.query()
+    var row = rows.next().value()
+    # `rows` is not used again, but `row` borrows it, so the statement must not be reset yet.
+    var unrelated = String("work between next() and get()")
+    assert_true(unrelated.byte_length() > 0)
+    assert_equal(row.get[Int64](0), 7)
+
+
+def test_exhausted_rows_do_not_restart() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare("SELECT 1")
+    var rows = stmt.query()
+    assert_true(rows.next())
+    assert_false(rows.next())
+    assert_false(rows.next())
+    rows.reset()
+    assert_true(rows.next())
+
+
 def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
     # var suite = TestSuite()

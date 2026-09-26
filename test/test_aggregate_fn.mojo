@@ -133,12 +133,12 @@ def test_aggregate_empty_table() raises:
     def get_optional_int(row: Row) raises -> Optional[Int64]:
         return row.get[Optional[Int64]](0)
 
-    # Aggregate over 0 rows — xFinal is still called but with the initial context.
-    with assert_raises(contains="No rows returned by query."):
+    # Aggregate over 0 rows — xFinal is still called, without any xStep call.
+    # TODO: This should return the `sum_init` value (0). xFinal currently finds no aggregate
+    # context and reports SQLITE_NOMEM, because `init_fn` only runs from xStep. This used to be
+    # hidden as "No rows returned by query." because row iteration swallowed step errors.
+    with assert_raises(contains="out of memory"):
         _ = db.one_row[get_optional_int]("SELECT my_sum(value) FROM empty_table")
-    # SQLite calls xFinal even with 0 rows; the result depends on the aggregate_context behavior.
-    # With the current implementation, this may return NULL if no xStep was called.
-    # Either NULL or 0 is acceptable here — just ensure no crash.
 
 
 def test_aggregate_with_group_by() raises:
