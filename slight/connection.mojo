@@ -1,7 +1,7 @@
 """SQLite DB Connection."""
 from std.ffi import c_int
 from std.pathlib import Path
-from slight.c.types import sqlite3_blob, sqlite3_connection, MutExternalPointer
+from slight.c.types import sqlite3_blob, sqlite3_connection, sqlite3_stmt, MutExternalPointer
 from slight.busy import BusyHandlerFn
 from slight.api import sqlite_ffi
 from slight.backup import Backup
@@ -273,9 +273,18 @@ struct Connection(Movable):
             raise Error("NoStatementError: Unable to prepare a valid statement from the SQL provided.")
 
         # If there is trailing SQL after the first statement that contains a valid SQL statement, raise an error.
+        # Neither statement has an owner yet, so finalize them by hand on every error path.
         if tail > 0:
-            var tail_stmt, _ = self.db.prepare(String(sql[byte = Int(tail) :]))
+            var tail_stmt: Optional[MutExternalPointer[sqlite3_stmt]]
+            try:
+                tail_stmt = self.db.prepare(String(sql[byte = Int(tail) :]))[0]
+            except e:
+                _ = sqlite_ffi()[].finalize(stmt.value())
+                raise e^
+
             if tail_stmt:
+                _ = sqlite_ffi()[].finalize(tail_stmt.value())
+                _ = sqlite_ffi()[].finalize(stmt.value())
                 raise Error(
                     "MultipleStatementsError: Prepared statement contains multiple SQL statements. Should be one."
                 )
@@ -516,6 +525,7 @@ struct Connection(Movable):
         Raises:
             Error: If the underlying SQLite call fails.
         """
+        sqlite_ffi()[].require_function("sqlite3_table_column_metadata")
         var not_null: Int32 = 0
         var primary_key: Int32 = 0
         var auto_inc: Int32 = 0
@@ -563,6 +573,7 @@ struct Connection(Movable):
         Raises:
             Error: If the underlying SQLite call fails with an unexpected error.
         """
+        sqlite_ffi()[].require_function("sqlite3_table_column_metadata")
         var r = sqlite_ffi()[].table_column_metadata(
             self.db.db,
             table,
@@ -1082,6 +1093,7 @@ struct Connection(Movable):
         Raises:
             Error: If the function could not be attached to the connection.
         """
+        sqlite_ffi()[].require_function("sqlite3_create_window_function")
         comptime assert conforms_to(T, ToSQL), String(
             t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
@@ -1134,6 +1146,7 @@ struct Connection(Movable):
         Raises:
             Error: If the function could not be attached to the connection.
         """
+        sqlite_ffi()[].require_function("sqlite3_create_window_function")
         comptime assert conforms_to(T, ToSQL), String(
             t"Return type T must conform to `ToSQL` trait. {reflect[T].name()} does not implement `ToSQL`."
         )
@@ -1182,6 +1195,7 @@ struct Connection(Movable):
         Raises:
             Error: If the module could not be registered.
         """
+        sqlite_ffi()[].require_function("sqlite3_create_module_v2")
         var result = self.db.create_module[
             T,
             C,
@@ -1462,6 +1476,7 @@ struct Connection(Movable):
         Raises:
             Error: If the authorizer could not be registered.
         """
+        sqlite_ffi()[].require_function("sqlite3_set_authorizer")
         self.raise_if_error(self.db.register_authorizer(callback))
 
     def clear_authorizer(mut self) raises:
@@ -1470,6 +1485,7 @@ struct Connection(Movable):
         Raises:
             Error: If the underlying SQLite call fails.
         """
+        sqlite_ffi()[].require_function("sqlite3_set_authorizer")
         self.raise_if_error(self.db.clear_authorizer())
 
     def log(mut self, err_code: Int32, mut msg: String):
@@ -1490,6 +1506,7 @@ struct Connection(Movable):
         Raises:
             Error: If the underlying SQLite call fails.
         """
+        sqlite_ffi()[].require_function("sqlite3_enable_load_extension")
         self.raise_if_error(self.db.set_extension_loading(enable=True))
         return ExtensionLoadGuard[origin_of(self)](Pointer(to=self))
 
@@ -1499,6 +1516,7 @@ struct Connection(Movable):
         Raises:
             Error: If the underlying SQLite call fails.
         """
+        sqlite_ffi()[].require_function("sqlite3_enable_load_extension")
         self.raise_if_error(self.db.set_extension_loading(enable=False))
 
     def load_extension(mut self, dylib_path: String, entry_point: Optional[String] = None) raises:
@@ -1514,6 +1532,7 @@ struct Connection(Movable):
         Raises:
             Error: If the extension cannot be loaded.
         """
+        sqlite_ffi()[].require_function("sqlite3_load_extension")
         self.db.load_extension(dylib_path, entry_point)
 
     def serialize(mut self, schema: String = "main") raises -> List[Byte]:
@@ -1545,6 +1564,7 @@ struct Connection(Movable):
         Raises:
             Error: If serialization fails (e.g. out of memory).
         """
+        sqlite_ffi()[].require_function("sqlite3_serialize")
         return self.db.serialize(schema)
 
     def deserialize(mut self, var data: List[Byte], schema: String = "main", read_only: Bool = False) raises:
@@ -1565,6 +1585,7 @@ struct Connection(Movable):
         Raises:
             Error: If the buffer cannot be allocated, or if deserialization fails.
         """
+        sqlite_ffi()[].require_function("sqlite3_deserialize")
         self.db.deserialize(data^, schema, read_only)
 
     def is_locked(self, rc: SQLite3Result) -> Bool:
@@ -1603,6 +1624,7 @@ struct Connection(Movable):
         Raises:
             Error: If the underlying SQLite call fails.
         """
+        sqlite_ffi()[].require_function("sqlite3_wal_checkpoint")
         self.db.wal_checkpoint(schema.copy())
 
     def wal_checkpoint_v2(mut self, mode: CheckpointMode, schema: Optional[String] = None) raises -> Tuple[Int, Int]:
@@ -1630,6 +1652,7 @@ struct Connection(Movable):
             var log_frames, checkpointed_frames = conn.wal_checkpoint_v2(CheckpointMode.FULL)
         ```
         """
+        sqlite_ffi()[].require_function("sqlite3_wal_checkpoint_v2")
         return self.db.wal_checkpoint_v2(mode, schema.copy())
 
     def backup(
@@ -1714,6 +1737,7 @@ struct Connection(Movable):
         Raises:
             Error: If the BLOB could not be opened.
         """
+        sqlite_ffi()[].require_function("sqlite3_blob_open")
         var ppBlob = MutExternalPointer[sqlite3_blob].unsafe_dangling()
         var flags: c_int = 0 if read_only else 1
         var ppBlob_ptr = Pointer(to=ppBlob)

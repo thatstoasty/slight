@@ -1,7 +1,7 @@
 """Result rows."""
 from std.builtin.rebind import downcast
 from slight.types.from_sql import FromSQL
-from slight.statement import Statement
+from slight.statement import InvalidColumnIndexError, Statement
 from slight.types.value_ref import ValueRef
 from slight.util import MoveDestructible
 
@@ -40,7 +40,7 @@ __extension SIMD(RowIndex):
         """
         comptime assert Self.length == 1, "RowIndex must be a scalar SIMD value (length == 1)."
         if self < 0 or UInt(self) >= stmt.column_count():
-            raise Error("Invalid column index: ", self)
+            raise Error(InvalidColumnIndexError(Int(self), Int(stmt.column_count())))
 
         return UInt(self)
 
@@ -177,7 +177,7 @@ struct Row[conn: MutOrigin, statement: MutOrigin](ImplicitlyCopyable, Writable):
         """
         var i = idx.idx(self.stmt[])
         if i >= self.stmt[].column_count():
-            raise Error("InvalidColumnIndexError: column index out of bounds: ", i)
+            raise Error(InvalidColumnIndexError(Int(i), Int(self.stmt[].column_count())))
 
         return self.stmt[].value_ref(i)
 

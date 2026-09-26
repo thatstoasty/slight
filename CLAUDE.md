@@ -74,7 +74,7 @@ Several types use `@explicit_destroy` (e.g. `RawStatement`, `ExtensionLoadGuard`
 
 ### FFI / dynamic loading
 
-`slight` does **not** statically link sqlite3. `sqlite_ffi()` (`slight/api.mojo`) lazily loads `libsqlite3.{dylib,so}` once per process via `_get_global`, resolving the library path in this order: `-D SQLITE_LIB_PATH=...` compile-time flag → `SQLITE_LIB_PATH` env var → default `.pixi/envs/default/lib/libsqlite3.{dylib,so}`. Every other module gets at the C API by calling `sqlite_ffi()`, never by linking directly.
+`slight` does **not** statically link sqlite3. `sqlite_ffi()` (`slight/api.mojo`) lazily loads `libsqlite3.{dylib,so}` once per process via `_get_global`, resolving the library path in this order: `-D SQLITE_LIB_PATH=...` compile-time flag → `SQLITE_LIB_PATH` env var → `$CONDA_PREFIX/lib/libsqlite3.{dylib,so}` (`pixi run` sets `CONDA_PREFIX` to `.pixi/envs/default`; with none of these set, loading aborts). Only core C API functions are required at load; optional ones (deprecated, compile-option-dependent, or newer) are resolved when used — check `sqlite_ffi()[].has_function(...)`. Every other module gets at the C API by calling `sqlite_ffi()`, never by linking directly.
 
 ### `rusqlite/` directory
 

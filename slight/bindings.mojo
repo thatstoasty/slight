@@ -41,7 +41,7 @@ from slight.c.types import (
     sqlite3_value,
 )
 from slight.result import SQLite3Result
-from slight.enums import DestructorHint, TextEncoding
+from slight.enums import DataType, DestructorHint, TextEncoding
 
 
 def _opt_ptr(mut opt: Optional[String]) -> Optional[ImmPointer[c_char, origin_of(opt._value)]]:
@@ -71,6 +71,38 @@ struct sqlite3(Movable):
             An instance of the sqlite3 struct with the library loaded.
         """
         self.lib = _sqlite3()
+
+    def has_function(self, name: String) -> Bool:
+        """Returns whether the loaded SQLite library provides the given C API function.
+
+        Core functions are always present: the library fails to load without them. Functions that
+        are deprecated, depend on compile-time options (such as `sqlite3_load_extension` or
+        `sqlite3_unlock_notify`), or were added in recent SQLite versions may be missing. Using a
+        feature whose function is missing raises an `Error` from methods that can raise, and aborts
+        with an explanation from methods that cannot.
+
+        Args:
+            name: The C function name, e.g. `"sqlite3_load_extension"`.
+
+        Returns:
+            True if the loaded library exports the function.
+        """
+        return self.lib.has_symbol(name)
+
+    def require_function(self, name: String) raises:
+        """Raises if the loaded SQLite library does not provide the given C API function.
+
+        Args:
+            name: The C function name, e.g. `"sqlite3_serialize"`.
+
+        Raises:
+            Error: If the function is missing from the loaded library.
+        """
+        if not self.has_function(name):
+            raise Error(
+                t"{name} is not available in the loaded libsqlite3: it was left out by the library's compile-time"
+                t" options or is newer than its SQLite version."
+            )
 
     def version(self) -> ImmExternalPointer[c_char]:
         """Get the SQLite library version string.
@@ -1810,6 +1842,9 @@ struct sqlite3(Movable):
         """
         var ptr = self.lib.sqlite3_value_blob(value)
         if not ptr:
+            # SQLite returns a NULL pointer for a zero-length BLOB too; only the type tells them apart.
+            if DataType.BLOB == self.lib.sqlite3_value_type(value):
+                return Span[Byte, ImmUntrackedOrigin]()
             return None
         return Span(unsafe_ptr=ptr.take().unsafe_bitcast[Byte](), length=Int(self.lib.sqlite3_value_bytes(value)))
 

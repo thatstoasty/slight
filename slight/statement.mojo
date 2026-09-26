@@ -22,10 +22,12 @@ from slight.enums import DataType, DestructorHint
 
 @fieldwise_init
 struct InvalidColumnIndexError(Movable, TrivialRegisterPassable, Writable):
-    """An error type for invalid column index indexing."""
+    """An error type for a column index that is out of range for the result set."""
 
-    comptime msg = "InvalidColumnIndex: Index provided is greater than the number of columns."
-    """Error message."""
+    var index: Int
+    """The column index that was requested."""
+    var column_count: Int
+    """The number of columns in the result set."""
 
     def write_to(self, mut writer: Some[Writer]):
         """Writes the error message to the provided writer.
@@ -33,7 +35,13 @@ struct InvalidColumnIndexError(Movable, TrivialRegisterPassable, Writable):
         Args:
             writer: A mutable reference to a Writer where the error message will be written.
         """
-        writer.write_string(Self.msg)
+        writer.write(
+            "InvalidColumnIndexError: column index ",
+            self.index,
+            " is out of range for a result with ",
+            self.column_count,
+            " column(s).",
+        )
 
 
 @fieldwise_init
@@ -59,8 +67,6 @@ struct InvalidColumnNameError(Movable, Writable):
 struct InvalidColumnError(Movable, Writable):
     """An error type for invalid column indexing, encompassing both index and name errors."""
 
-    comptime msg = "InvalidColumnNameError: Name provided does not match any column. Column name: "
-    """Error message."""
     var err: Variant[InvalidColumnNameError, InvalidColumnIndexError]
     """The specific error that occurred."""
 
@@ -81,6 +87,17 @@ struct InvalidColumnError(Movable, Writable):
             e: The original error.
         """
         self.err = e
+
+    def write_to(self, mut writer: Some[Writer]):
+        """Writes the message of the wrapped error to the provided writer.
+
+        Args:
+            writer: A mutable reference to a Writer where the error message will be written.
+        """
+        if self.err.isa[InvalidColumnNameError]():
+            self.err[InvalidColumnNameError].write_to(writer)
+        else:
+            self.err[InvalidColumnIndexError].write_to(writer)
 
 
 def eq_ignore_ascii_case(a: ImmSpan[Byte, ...], b: ImmSpan[Byte, ...]) -> Bool:
@@ -155,9 +172,10 @@ struct Statement[conn: MutOrigin](Movable):
         Returns:
             A string representation of the statement.
         """
-        # var sql = String(self.sql().value()) if self.stmt else ""
-        var sql = String(self.sql().value())
-        return String(t"Statement({sql})")
+        var sql = self.sql()
+        if not sql:
+            return "Statement(<no SQL>)"
+        return String(t"Statement({sql.value()})")
 
     def column_count(self) -> UInt:
         """Returns the number of columns in the result set.
@@ -742,7 +760,7 @@ struct Statement[conn: MutOrigin](Movable):
         """
         var name = self.stmt.column_name(idx)
         if not name:
-            raise Error("InvalidColumnIndexError: column index is out of bounds.")
+            raise Error(InvalidColumnIndexError(Int(idx), Int(self.column_count())))
 
         var c_str_slice = CStringSpan(
             unsafe_from_ptr=name.value().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)]()
@@ -767,7 +785,7 @@ struct Statement[conn: MutOrigin](Movable):
             if eq_ignore_ascii_case(name.as_bytes(), self.column_name(UInt(i)).as_bytes()):
                 return UInt(i)
 
-        raise Error("InvalidColumnNameError: no column with the specified name exists.")
+        raise Error(InvalidColumnNameError(String(name)))
 
     def insert[P: AnyType](mut self, params: P = ()) raises -> Int64:
         """Executes an INSERT statement and returns the last inserted row ID.

@@ -1,5 +1,7 @@
+from slight.api import sqlite_ffi
 from slight.connection import Connection
 from slight.row import Row
+from slight.statement import InvalidColumnError, InvalidColumnIndexError, InvalidColumnNameError
 from slight.trace import StatementStatus
 from slight.types.value_ref import Null
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
@@ -721,6 +723,137 @@ def test_exhausted_rows_do_not_restart() raises:
     assert_false(rows.next())
     rows.reset()
     assert_true(rows.next())
+
+
+# ===----------------------------------------------------------------------=== #
+# Empty BLOBs, integer range checks, parameter counts, prepare cleanup
+# ===----------------------------------------------------------------------=== #
+
+
+def test_empty_blob_column() raises:
+    var db = Connection.open_in_memory()
+    # sqlite3_column_blob returns a NULL pointer for a zero-length BLOB; this used to abort.
+    assert_equal(len(db.one_column[List[Byte]]("SELECT X''")), 0)
+    assert_equal(len(db.one_column[List[Byte]]("SELECT zeroblob(0)")), 0)
+
+    var empty = db.one_column[Optional[List[Byte]]]("SELECT X''")
+    assert_true(empty)
+    assert_equal(len(empty.value()), 0)
+    assert_false(db.one_column[Optional[List[Byte]]]("SELECT NULL"))
+
+    db.execute_batch("CREATE TABLE b(v BLOB); INSERT INTO b VALUES (X'');")
+    assert_equal(len(db.one_column[List[Byte]]("SELECT v FROM b")), 0)
+
+
+def test_integer_out_of_range_is_rejected() raises:
+    var db = Connection.open_in_memory()
+    with assert_raises(contains="IntegralValueOutOfRange"):
+        _ = db.one_column[UInt8]("SELECT 256")
+    with assert_raises(contains="IntegralValueOutOfRange"):
+        _ = db.one_column[Int8]("SELECT -129")
+    with assert_raises(contains="IntegralValueOutOfRange"):
+        _ = db.one_column[Int32]("SELECT 2147483648")
+    with assert_raises(contains="IntegralValueOutOfRange"):
+        _ = db.one_column[UInt64]("SELECT -1")
+    with assert_raises(contains="IntegralValueOutOfRange"):
+        _ = db.one_column[UInt16]("SELECT -1")
+
+
+def test_integer_boundaries_are_accepted() raises:
+    var db = Connection.open_in_memory()
+    assert_equal(db.one_column[UInt8]("SELECT 255"), 255)
+    assert_equal(db.one_column[Int8]("SELECT -128"), -128)
+    assert_equal(db.one_column[Int8]("SELECT 127"), 127)
+    assert_equal(db.one_column[Int32]("SELECT -2147483648"), -2147483648)
+    assert_equal(db.one_column[UInt32]("SELECT 4294967295"), 4294967295)
+    assert_equal(db.one_column[Int64]("SELECT -9223372036854775808"), Int64.MIN)
+    assert_equal(db.one_column[UInt64]("SELECT 9223372036854775807"), UInt64(Int64.MAX))
+
+
+def test_unsigned_above_int64_max_is_rejected_when_binding() raises:
+    var db = Connection.open_in_memory()
+    with assert_raises(contains="IntegralValueOutOfRange"):
+        _ = db.one_column[Int64]("SELECT ?1", (UInt64.MAX,))
+    with assert_raises(contains="IntegralValueOutOfRange"):
+        _ = db.one_column[Int64]("SELECT ?1", (UInt64(Int64.MAX) + 1,))
+    assert_equal(db.one_column[Int64]("SELECT ?1", (UInt64(Int64.MAX),)), Int64.MAX)
+    assert_equal(db.one_column[Int64]("SELECT ?1", (UInt32.MAX,)), Int64(UInt32.MAX))
+
+
+def test_missing_params_are_rejected() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE t(v INTEGER)")
+    # Omitting the params used to leave `?` bound to NULL without any error.
+    with assert_raises(contains="Invalid parameter count: 0, expected: 1"):
+        _ = db.execute("INSERT INTO t VALUES (?)")
+    with assert_raises(contains="Invalid parameter count: 0, expected: 2"):
+        _ = db.one_column[Int64]("SELECT ?1 + ?2", ())
+
+    var stmt = db.prepare("INSERT INTO t VALUES (?)")
+    with assert_raises(contains="Invalid parameter count: 0, expected: 1"):
+        _ = stmt.execute()
+    with assert_raises(contains="Invalid parameter count: 0, expected: 1"):
+        _ = stmt.query()
+    assert_equal(db.one_column[Int64]("SELECT count(*) FROM t"), 0)
+
+    # Statements without parameters still accept no params.
+    assert_equal(db.execute("INSERT INTO t VALUES (1)"), 1)
+    assert_equal(db.one_column[Int64]("SELECT count(*) FROM t", ()), 1)
+
+
+def test_prepare_errors_do_not_leak_statements() raises:
+    var db = Connection.open_in_memory()
+    with assert_raises(contains="MultipleStatementsError"):
+        _ = db.prepare("SELECT 1; SELECT 2")
+    with assert_raises(contains="syntax error"):
+        _ = db.prepare("SELECT 1; SELEC 2")
+    # Both statements prepared above must have been finalized.
+    assert_false(sqlite_ffi()[].next_stmt(db.unsafe_ptr(), None))
+
+    # Trailing whitespace or comments are not a second statement.
+    _ = db.prepare("SELECT 1;  -- trailing comment")
+
+
+# ===----------------------------------------------------------------------=== #
+# Column error types and Statement repr
+# ===----------------------------------------------------------------------=== #
+
+
+def test_invalid_column_index_error() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare("SELECT 1 AS one")
+    var rows = stmt.query()
+    var row = rows.next().value()
+    with assert_raises(contains="InvalidColumnIndexError: column index 5 is out of range for a result with 1 column(s)."):
+        _ = row.get[Int](5)
+    with assert_raises(contains="InvalidColumnIndexError: column index 3 is out of range"):
+        _ = row.get_ref(3)
+    with assert_raises(contains="InvalidColumnIndexError: column index 9 is out of range"):
+        _ = stmt.column_name(9)
+
+
+def test_invalid_column_name_error() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare("SELECT 1 AS one")
+    var rows = stmt.query()
+    var row = rows.next().value()
+    with assert_raises(contains="InvalidColumnNameError: Name provided does not match any column. Column name: nope"):
+        _ = row.get[Int]("nope")
+    with assert_raises(contains="Column name: missing"):
+        _ = stmt.column_index("missing")
+
+
+def test_invalid_column_error_describes_wrapped_error() raises:
+    var by_index = InvalidColumnError(InvalidColumnIndexError(2, 1))
+    assert_equal(String(by_index), "InvalidColumnIndexError: column index 2 is out of range for a result with 1 column(s).")
+    var by_name = InvalidColumnError(InvalidColumnNameError("x"))
+    assert_equal(String(by_name), "InvalidColumnNameError: Name provided does not match any column. Column name: x")
+
+
+def test_statement_repr() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare("SELECT 1")
+    assert_equal(stmt.__repr__(), "Statement(SELECT 1)")
 
 
 def main() raises:

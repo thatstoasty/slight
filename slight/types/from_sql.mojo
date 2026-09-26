@@ -1,6 +1,7 @@
 """`FromSQL` trait: SQLite → Mojo type conversion for reading columns."""
 from slight.types.value_ref import ValueRef, Null
 from std.builtin.rebind import downcast
+from std.sys import size_of
 
 
 trait FromSQL(Movable):
@@ -99,8 +100,8 @@ __extension SIMD(FromSQL):
             DType.uint64,
         ]
         comptime assert Self.dtype in int_types or Self.dtype in float_types, String(
-            "To construct a SIMD type from a ValueRef, it must be one of the int or float dtypes. Received:"
-            " {Self.dtype}"
+            t"To construct a SIMD type from a ValueRef, it must be one of the int or float dtypes. Received:"
+            t" {Self.dtype}"
         )
 
         comptime if Self.dtype in (DType.float16, DType.float32, DType.float64):
@@ -117,7 +118,19 @@ __extension SIMD(FromSQL):
             DType.uint32,
             DType.uint64,
         ):
-            self = Scalar[Self.dtype](value.as_int64())
+            var v = value.as_int64()
+            # Reject values that don't fit instead of silently wrapping (e.g. 300 as UInt8 -> 44).
+            comptime if Self.dtype.is_unsigned():
+                var fits = v >= 0
+                comptime if size_of[Self]() < size_of[Int64]():
+                    fits = fits and v <= Int64(Scalar[Self.dtype].MAX)
+                if not fits:
+                    raise Error(t"IntegralValueOutOfRange: {v} does not fit in {Self.dtype}")
+            else:
+                comptime if size_of[Self]() < size_of[Int64]():
+                    if v < Int64(Scalar[Self.dtype].MIN) or v > Int64(Scalar[Self.dtype].MAX):
+                        raise Error(t"IntegralValueOutOfRange: {v} does not fit in {Self.dtype}")
+            self = Scalar[Self.dtype](v)
         else:
             raise Error("InvalidColumnTypeError: Unsupported value type")
 

@@ -8,6 +8,7 @@ from slight.types import value
 from slight.types.value_ref import ValueRef
 from slight.types.value import Value
 from std.utils.variant import Variant
+from std.sys import size_of
 
 
 struct ToSqlOutput[origin: ImmOrigin](Movable):
@@ -168,7 +169,12 @@ __extension SIMD(ToSQL):
             DType.uint32,
             DType.uint64,
         ):
-            return ValueRef[origin_of(self)](value_ref.Integer(Int64(self._refine[self.dtype, 1]())))
+            var v = self._refine[self.dtype, 1]()
+            # SQLite integers are signed 64-bit: an unsigned value above Int64.MAX would wrap negative.
+            comptime if Self.dtype.is_unsigned() and size_of[Self]() >= size_of[Int64]():
+                if v > Scalar[Self.dtype](Int64.MAX):
+                    raise Error(t"IntegralValueOutOfRange: {v} does not fit in a SQLite INTEGER (Int64)")
+            return ValueRef[origin_of(self)](value_ref.Integer(Int64(v)))
         else:
             raise Error("InvalidColumnType: Unsupported SIMD dtype for size 1")
 

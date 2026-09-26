@@ -247,6 +247,28 @@ def test_blob() raises:
     assert_equal(db.one_row[get_int]("SELECT test_len(NULL)"), 0)
 
 
+def blob_len_or_minus_one(mut ctx: Context) raises -> Int:
+    """Return the byte length of a blob argument, or -1 if it is NULL."""
+    var blob = ctx.get_blob(0)
+    if not blob:
+        return -1
+    return len(blob.value())
+
+
+def test_empty_blob_argument_is_not_null() raises:
+    """An empty BLOB argument is a zero-length blob, not NULL (SQLite returns a NULL pointer for both)."""
+    var db = Connection.open_in_memory()
+    db.create_scalar_function[blob_len_or_minus_one]("blob_len", n_arg=1)
+
+    def get_int(row: Row) raises -> Int:
+        return row.get[Int](0)
+
+    assert_equal(db.one_row[get_int]("SELECT blob_len(X'0102')"), 2)
+    assert_equal(db.one_row[get_int]("SELECT blob_len(X'')"), 0)
+    assert_equal(db.one_row[get_int]("SELECT blob_len(zeroblob(0))"), 0)
+    assert_equal(db.one_row[get_int]("SELECT blob_len(NULL)"), -1)
+
+
 def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()
     # var suite = TestSuite()
