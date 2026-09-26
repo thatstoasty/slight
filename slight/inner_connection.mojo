@@ -260,7 +260,7 @@ struct InnerConnection(Deinitable where False, Movable):
                 tail = 0
             else:
                 tail = UInt(n)
-        
+
         if not stmt:
             return (None, tail)
         return stmt.value(), tail
@@ -464,7 +464,7 @@ struct InnerConnection(Deinitable where False, Movable):
             flags.value,
             pAppPtr.unsafe_bitcast[NoneType](),
             _call_step_callback[init_fn, step_fn],
-            _call_final_callback[final_fn],
+            _call_final_callback[init_fn, final_fn],
             _typed_destructor[P],
         )
 
@@ -509,7 +509,7 @@ struct InnerConnection(Deinitable where False, Movable):
             c_int(n_arg),
             flags.value,
             _call_step_callback[init_fn, step_fn],
-            _call_final_callback[final_fn],
+            _call_final_callback[init_fn, final_fn],
         )
 
     def create_window_function[
@@ -566,7 +566,7 @@ struct InnerConnection(Deinitable where False, Movable):
             flags.value,
             pAppPtr.unsafe_bitcast[NoneType](),
             _call_step_callback[init_fn, step_fn],
-            _call_final_callback[final_fn],
+            _call_final_callback[init_fn, final_fn],
             _call_value_callback[value_fn],
             _call_inverse_callback[inverse_fn],
             _typed_destructor[P],
@@ -617,7 +617,7 @@ struct InnerConnection(Deinitable where False, Movable):
             c_int(n_arg),
             flags.value,
             _call_step_callback[init_fn, step_fn],
-            _call_final_callback[final_fn],
+            _call_final_callback[init_fn, final_fn],
             _call_value_callback[value_fn],
             _call_inverse_callback[inverse_fn],
         )
@@ -1106,7 +1106,9 @@ struct InnerConnection(Deinitable where False, Movable):
         """
         self.raise_if_error(sqlite_ffi()[].wal_checkpoint(self.unsafe_ptr(), schema^))
 
-    def wal_checkpoint_v2(mut self, mode: CheckpointMode, var schema: Optional[String] = None) raises -> Tuple[Int, Int]:
+    def wal_checkpoint_v2(
+        mut self, mode: CheckpointMode, var schema: Optional[String] = None
+    ) raises -> Tuple[Int, Int]:
         """Checkpoints the write-ahead log with additional control over the
         checkpoint operation.
 

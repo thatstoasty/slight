@@ -159,6 +159,45 @@ Parameters:
 """
 
 
+comptime _AggregateSlot[A: MoveDestructible] = Optional[MutExternalPointer[A]]
+"""What SQLite's aggregate context holds for an aggregate with accumulator `A`.
+
+SQLite zero-fills the aggregate context on first use, which is the `None`
+(null) state of this `Optional`, so "no accumulator yet" is distinguishable
+from a real one. The accumulator itself lives on the Mojo heap: it is created
+by `init_fn` on the first `xStep`, and destroyed in `xFinal`, which SQLite
+calls exactly once per aggregate (including when the query fails or stops
+early).
+
+Parameters:
+    A: The type of the aggregate accumulator.
+"""
+
+
+def _aggregate_slot[
+    A: MoveDestructible
+](mut context: Context, allocate: Bool) -> Optional[MutExternalPointer[_AggregateSlot[A]]]:
+    """Returns this aggregate's slot in SQLite's aggregate context.
+
+    Parameters:
+        A: The type of the aggregate accumulator.
+
+    Args:
+        context: The SQLite context for the aggregate function.
+        allocate: Whether to allocate the (zeroed) slot if it does not exist
+            yet. Only `xStep` allocates; the other callbacks pass False, and
+            get `None` if `xStep` never ran (for example over zero rows).
+
+    Returns:
+        A pointer to the slot, or `None` if it was not allocated (either
+        because `allocate` is False, or because SQLite ran out of memory).
+    """
+    comptime assert (
+        size_of[_AggregateSlot[A]]() == size_of[MutExternalPointer[A]]()
+    ), "Optional[pointer] must be pointer-sized so a zero-filled aggregate context reads as None."
+    return context.aggregate_context[_AggregateSlot[A]](size_of[_AggregateSlot[A]]() if allocate else 0)
+
+
 def _call_step_callback[
     A: MoveDestructible,
     //,
@@ -173,6 +212,7 @@ def _call_step_callback[
 
     This is called once for each row in the group being aggregated. This is a wrapper
     around the user provided `init_fn` and `step_fn` that manages the aggregate context for the user.
+    On the first row of each group, `init_fn` creates the accumulator.
     This function matches the function signature expected by the C API.
 
     Parameters:
@@ -186,20 +226,26 @@ def _call_step_callback[
         argv: The arguments passed to the function.
     """
     var context = Context(ctx, argc, argv)
-    var agg_context = context.aggregate_context[A](size_of[A]())
-    # TODO: Throw sqlite3_result_error_nomem if we fail to allocate memory for the aggregate context.
-    if not agg_context:
-        var agg_context_ptr = unsafe_alloc[A](count=1)
+    var slot = _aggregate_slot[A](context, allocate=True)
+    if not slot:
+        context.result_error_no_mem()
+        return
+
+    ref acc = slot.value()[]
+    if not acc:
+        var initial: A
         try:
-            agg_context_ptr.unsafe_write(init_fn(context))
+            initial = init_fn(context)
         except e:
             # If the user's init function raises an error, we need to convert it to a SQLite error result.
             context.result_error(t"Error in aggregate init function: {e}")
             return
-        agg_context = Optional[Pointer[A, MutUntrackedOrigin]](agg_context_ptr)
+        var ptr = unsafe_alloc[A](count=1)
+        ptr.unsafe_write(initial^)
+        acc = ptr
 
     try:
-        step_fn(context, agg_context.value()[])
+        step_fn(context, acc.value()[])
     except e:
         context.result_error(t"Error in aggregate step function: {e}")
         return
@@ -209,18 +255,21 @@ def _call_final_callback[
     A: MoveDestructible,
     T: MoveDestructible,
     //,
+    init_fn: AggregateInitUDF[A],
     final_fn: AggregateFinalUDF[A, T],
 ](ctx: MutExternalPointer[sqlite3_context]) abi("C"):
     """The xFinal callback for the aggregate function.
 
     This is called once at the end of the aggregation to compute the final result. This is a wrapper
     around the user provided `final_fn` that manages the aggregate context for the user and converts
-    the result to the appropriate SQLite type.
+    the result to the appropriate SQLite type. It also destroys the accumulator created by `xStep`.
+    If `xStep` never ran (an aggregate over zero rows), `init_fn` provides the accumulator instead.
     This function matches the function signature expected by the C API.
 
     Parameters:
         A: The type of the aggregate context, which is updated by the xStep callback and passed to `final_fn`.
         T: The return type of the final function, which must conform to `ToSQL`.
+        init_fn: The user-provided function to initialize the aggregate context, used when no rows were aggregated.
         final_fn: The user-provided function to compute the final result from the aggregate context.
 
     Args:
@@ -230,18 +279,35 @@ def _call_final_callback[
         t"`final_fn` must return a type that conforms to `ToSQL`. {reflect[T].name()} does not implement `ToSQL`."
     )
     var context = Context(ctx)
-    var agg_context = context.aggregate_context[A](0)
-    if not agg_context:
-        context.result_error_no_mem()
-        return
+    var slot = _aggregate_slot[A](context, allocate=False)
+
+    var acc: MutExternalPointer[A]
+    if slot and slot.value()[]:
+        acc = slot.value()[].value()
+        # Clear the slot first so the accumulator can never be freed twice.
+        slot.value()[] = None
+    else:
+        # `xStep` never ran (zero input rows), or its `init_fn` failed.
+        var initial: A
+        try:
+            initial = init_fn(context)
+        except e:
+            context.result_error(t"Error in aggregate init function: {e}")
+            return
+        acc = unsafe_alloc[A](count=1)
+        acc.unsafe_write(initial^)
 
     var finalize_result: T
     try:
-        finalize_result = final_fn(context, agg_context.value()[])
+        finalize_result = final_fn(context, acc[])
     except e:
+        acc.unsafe_deinit_pointee()
+        acc.unsafe_free()
         # If the user's final function raises an error, we need to convert it to a SQLite error result.
         context.result_error(t"Error in aggregate final function: {e}")
         return
+    acc.unsafe_deinit_pointee()
+    acc.unsafe_free()
 
     var result: ToSqlOutput[origin_of(finalize_result)]
     try:
@@ -290,15 +356,14 @@ def _call_value_callback[
         t"`value_fn` must return a type that conforms to `ToSQL`. {reflect[T].name()} does not implement `ToSQL`."
     )
     var context = Context(ctx)
-    # Set n_bytes to 0 so no unneccessary allocations occur
-    var agg_context = context.aggregate_context[A](0)
-    if not agg_context:
-        context.result_error_no_mem()
-        return
+    var slot = _aggregate_slot[A](context, allocate=False)
+    var acc: Optional[A] = None
+    if slot and slot.value()[]:
+        acc = slot.value()[].value()[].copy()
 
     var value_result: T
     try:
-        value_result = value_fn(agg_context.value()[].copy())
+        value_result = value_fn(acc^)
     except e:
         context.result_error(t"Error in window function value callback: {e}")
         return
@@ -337,13 +402,14 @@ def _call_inverse_callback[
         argv: The arguments passed to the function.
     """
     var context = Context(ctx, argc, argv)
-    var agg_context = context.aggregate_context[A](0)
-    if not agg_context:
-        context.result_error_no_mem()
+    var slot = _aggregate_slot[A](context, allocate=False)
+    if not slot or not slot.value()[]:
+        # SQLite only calls xInverse for a row that xStep already added.
+        context.result_error("Window function inverse called before any step")
         return
 
     try:
-        inverse_fn(context, agg_context.value()[])
+        inverse_fn(context, slot.value()[].value()[])
     except e:
         context.result_error(t"Error in window function inverse callback: {e}")
         return

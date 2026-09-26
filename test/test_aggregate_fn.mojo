@@ -133,12 +133,56 @@ def test_aggregate_empty_table() raises:
     def get_optional_int(row: Row) raises -> Optional[Int64]:
         return row.get[Optional[Int64]](0)
 
-    # Aggregate over 0 rows — xFinal is still called, without any xStep call.
-    # TODO: This should return the `sum_init` value (0). xFinal currently finds no aggregate
-    # context and reports SQLITE_NOMEM, because `init_fn` only runs from xStep. This used to be
-    # hidden as "No rows returned by query." because row iteration swallowed step errors.
-    with assert_raises(contains="out of memory"):
-        _ = db.one_row[get_optional_int]("SELECT my_sum(value) FROM empty_table")
+    # Aggregate over 0 rows — xFinal is called without any xStep, so `sum_init` supplies the accumulator.
+    assert_equal(db.one_row[get_optional_int]("SELECT my_sum(value) FROM empty_table").value(), 0)
+
+
+def offset_init(mut ctx: Context) raises -> Int64:
+    return 100
+
+
+def test_aggregate_init_value_is_used() raises:
+    """The accumulator starts from `init_fn`'s value, not zeroed memory, in every group."""
+    var db = Connection.open_in_memory()
+    db.execute_batch(
+        """
+        CREATE TABLE t (grp TEXT, value INTEGER);
+        INSERT INTO t VALUES ('a', 1), ('a', 2), ('b', 10);
+        CREATE TABLE empty_table (value INTEGER);
+        """
+    )
+    db.create_aggregate_function[offset_init, sum_step, sum_finalize]("sum_from_100", n_arg=1)
+
+    assert_equal(db.one_column[Int64]("SELECT sum_from_100(value) FROM t WHERE grp = 'a'"), 103)
+    assert_equal(db.one_column[Int64]("SELECT sum_from_100(value) FROM empty_table"), 100)
+
+    var stmt = db.prepare("SELECT grp, sum_from_100(value) FROM t GROUP BY grp ORDER BY grp")
+    var rows = stmt.query()
+    var sums = List[Int64]()
+    for row in rows:
+        sums.append(row.get[Int64](1))
+    rows.raise_if_error()
+    assert_equal(len(sums), 2)
+    assert_equal(sums[0], 103)
+    assert_equal(sums[1], 110)
+
+
+def test_aggregate_non_trivial_accumulator_per_group() raises:
+    """A heap-owning accumulator (String) is initialized separately for each group."""
+    var db = Connection.open_in_memory()
+    db.execute_batch(
+        """
+        CREATE TABLE t (grp TEXT, value TEXT);
+        INSERT INTO t VALUES ('a', 'x'), ('a', 'y'), ('b', 'z');
+        """
+    )
+    db.create_aggregate_function[concat_init, concat_step, concat_finalize]("my_concat", n_arg=1)
+
+    var stmt = db.prepare("SELECT my_concat(value) FROM t GROUP BY grp ORDER BY grp")
+    var results = stmt.query[lambda (r: Row) raises -> String: r.get[String](0)]().collect()
+    assert_equal(len(results), 2)
+    assert_equal(results[0], "x,y")
+    assert_equal(results[1], "z")
 
 
 def test_aggregate_with_group_by() raises:
