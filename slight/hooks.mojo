@@ -162,8 +162,8 @@ def _update_hook_callback(
     """
     var fn_as_int = Int(ctx)
     var callback = Pointer(to=fn_as_int).unsafe_bitcast[UpdateHookFn]()[]
-    var db_str = String(CStringSpan(unsafe_from_ptr=db_name.unsafe_mut_cast[False]().unsafe_bitcast[Int8]()))
-    var table_str = String(CStringSpan(unsafe_from_ptr=table_name.unsafe_mut_cast[False]().unsafe_bitcast[Int8]()))
+    var db_str = String(CStringSpan(unsafe_from_ptr=db_name.unsafe_mut_cast[False]()))
+    var table_str = String(CStringSpan(unsafe_from_ptr=table_name.unsafe_mut_cast[False]()))
     callback(
         UpdateOperation(Int32(op)),
         db_str,

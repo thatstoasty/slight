@@ -274,6 +274,33 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         else:
             abort("[UNREACHABLE] sqlite3_value_type returned an invalid value")
 
+    def type_name(self) -> StaticString:
+        """Returns the SQLite storage class of this value.
+
+        Returns:
+            One of `NULL`, `INTEGER`, `REAL`, `TEXT` or `BLOB`.
+        """
+        if self.isa[Null]():
+            return "NULL"
+        elif self.isa[Integer]():
+            return "INTEGER"
+        elif self.isa[Real]():
+            return "REAL"
+        elif self.isa[Text[Self.stmt]]():
+            return "TEXT"
+        return "BLOB"
+
+    def _type_error(self, expected: StaticString) -> Error:
+        """Builds the error raised when this value is not of the requested type.
+
+        Args:
+            expected: The storage class(es) the caller asked for.
+
+        Returns:
+            An `InvalidColumnTypeError` naming both the expected and the actual type.
+        """
+        return Error(t"InvalidColumnTypeError: value is {self.type_name()}, expected {expected}")
+
     def isa[T: SQLRefType](self) -> Bool:
         """Check if the value is of the specified type T.
 
@@ -336,7 +363,7 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         if self.isa[Text[Self.stmt]]():
             return self[Text[Self.stmt]].value
 
-        raise Error("InvalidColumnTypeError: value is not of type TEXT")
+        raise self._type_error("TEXT")
 
     def unsafe_as_string_slice_or_null(self) raises -> Optional[StringSpan[Self.stmt]]:
         """Convert the SQL value to a borrowed string slice, or None if NULL.
@@ -356,7 +383,7 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         elif self.isa[Null]():
             return None
 
-        raise Error("InvalidColumnTypeError: value is not of type TEXT")
+        raise self._type_error("TEXT")
 
     def as_int64(self) raises -> Int64:
         """Convert the SQL value to its Int64 representation.
@@ -373,7 +400,7 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         if self.isa[Integer]():
             return self[Integer].value
 
-        raise Error("InvalidColumnTypeError: value is not of type INTEGER")
+        raise self._type_error("INTEGER")
 
     def as_int64_or_null(self) raises -> Optional[Int64]:
         """Convert the SQL value to its Int64 representation.
@@ -392,43 +419,47 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         elif self.isa[Null]():
             return None
 
-        raise Error("InvalidColumnTypeError: value is not of type INTEGER")
+        raise self._type_error("INTEGER")
 
     def as_float64(self) raises -> Float64:
         """Convert the SQL value to its Float64 representation.
 
-        This method provides a way to get the floating-point representation
-        of the stored SQL value, if it is of type REAL.
+        REAL values are returned as-is. INTEGER values are converted, since SQLite
+        freely returns integers for numeric expressions (e.g. `sum()` over an INTEGER
+        column, or a REAL-affinity column holding a whole number).
 
         Returns:
-            A Float64 representing the SQL value, or None if the value is NULL.
+            A Float64 representing the SQL value.
 
         Raises:
-            Error: If the value is not of type REAL.
+            Error: If the value is not of type REAL or INTEGER.
         """
         if self.isa[Real]():
             return self[Real].value
+        elif self.isa[Integer]():
+            return Float64(self[Integer].value)
 
-        raise Error("InvalidColumnTypeError: value is not of type REAL")
+        raise self._type_error("REAL")
 
     def as_float64_or_null(self) raises -> Optional[Float64]:
         """Convert the SQL value to its Float64 representation.
 
-        This method provides a way to get the floating-point representation
-        of the stored SQL value, if it is of type REAL.
+        REAL values are returned as-is and INTEGER values are converted; see `as_float64()`.
 
         Returns:
             A Float64 representing the SQL value, or None if the value is NULL.
 
         Raises:
-            Error: If the value is not of type REAL or NULL.
+            Error: If the value is not of type REAL, INTEGER or NULL.
         """
         if self.isa[Real]():
             return self[Real].value
+        elif self.isa[Integer]():
+            return Float64(self[Integer].value)
         elif self.isa[Null]():
             return None
 
-        raise Error("InvalidColumnTypeError: value is not of type REAL")
+        raise self._type_error("REAL")
 
     def unsafe_as_blob(self) raises -> Span[Byte, Self.stmt]:
         """Convert the SQL value to its BLOB representation.
@@ -451,7 +482,7 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         if self.isa[Blob[Self.stmt]]():
             return self[Blob[Self.stmt]].value
 
-        raise Error("InvalidColumnTypeError: value is not of type BLOB")
+        raise self._type_error("BLOB")
 
     def unsafe_as_blob_or_null(self) raises -> Optional[Span[Byte, Self.stmt]]:
         """Convert the SQL value to its BLOB representation.
@@ -476,7 +507,7 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         elif self.isa[Null]():
             return None
 
-        raise Error("InvalidColumnTypeError: value is not of type BLOB")
+        raise self._type_error("BLOB")
 
     def unsafe_as_bytes(self) raises -> Span[Byte, Self.stmt]:
         """Convert the SQL value to a byte representation.
@@ -500,7 +531,7 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         if self.isa[Text[Self.stmt]]():
             return self[Text[Self.stmt]].value.as_bytes()
 
-        raise Error("InvalidColumnTypeError: value is not of type BLOB or TEXT")
+        raise self._type_error("BLOB or TEXT")
 
     def unsafe_as_bytes_or_null(self) raises -> Optional[Span[Byte, Self.stmt]]:
         """Convert the SQL value to a byte representation.
@@ -526,4 +557,4 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         elif self.isa[Null]():
             return None
 
-        raise Error("InvalidColumnTypeError: value is not of type BLOB or TEXT")
+        raise self._type_error("BLOB or TEXT")

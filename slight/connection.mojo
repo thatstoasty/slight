@@ -176,6 +176,46 @@ struct Connection(Movable):
         """
         self.db.raise_if_error(code)
 
+    def error_code(self) -> SQLite3Result:
+        """Returns the primary result code of the most recent failed call on this connection.
+
+        Errors raised by slight are plain `Error`s whose message includes the code, e.g.
+        `sqlite3 Error (19, SQLITE_CONSTRAINT_UNIQUE): UNIQUE constraint failed: t.x`. To branch on
+        the code instead, check it in the `except` block, before making any other call on this
+        connection (a later call replaces it):
+
+        ```mojo
+        from slight import Connection
+        from slight.result import SQLite3Result
+
+        def main() raises:
+            var db = Connection.open_in_memory()
+            db.execute_batch("CREATE TABLE t(x INTEGER UNIQUE); INSERT INTO t VALUES (1);")
+            try:
+                _ = db.execute("INSERT INTO t VALUES (1)")
+            except e:
+                if db.error_code() == SQLite3Result.CONSTRAINT:
+                    print("duplicate:", db.extended_error_code().name())
+        ```
+
+        Returns:
+            The primary result code, e.g. `SQLite3Result.CONSTRAINT`.
+        """
+        return self.db.error_code()
+
+    def extended_error_code(self) -> SQLite3Result:
+        """Returns the extended result code of the most recent failed call on this connection.
+
+        Extended codes refine the primary code, e.g. `SQLITE_CONSTRAINT_UNIQUE` or
+        `SQLITE_CONSTRAINT_NOTNULL` rather than just `SQLITE_CONSTRAINT`. Use
+        `SQLite3Result.primary()` to get the primary code back. See `error_code()` for when the
+        value is meaningful.
+
+        Returns:
+            The extended result code, e.g. `SQLite3Result.CONSTRAINT_UNIQUE`.
+        """
+        return self.db.extended_error_code()
+
     def error_msg(self, code: SQLite3Result) -> Optional[String]:
         """Checks for the error message set in sqlite3, or what the description of the provided code is.
 
@@ -312,7 +352,7 @@ struct Connection(Movable):
             reflect[P].name(),
             " does not implement `Params`. Try a tuple or a list of parameters.",
         )
-        var stmt = self.prepare(sql^)
+        var stmt = self.prepare(sql)
         try:
             return stmt.execute(params)
         finally:
@@ -388,7 +428,7 @@ struct Connection(Movable):
             reflect[P].name(),
             " does not implement `Params`. Try a tuple or a list of parameters.",
         )
-        var stmt = self.prepare(sql^, PrepFlag.NONE)
+        var stmt = self.prepare(sql, PrepFlag.NONE)
         var rows = stmt.query(params)
         var row = rows.next()
         if not row:
@@ -423,7 +463,7 @@ struct Connection(Movable):
             reflect[P].name(),
             " does not implement `Params`. Try a tuple or a list of parameters.",
         )
-        var stmt = self.prepare(sql^)
+        var stmt = self.prepare(sql)
         var rows = stmt.query[transform](params)
         if not rows._advance():
             raise Error("No rows returned by query.")
@@ -457,7 +497,7 @@ struct Connection(Movable):
             reflect[P].name(),
             " does not implement `Params`. Try a tuple or a list of parameters.",
         )
-        var stmt = self.prepare(sql^)
+        var stmt = self.prepare(sql)
         var rows = stmt.query[transform](params)
         return rows.next()
 

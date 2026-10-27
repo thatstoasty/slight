@@ -1,5 +1,5 @@
 """SQLite Function Evaluation Context."""
-from std.ffi import c_int, CStringSpan
+from std.ffi import c_int, c_char, CStringSpan
 from slight.c.types import MutExternalPointer, sqlite3_connection, sqlite3_context, sqlite3_value, ResultDestructorFn
 from slight.api import sqlite_ffi
 from slight.bindings import sqlite3
@@ -36,8 +36,13 @@ struct Context(Boolable, Movable, Sized):
 
     var _ctx: MutExternalPointer[sqlite3_context]
     """The raw SQLite function context pointer."""
-    var _args: List[MutExternalPointer[sqlite3_value]]
-    """The number of arguments passed to the function."""
+    var _args: Span[MutExternalPointer[sqlite3_value], MutUntrackedOrigin]
+    """The arguments passed to the function.
+
+    A view of the `argv` array SQLite passes to the callback, not a copy, so creating a `Context`
+    does not allocate. SQLite keeps `argv` valid for the whole callback, and a `Context` never
+    outlives it: it is created by the callback wrappers and only lent to user code as `mut`.
+    """
     var _ffi: MutExternalPointer[sqlite3]
     """The process-global SQLite binding, cached from `sqlite_ffi()`.
 
@@ -56,7 +61,7 @@ struct Context(Boolable, Movable, Sized):
             ctx: The raw SQLite function context pointer.
         """
         self._ctx = ctx
-        self._args = []
+        self._args = Span[MutExternalPointer[sqlite3_value], MutUntrackedOrigin]()
         self._ffi = sqlite_ffi()
 
     def __init__(
@@ -73,7 +78,10 @@ struct Context(Boolable, Movable, Sized):
             argv: A pointer to the array of argument value pointers.
         """
         self._ctx = ctx
-        self._args = [argv[unsafe_offset=i] for i in range(argc)]
+        if argc > 0:
+            self._args = Span(unsafe_ptr=argv, length=Int(argc))
+        else:
+            self._args = Span[MutExternalPointer[sqlite3_value], MutUntrackedOrigin]()
         self._ffi = sqlite_ffi()
 
     # ===------------------------------------------------------------------=== #
@@ -181,7 +189,7 @@ struct Context(Boolable, Movable, Sized):
         # We're laundering the origin here. It should be safe because the value should
         # live as long as the context is alive. That conveys more information than using an external origin.
         return CStringSpan(
-            unsafe_from_ptr=text.value().unsafe_ptr().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)](),
+            unsafe_from_ptr=text.value().unsafe_ptr().unsafe_bitcast[c_char]().unsafe_origin_cast[origin_of(self)](),
         )
 
     def get_blob(self, idx: Int) -> Optional[Span[Byte, origin_of(self)]]:

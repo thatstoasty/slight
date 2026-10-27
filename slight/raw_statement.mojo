@@ -1,5 +1,5 @@
 """Raw SQLite statment wrapper."""
-from std.ffi import c_int, CStringSpan
+from std.ffi import c_int, c_char, CStringSpan
 from std.os import abort
 from slight.c.types import ImmExternalPointer, MutExternalPointer, ResultDestructorFn, sqlite3_stmt
 from slight.api import sqlite_ffi
@@ -125,10 +125,7 @@ struct RawStatement(Deinitable where False, Movable):
         if not ptr:
             # SQLite returns a NULL pointer for a zero-length BLOB. Anything else (a NULL column, or
             # an out-of-memory error while converting) is reported as an error.
-            if (
-                DataType.BLOB == self.column_type(idx)
-                and self._ffi[].column_bytes(self.unsafe_ptr(), Int32(idx)) == 0
-            ):
+            if DataType.BLOB == self.column_type(idx) and self._ffi[].column_bytes(self.unsafe_ptr(), Int32(idx)) == 0:
                 return Span[Byte, origin_of(self)]()
             raise Error("unexpected SQLITE_BLOB column type with NULL data")
 
@@ -340,7 +337,7 @@ struct RawStatement(Deinitable where False, Movable):
         """
         return self._ffi[].clear_bindings(self.unsafe_ptr())
 
-    def column_name(self, idx: UInt) -> Optional[ImmExternalPointer[Int8]]:
+    def column_name(self, idx: UInt) -> Optional[ImmExternalPointer[c_char]]:
         """Returns the name of the specified column.
 
         Args:

@@ -44,7 +44,7 @@ def ptr_copy[T: CopyDestructible](data: T) -> MutExternalPointer[T]:
     return ptr
 
 
-def str_slice_to_path(s: CStringSpan[ImmUntrackedOrigin]) -> Optional[Path]:
+def str_slice_to_path(var s: CStringSpan[ImmUntrackedOrigin]) -> Optional[Path]:
     """Convert a String to a Path.
 
     Args:

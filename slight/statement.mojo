@@ -2,7 +2,7 @@
 from std.os import abort
 from std.sys import stderr
 from std.utils import Variant
-from std.ffi import CStringSpan
+from std.ffi import c_char, CStringSpan
 from slight.c.raw_bindings import sqlite3_stmt
 from slight.c.types import MutExternalPointer, ResultDestructorFn
 from slight.sqlite_string import SQLiteMallocString
@@ -220,7 +220,7 @@ struct Statement[conn: MutOrigin](Movable):
         var text = self.stmt.unsafe_column_text(idx)
 
         var c_str_slice = CStringSpan(
-            unsafe_from_ptr=text.unsafe_ptr().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)]()
+            unsafe_from_ptr=text.unsafe_ptr().unsafe_bitcast[c_char]().unsafe_origin_cast[origin_of(self)]()
         )
         return StringSpan(unsafe_from_utf8=c_str_slice)
 
@@ -304,11 +304,7 @@ struct Statement[conn: MutOrigin](Movable):
         elif r == SQLite3Result.DONE:
             return False
         else:
-            var error = self.connection[].error_msg(r)
-            if error:
-                raise Error(error[])
-            else:
-                raise Error("Unknown error occurred during step execution: ", r)
+            raise self.connection[].decode_error(r)
 
     def reset(mut self) raises -> None:
         """Resets the statement to its initial state for re-execution.
@@ -345,11 +341,7 @@ struct Statement[conn: MutOrigin](Movable):
         elif r == SQLite3Result.ROW:
             raise Error("Query returned rows.")
         else:
-            var error = self.connection[].error_msg(r)
-            if error:
-                raise Error(error[])
-            else:
-                raise Error("Unknown error occurred during step execution: ", r)
+            raise self.connection[].decode_error(r)
 
     def execute[P: AnyType](mut self, params: P = ()) raises -> Int64:
         """Executes the statement with the given parameters and returns the number of affected rows.
@@ -763,7 +755,7 @@ struct Statement[conn: MutOrigin](Movable):
             raise Error(InvalidColumnIndexError(Int(idx), Int(self.column_count())))
 
         var c_str_slice = CStringSpan(
-            unsafe_from_ptr=name.value().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)]()
+            unsafe_from_ptr=name.value().unsafe_bitcast[c_char]().unsafe_origin_cast[origin_of(self)]()
         )
         return StringSpan(unsafe_from_utf8=c_str_slice)
 

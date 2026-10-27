@@ -316,6 +316,22 @@ struct InnerConnection(Deinitable where False, Movable):
         """
         raise_if_error(self.unsafe_ptr(), code)
 
+    def error_code(self) -> SQLite3Result:
+        """Returns the primary result code of the most recent failed call on this connection.
+
+        Returns:
+            The primary result code, e.g. `SQLite3Result.CONSTRAINT`.
+        """
+        return self._ffi[].errcode(self.unsafe_ptr())
+
+    def extended_error_code(self) -> SQLite3Result:
+        """Returns the extended result code of the most recent failed call on this connection.
+
+        Returns:
+            The extended result code, e.g. `SQLite3Result.CONSTRAINT_UNIQUE`.
+        """
+        return self._ffi[].extended_errcode(self.unsafe_ptr())
+
     def error_msg(self, code: SQLite3Result) -> Optional[String]:
         """Checks for the error message set in sqlite3, or what the description of the provided code is.
 

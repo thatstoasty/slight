@@ -90,10 +90,7 @@ struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Deinitable where Fa
         """
         self._conn[].raise_if_error(
             sqlite_ffi()[].blob_read(
-                self.unsafe_ptr(),
-                buffer.unsafe_ptr().unsafe_bitcast[NoneType](),
-                c_int(len(buffer)),
-                c_int(offset)
+                self.unsafe_ptr(), buffer.unsafe_ptr().unsafe_bitcast[NoneType](), c_int(len(buffer)), c_int(offset)
             )
         )
 
@@ -152,9 +149,7 @@ struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Deinitable where Fa
         Raises:
             Error: If the underlying SQLite call fails.
         """
-        self._conn[].raise_if_error(
-            sqlite_ffi()[].blob_reopen(self.unsafe_ptr(), row_id)
-        )
+        self._conn[].raise_if_error(sqlite_ffi()[].blob_reopen(self.unsafe_ptr(), row_id))
 
     def close(deinit self) raises:
         """Closes the BLOB handle, committing any changes made via `write()`.
@@ -162,6 +157,4 @@ struct Blob[conn_origin: MutOrigin, read_only: Bool = False](Deinitable where Fa
         Raises:
             Error: If the underlying SQLite call fails.
         """
-        self._conn[].raise_if_error(
-            sqlite_ffi()[].blob_close(self.unsafe_ptr())
-        )
+        self._conn[].raise_if_error(sqlite_ffi()[].blob_close(self.unsafe_ptr()))

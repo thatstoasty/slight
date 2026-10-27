@@ -1,5 +1,6 @@
 from slight.api import sqlite_ffi
 from slight.connection import Connection
+from slight.result import SQLite3Result
 from slight.row import Row
 from slight.statement import InvalidColumnError, InvalidColumnIndexError, InvalidColumnNameError
 from slight.trace import StatementStatus
@@ -784,15 +785,15 @@ def test_missing_params_are_rejected() raises:
     var db = Connection.open_in_memory()
     db.execute_batch("CREATE TABLE t(v INTEGER)")
     # Omitting the params used to leave `?` bound to NULL without any error.
-    with assert_raises(contains="Invalid parameter count: 0, expected: 1"):
+    with assert_raises(contains="Invalid parameter count: got 0, expected 1"):
         _ = db.execute("INSERT INTO t VALUES (?)")
-    with assert_raises(contains="Invalid parameter count: 0, expected: 2"):
+    with assert_raises(contains="Invalid parameter count: got 0, expected 2"):
         _ = db.one_column[Int64]("SELECT ?1 + ?2", ())
 
     var stmt = db.prepare("INSERT INTO t VALUES (?)")
-    with assert_raises(contains="Invalid parameter count: 0, expected: 1"):
+    with assert_raises(contains="Invalid parameter count: got 0, expected 1"):
         _ = stmt.execute()
-    with assert_raises(contains="Invalid parameter count: 0, expected: 1"):
+    with assert_raises(contains="Invalid parameter count: got 0, expected 1"):
         _ = stmt.query()
     assert_equal(db.one_column[Int64]("SELECT count(*) FROM t"), 0)
 
@@ -854,6 +855,83 @@ def test_statement_repr() raises:
     var db = Connection.open_in_memory()
     var stmt = db.prepare("SELECT 1")
     assert_equal(stmt.__repr__(), "Statement(SELECT 1)")
+
+
+# ===----------------------------------------------------------------------=== #
+# Error codes, type conversion messages, parameter counts
+# ===----------------------------------------------------------------------=== #
+
+
+def test_error_message_includes_extended_code_name() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE t(x INTEGER UNIQUE, y NOT NULL); INSERT INTO t VALUES (1, 1);")
+    with assert_raises(contains="sqlite3 Error (19, SQLITE_CONSTRAINT_UNIQUE): UNIQUE constraint failed: t.x"):
+        _ = db.execute("INSERT INTO t VALUES (1, 2)")
+    with assert_raises(contains="sqlite3 Error (19, SQLITE_CONSTRAINT_NOTNULL): NOT NULL constraint failed: t.y"):
+        _ = db.execute("INSERT INTO t VALUES (2, NULL)")
+    # Errors from stepping a statement used to carry only SQLite's message, without the code.
+    var stmt = db.prepare("SELECT abs(-9223372036854775808)")
+    with assert_raises(contains="sqlite3 Error (1, SQLITE_ERROR): integer overflow"):
+        _ = stmt.one_column[Int64]()
+
+
+def test_error_code_accessors() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE t(x INTEGER PRIMARY KEY, y INTEGER CHECK (y > 0));")
+    try:
+        _ = db.execute("INSERT INTO t VALUES (1, 0)")
+        raise Error("expected a CHECK constraint failure")
+    except:
+        assert_true(db.error_code() == SQLite3Result.CONSTRAINT)
+        assert_true(db.extended_error_code() == SQLite3Result.CONSTRAINT_CHECK)
+        assert_true(db.extended_error_code().primary() == SQLite3Result.CONSTRAINT)
+
+
+def test_result_code_names() raises:
+    assert_equal(String(SQLite3Result.OK.name()), "SQLITE_OK")
+    assert_equal(String(SQLite3Result.CONSTRAINT.name()), "SQLITE_CONSTRAINT")
+    assert_equal(String(SQLite3Result(2067).name()), "SQLITE_CONSTRAINT_UNIQUE")
+    assert_equal(String(SQLite3Result.IOERR_READ.name()), "SQLITE_IOERR_READ")
+    assert_equal(String(SQLite3Result(12345).name()), "SQLITE_UNKNOWN")
+    assert_true(SQLite3Result.BUSY_TIMEOUT.primary() == SQLite3Result.BUSY)
+    # `write_to` used to test SQLITE_NOTFOUND twice, so SQLITE_NOTADB was never described.
+    assert_true("SQLITE_NOTADB" in String(SQLite3Result(26)))
+
+
+def test_float64_accepts_integer() raises:
+    var db = Connection.open_in_memory()
+    db.execute_batch("CREATE TABLE t(x INTEGER); INSERT INTO t VALUES (2), (3);")
+    assert_equal(db.one_column[Float64]("SELECT sum(x) FROM t"), 5.0)
+    assert_equal(db.one_column[Float32]("SELECT 7"), 7.0)
+    assert_equal(db.one_column[Optional[Float64]]("SELECT 4").value(), 4.0)
+    assert_false(db.one_column[Optional[Float64]]("SELECT NULL"))
+    with assert_raises(contains="InvalidColumnTypeError: value is TEXT, expected REAL"):
+        _ = db.one_column[Float64]("SELECT 'x'")
+
+
+def test_conversion_error_names_column_and_types() raises:
+    var db = Connection.open_in_memory()
+    var stmt = db.prepare("SELECT 1 AS id, 'bob' AS name, NULL AS age")
+    var rows = stmt.query()
+    var row = rows.next().value()
+    with assert_raises(contains='Column 1 ("name"): InvalidColumnTypeError: value is TEXT, expected INTEGER'):
+        _ = row.get[Int64](1)
+    with assert_raises(contains='Column 2 ("age"): InvalidColumnTypeError: value is NULL, expected TEXT'):
+        _ = row.get[String]("age")
+    with assert_raises(contains='Column 0 ("id"): IntegralValueOutOfRange'):
+        _ = db.one_column[UInt8]("SELECT 300 AS id")
+
+
+def test_parameter_count_error_reports_given_count() raises:
+    var db = Connection.open_in_memory()
+    with assert_raises(contains="Invalid parameter count: got 3, expected 2"):
+        _ = db.one_column[Int64]("SELECT ?1 + ?2", (1, 2, 3))
+    with assert_raises(contains="Invalid parameter count: got 1, expected 2"):
+        _ = db.one_column[Int64]("SELECT ?1 + ?2", (1,))
+    with assert_raises(contains="Invalid parameter count: got 5, expected 2"):
+        _ = db.one_column[Int64]("SELECT ?1 + ?2", [1, 2, 3, 4, 5])
+    with assert_raises(contains="Invalid parameter count: got 1, expected 2"):
+        _ = db.one_column[Int64]("SELECT ?1 + ?2", [1])
 
 
 def main() raises:

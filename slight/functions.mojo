@@ -363,7 +363,7 @@ def _call_value_callback[
 
     var value_result: T
     try:
-        value_result = value_fn(acc^)
+        value_result = value_fn(acc)
     except e:
         context.result_error(t"Error in window function value callback: {e}")
         return

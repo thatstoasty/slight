@@ -210,7 +210,25 @@ struct Row[conn: MutOrigin, statement: MutOrigin](ImplicitlyCopyable, Writable):
         )
 
         var i = idx.idx(self.stmt[])
-        return downcast[S, FromSQL](self.stmt[].value_ref(i))
+        try:
+            return downcast[S, FromSQL](self.stmt[].value_ref(i))
+        except e:
+            raise self._column_error(i, e)
+
+    def _column_error(self, idx: UInt, error: Error) -> Error:
+        """Adds the column's index and name to an error raised while converting it.
+
+        Args:
+            idx: The column index.
+            error: The conversion error.
+
+        Returns:
+            An error such as `Column 1 ("age"): InvalidColumnTypeError: value is TEXT, expected INTEGER`.
+        """
+        try:
+            return Error(t'Column {idx} ("{self.stmt[].column_name(idx)}"): {error}')
+        except:
+            return Error(t"Column {idx}: {error}")
 
 
 trait FallibleIterator(Deinitable, Movable):

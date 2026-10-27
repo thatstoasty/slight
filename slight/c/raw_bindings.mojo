@@ -132,7 +132,7 @@ struct _sqlite3(Movable):
     # Function pointers, resolved once in `__init__`. Looking a symbol up with `dlsym` costs about
     # 200ns, far more than most of the calls themselves, so it must not happen per call.
     # Optional functions (see `__init__`) are `None` when the loaded library does not export them.
-    var _sqlite3_libversion: _DLCallable[Pointer[Int8, ImmUntrackedOrigin], ImmUntrackedOrigin]
+    var _sqlite3_libversion: _DLCallable[Pointer[c_char, ImmUntrackedOrigin], ImmUntrackedOrigin]
     """Cached `sqlite3_libversion`."""
     var _sqlite3_sourceid: _DLCallable[ImmExternalPointer[c_char], ImmUntrackedOrigin]
     """Cached `sqlite3_sourceid`."""
@@ -661,7 +661,7 @@ struct _sqlite3(Movable):
                 raise Error("Missing required SQLite symbol: sqlite3_log")
 
             # Resolve every function once. Required ones were validated above.
-            self._sqlite3_libversion = _resolve[Pointer[Int8, ImmUntrackedOrigin]](self.lib, "sqlite3_libversion")
+            self._sqlite3_libversion = _resolve[Pointer[c_char, ImmUntrackedOrigin]](self.lib, "sqlite3_libversion")
             self._sqlite3_sourceid = _resolve[ImmExternalPointer[c_char]](self.lib, "sqlite3_sourceid")
             self._sqlite3_libversion_number = _resolve[c_int](self.lib, "sqlite3_libversion_number")
             self._sqlite3_threadsafe = _resolve[c_int](self.lib, "sqlite3_threadsafe")
@@ -690,7 +690,9 @@ struct _sqlite3(Movable):
             self._sqlite3_prepare_v2 = _resolve[c_int](self.lib, "sqlite3_prepare_v2")
             self._sqlite3_prepare_v3 = _resolve[c_int](self.lib, "sqlite3_prepare_v3")
             self._sqlite3_sql = _resolve[Optional[ImmExternalPointer[c_char]]](self.lib, "sqlite3_sql")
-            self._sqlite3_expanded_sql = _resolve[Optional[MutExternalPointer[c_char]]](self.lib, "sqlite3_expanded_sql")
+            self._sqlite3_expanded_sql = _resolve[Optional[MutExternalPointer[c_char]]](
+                self.lib, "sqlite3_expanded_sql"
+            )
             self._sqlite3_stmt_readonly = _resolve[c_int](self.lib, "sqlite3_stmt_readonly")
             self._sqlite3_stmt_busy = _resolve[c_int](self.lib, "sqlite3_stmt_busy")
             self._sqlite3_bind_blob64 = _resolve[c_int](self.lib, "sqlite3_bind_blob64")
@@ -700,17 +702,23 @@ struct _sqlite3(Movable):
             self._sqlite3_bind_text64 = _resolve[c_int](self.lib, "sqlite3_bind_text64")
             self._sqlite3_bind_zeroblob = _resolve[c_int](self.lib, "sqlite3_bind_zeroblob")
             self._sqlite3_bind_parameter_count = _resolve[c_int](self.lib, "sqlite3_bind_parameter_count")
-            self._sqlite3_bind_parameter_name = _resolve[Optional[ImmExternalPointer[c_char]]](self.lib, "sqlite3_bind_parameter_name")
+            self._sqlite3_bind_parameter_name = _resolve[Optional[ImmExternalPointer[c_char]]](
+                self.lib, "sqlite3_bind_parameter_name"
+            )
             self._sqlite3_bind_parameter_index = _resolve[c_int](self.lib, "sqlite3_bind_parameter_index")
             self._sqlite3_clear_bindings = _resolve[c_int](self.lib, "sqlite3_clear_bindings")
             self._sqlite3_column_count = _resolve[c_int](self.lib, "sqlite3_column_count")
             self._sqlite3_column_name = _resolve[Optional[ImmExternalPointer[c_char]]](self.lib, "sqlite3_column_name")
             self._sqlite3_step = _resolve[c_int](self.lib, "sqlite3_step")
-            self._sqlite3_column_blob = _resolve[Optional[ImmExternalPointer[NoneType]]](self.lib, "sqlite3_column_blob")
+            self._sqlite3_column_blob = _resolve[Optional[ImmExternalPointer[NoneType]]](
+                self.lib, "sqlite3_column_blob"
+            )
             self._sqlite3_column_double = _resolve[Float64](self.lib, "sqlite3_column_double")
             self._sqlite3_column_int64 = _resolve[Int64](self.lib, "sqlite3_column_int64")
             self._sqlite3_column_text = _resolve[Optional[ImmExternalPointer[c_uchar]]](self.lib, "sqlite3_column_text")
-            self._sqlite3_column_value = _resolve[Optional[MutExternalPointer[sqlite3_value]]](self.lib, "sqlite3_column_value")
+            self._sqlite3_column_value = _resolve[Optional[MutExternalPointer[sqlite3_value]]](
+                self.lib, "sqlite3_column_value"
+            )
             self._sqlite3_column_bytes = _resolve[c_int](self.lib, "sqlite3_column_bytes")
             self._sqlite3_column_type = _resolve[c_int](self.lib, "sqlite3_column_type")
             self._sqlite3_finalize = _resolve[c_int](self.lib, "sqlite3_finalize")
@@ -722,10 +730,16 @@ struct _sqlite3(Movable):
             self._sqlite3_value_text = _resolve[Optional[ImmExternalPointer[c_uchar]]](self.lib, "sqlite3_value_text")
             self._sqlite3_value_bytes = _resolve[c_int](self.lib, "sqlite3_value_bytes")
             self._sqlite3_value_type = _resolve[c_int](self.lib, "sqlite3_value_type")
-            self._sqlite3_aggregate_context = _resolve[Optional[MutExternalPointer[NoneType]]](self.lib, "sqlite3_aggregate_context")
+            self._sqlite3_aggregate_context = _resolve[Optional[MutExternalPointer[NoneType]]](
+                self.lib, "sqlite3_aggregate_context"
+            )
             self._sqlite3_user_data = _resolve[Optional[MutExternalPointer[NoneType]]](self.lib, "sqlite3_user_data")
-            self._sqlite3_context_db_handle = _resolve[Optional[MutExternalPointer[sqlite3_connection]]](self.lib, "sqlite3_context_db_handle")
-            self._sqlite3_get_auxdata = _resolve[Optional[MutExternalPointer[NoneType]]](self.lib, "sqlite3_get_auxdata")
+            self._sqlite3_context_db_handle = _resolve[Optional[MutExternalPointer[sqlite3_connection]]](
+                self.lib, "sqlite3_context_db_handle"
+            )
+            self._sqlite3_get_auxdata = _resolve[Optional[MutExternalPointer[NoneType]]](
+                self.lib, "sqlite3_get_auxdata"
+            )
             self._sqlite3_set_auxdata = _resolve[NoneType](self.lib, "sqlite3_set_auxdata")
             self._sqlite3_result_blob64 = _resolve[NoneType](self.lib, "sqlite3_result_blob64")
             self._sqlite3_result_double = _resolve[NoneType](self.lib, "sqlite3_result_double")
@@ -743,175 +757,185 @@ struct _sqlite3(Movable):
             self._sqlite3_soft_heap_limit64 = _resolve[Int64](self.lib, "sqlite3_soft_heap_limit64")
             self._sqlite3_stmt_status = _resolve[c_int](self.lib, "sqlite3_stmt_status")
             self._sqlite3_get_autocommit = _resolve[c_int](self.lib, "sqlite3_get_autocommit")
-            self._sqlite3_db_handle = _resolve[Optional[MutExternalPointer[sqlite3_connection]]](self.lib, "sqlite3_db_handle")
+            self._sqlite3_db_handle = _resolve[Optional[MutExternalPointer[sqlite3_connection]]](
+                self.lib, "sqlite3_db_handle"
+            )
             self._sqlite3_db_name = _resolve[Optional[ImmExternalPointer[c_char]]](self.lib, "sqlite3_db_name")
             self._sqlite3_db_filename = _resolve[Optional[ImmExternalPointer[c_char]]](self.lib, "sqlite3_db_filename")
             self._sqlite3_db_readonly = _resolve[c_int](self.lib, "sqlite3_db_readonly")
-            self._sqlite3_next_stmt = _resolve[Optional[MutExternalPointer[sqlite3_stmt]]](self.lib, "sqlite3_next_stmt")
+            self._sqlite3_next_stmt = _resolve[Optional[MutExternalPointer[sqlite3_stmt]]](
+                self.lib, "sqlite3_next_stmt"
+            )
             self._sqlite3_update_hook = _resolve[NoneType](self.lib, "sqlite3_update_hook")
-            self._sqlite3_commit_hook = _resolve[Optional[MutExternalPointer[NoneType]]](self.lib, "sqlite3_commit_hook")
-            self._sqlite3_rollback_hook = _resolve[Optional[MutExternalPointer[NoneType]]](self.lib, "sqlite3_rollback_hook")
+            self._sqlite3_commit_hook = _resolve[Optional[MutExternalPointer[NoneType]]](
+                self.lib, "sqlite3_commit_hook"
+            )
+            self._sqlite3_rollback_hook = _resolve[Optional[MutExternalPointer[NoneType]]](
+                self.lib, "sqlite3_rollback_hook"
+            )
             self._sqlite3_auto_extension = _resolve[c_int](self.lib, "sqlite3_auto_extension")
             self._sqlite3_db_release_memory = _resolve[c_int](self.lib, "sqlite3_db_release_memory")
             self._sqlite3_cancel_auto_extension = _resolve[c_int](self.lib, "sqlite3_cancel_auto_extension")
             self._sqlite3_reset_auto_extension = _resolve[c_int](self.lib, "sqlite3_reset_auto_extension")
             self._sqlite3_file_control = _resolve[c_int](self.lib, "sqlite3_file_control")
-            self._sqlite3_backup_init = _resolve[Optional[MutExternalPointer[sqlite3_backup]]](self.lib, "sqlite3_backup_init")
+            self._sqlite3_backup_init = _resolve[Optional[MutExternalPointer[sqlite3_backup]]](
+                self.lib, "sqlite3_backup_init"
+            )
             self._sqlite3_backup_step = _resolve[c_int](self.lib, "sqlite3_backup_step")
             self._sqlite3_backup_finish = _resolve[c_int](self.lib, "sqlite3_backup_finish")
             self._sqlite3_backup_remaining = _resolve[c_int](self.lib, "sqlite3_backup_remaining")
             self._sqlite3_backup_pagecount = _resolve[c_int](self.lib, "sqlite3_backup_pagecount")
             self._sqlite3_log = _resolve[NoneType](self.lib, "sqlite3_log")
-            self._sqlite3_is_interrupted = (
-                _resolve[c_int](self.lib, "sqlite3_is_interrupted") if self.lib.check_symbol("sqlite3_is_interrupted") else None
-            )
-            self._sqlite3_set_authorizer = (
-                _resolve[c_int](self.lib, "sqlite3_set_authorizer") if self.lib.check_symbol("sqlite3_set_authorizer") else None
-            )
-            self._sqlite3_trace = (
-                _resolve[Optional[MutExternalPointer[NoneType]]](self.lib, "sqlite3_trace") if self.lib.check_symbol("sqlite3_trace") else None
-            )
-            self._sqlite3_profile = (
-                _resolve[Optional[MutExternalPointer[NoneType]]](self.lib, "sqlite3_profile") if self.lib.check_symbol("sqlite3_profile") else None
-            )
-            self._sqlite3_progress_handler = (
-                _resolve[NoneType](self.lib, "sqlite3_progress_handler") if self.lib.check_symbol("sqlite3_progress_handler") else None
-            )
-            self._sqlite3_error_offset = (
-                _resolve[c_int](self.lib, "sqlite3_error_offset") if self.lib.check_symbol("sqlite3_error_offset") else None
-            )
-            self._sqlite3_stmt_isexplain = (
-                _resolve[c_int](self.lib, "sqlite3_stmt_isexplain") if self.lib.check_symbol("sqlite3_stmt_isexplain") else None
-            )
-            self._sqlite3_bind_pointer = (
-                _resolve[c_int](self.lib, "sqlite3_bind_pointer") if self.lib.check_symbol("sqlite3_bind_pointer") else None
-            )
-            self._sqlite3_column_database_name = (
-                _resolve[Optional[ImmExternalPointer[c_char]]](self.lib, "sqlite3_column_database_name") if self.lib.check_symbol("sqlite3_column_database_name") else None
-            )
-            self._sqlite3_column_table_name = (
-                _resolve[Optional[ImmExternalPointer[c_char]]](self.lib, "sqlite3_column_table_name") if self.lib.check_symbol("sqlite3_column_table_name") else None
-            )
-            self._sqlite3_column_origin_name = (
-                _resolve[Optional[ImmExternalPointer[c_char]]](self.lib, "sqlite3_column_origin_name") if self.lib.check_symbol("sqlite3_column_origin_name") else None
-            )
-            self._sqlite3_column_decltype = (
-                _resolve[Optional[ImmExternalPointer[c_char]]](self.lib, "sqlite3_column_decltype") if self.lib.check_symbol("sqlite3_column_decltype") else None
-            )
-            self._sqlite3_create_window_function = (
-                _resolve[c_int](self.lib, "sqlite3_create_window_function") if self.lib.check_symbol("sqlite3_create_window_function") else None
-            )
-            self._sqlite3_aggregate_count = (
-                _resolve[c_int](self.lib, "sqlite3_aggregate_count") if self.lib.check_symbol("sqlite3_aggregate_count") else None
-            )
-            self._sqlite3_expired = (
-                _resolve[c_int](self.lib, "sqlite3_expired") if self.lib.check_symbol("sqlite3_expired") else None
-            )
-            self._sqlite3_transfer_bindings = (
-                _resolve[c_int](self.lib, "sqlite3_transfer_bindings") if self.lib.check_symbol("sqlite3_transfer_bindings") else None
-            )
-            self._sqlite3_global_recover = (
-                _resolve[c_int](self.lib, "sqlite3_global_recover") if self.lib.check_symbol("sqlite3_global_recover") else None
-            )
-            self._sqlite3_thread_cleanup = (
-                _resolve[NoneType](self.lib, "sqlite3_thread_cleanup") if self.lib.check_symbol("sqlite3_thread_cleanup") else None
-            )
-            self._sqlite3_memory_alarm = (
-                _resolve[c_int](self.lib, "sqlite3_memory_alarm") if self.lib.check_symbol("sqlite3_memory_alarm") else None
-            )
-            self._sqlite3_value_pointer = (
-                _resolve[Optional[MutExternalPointer[NoneType]]](self.lib, "sqlite3_value_pointer") if self.lib.check_symbol("sqlite3_value_pointer") else None
-            )
-            self._sqlite3_value_nochange = (
-                _resolve[c_int](self.lib, "sqlite3_value_nochange") if self.lib.check_symbol("sqlite3_value_nochange") else None
-            )
-            self._sqlite3_value_subtype = (
-                _resolve[c_uint](self.lib, "sqlite3_value_subtype") if self.lib.check_symbol("sqlite3_value_subtype") else None
-            )
-            self._sqlite3_result_pointer = (
-                _resolve[NoneType](self.lib, "sqlite3_result_pointer") if self.lib.check_symbol("sqlite3_result_pointer") else None
-            )
-            self._sqlite3_result_subtype = (
-                _resolve[NoneType](self.lib, "sqlite3_result_subtype") if self.lib.check_symbol("sqlite3_result_subtype") else None
-            )
-            self._sqlite3_soft_heap_limit = (
-                _resolve[c_int](self.lib, "sqlite3_soft_heap_limit") if self.lib.check_symbol("sqlite3_soft_heap_limit") else None
-            )
-            self._sqlite3_table_column_metadata = (
-                _resolve[c_int](self.lib, "sqlite3_table_column_metadata") if self.lib.check_symbol("sqlite3_table_column_metadata") else None
-            )
-            self._sqlite3_load_extension = (
-                _resolve[c_int](self.lib, "sqlite3_load_extension") if self.lib.check_symbol("sqlite3_load_extension") else None
-            )
-            self._sqlite3_enable_load_extension = (
-                _resolve[c_int](self.lib, "sqlite3_enable_load_extension") if self.lib.check_symbol("sqlite3_enable_load_extension") else None
-            )
-            self._sqlite3_txn_state = (
-                _resolve[c_int](self.lib, "sqlite3_txn_state") if self.lib.check_symbol("sqlite3_txn_state") else None
-            )
-            self._sqlite3_create_module_v2 = (
-                _resolve[c_int](self.lib, "sqlite3_create_module_v2") if self.lib.check_symbol("sqlite3_create_module_v2") else None
-            )
-            self._sqlite3_blob_open = (
-                _resolve[c_int](self.lib, "sqlite3_blob_open") if self.lib.check_symbol("sqlite3_blob_open") else None
-            )
-            self._sqlite3_blob_reopen = (
-                _resolve[c_int](self.lib, "sqlite3_blob_reopen") if self.lib.check_symbol("sqlite3_blob_reopen") else None
-            )
-            self._sqlite3_blob_close = (
-                _resolve[c_int](self.lib, "sqlite3_blob_close") if self.lib.check_symbol("sqlite3_blob_close") else None
-            )
-            self._sqlite3_blob_bytes = (
-                _resolve[c_int](self.lib, "sqlite3_blob_bytes") if self.lib.check_symbol("sqlite3_blob_bytes") else None
-            )
-            self._sqlite3_blob_read = (
-                _resolve[c_int](self.lib, "sqlite3_blob_read") if self.lib.check_symbol("sqlite3_blob_read") else None
-            )
-            self._sqlite3_blob_write = (
-                _resolve[c_int](self.lib, "sqlite3_blob_write") if self.lib.check_symbol("sqlite3_blob_write") else None
-            )
-            self._sqlite3_unlock_notify = (
-                _resolve[c_int](self.lib, "sqlite3_unlock_notify") if self.lib.check_symbol("sqlite3_unlock_notify") else None
-            )
-            self._sqlite3_wal_hook = (
-                _resolve[Optional[MutExternalPointer[NoneType]]](self.lib, "sqlite3_wal_hook") if self.lib.check_symbol("sqlite3_wal_hook") else None
-            )
-            self._sqlite3_wal_autocheckpoint = (
-                _resolve[c_int](self.lib, "sqlite3_wal_autocheckpoint") if self.lib.check_symbol("sqlite3_wal_autocheckpoint") else None
-            )
-            self._sqlite3_wal_checkpoint = (
-                _resolve[c_int](self.lib, "sqlite3_wal_checkpoint") if self.lib.check_symbol("sqlite3_wal_checkpoint") else None
-            )
-            self._sqlite3_wal_checkpoint_v2 = (
-                _resolve[c_int](self.lib, "sqlite3_wal_checkpoint_v2") if self.lib.check_symbol("sqlite3_wal_checkpoint_v2") else None
-            )
-            self._sqlite3_vtab_config = (
-                _resolve[c_int](self.lib, "sqlite3_vtab_config") if self.lib.check_symbol("sqlite3_vtab_config") else None
-            )
-            self._sqlite3_vtab_on_conflict = (
-                _resolve[c_int](self.lib, "sqlite3_vtab_on_conflict") if self.lib.check_symbol("sqlite3_vtab_on_conflict") else None
-            )
-            self._sqlite3_vtab_nochange = (
-                _resolve[c_int](self.lib, "sqlite3_vtab_nochange") if self.lib.check_symbol("sqlite3_vtab_nochange") else None
-            )
-            self._sqlite3_vtab_collation = (
-                _resolve[Optional[ImmExternalPointer[c_char]]](self.lib, "sqlite3_vtab_collation") if self.lib.check_symbol("sqlite3_vtab_collation") else None
-            )
-            self._sqlite3_vtab_distinct = (
-                _resolve[c_int](self.lib, "sqlite3_vtab_distinct") if self.lib.check_symbol("sqlite3_vtab_distinct") else None
-            )
-            self._sqlite3_declare_vtab = (
-                _resolve[c_int](self.lib, "sqlite3_declare_vtab") if self.lib.check_symbol("sqlite3_declare_vtab") else None
-            )
-            self._sqlite3_db_cacheflush = (
-                _resolve[c_int](self.lib, "sqlite3_db_cacheflush") if self.lib.check_symbol("sqlite3_db_cacheflush") else None
-            )
-            self._sqlite3_serialize = (
-                _resolve[Optional[MutExternalPointer[c_uchar]]](self.lib, "sqlite3_serialize") if self.lib.check_symbol("sqlite3_serialize") else None
-            )
-            self._sqlite3_deserialize = (
-                _resolve[c_int](self.lib, "sqlite3_deserialize") if self.lib.check_symbol("sqlite3_deserialize") else None
-            )
+            self._sqlite3_is_interrupted = _resolve[c_int](self.lib, "sqlite3_is_interrupted") if self.lib.check_symbol(
+                "sqlite3_is_interrupted"
+            ) else None
+            self._sqlite3_set_authorizer = _resolve[c_int](self.lib, "sqlite3_set_authorizer") if self.lib.check_symbol(
+                "sqlite3_set_authorizer"
+            ) else None
+            self._sqlite3_trace = _resolve[Optional[MutExternalPointer[NoneType]]](
+                self.lib, "sqlite3_trace"
+            ) if self.lib.check_symbol("sqlite3_trace") else None
+            self._sqlite3_profile = _resolve[Optional[MutExternalPointer[NoneType]]](
+                self.lib, "sqlite3_profile"
+            ) if self.lib.check_symbol("sqlite3_profile") else None
+            self._sqlite3_progress_handler = _resolve[NoneType](
+                self.lib, "sqlite3_progress_handler"
+            ) if self.lib.check_symbol("sqlite3_progress_handler") else None
+            self._sqlite3_error_offset = _resolve[c_int](self.lib, "sqlite3_error_offset") if self.lib.check_symbol(
+                "sqlite3_error_offset"
+            ) else None
+            self._sqlite3_stmt_isexplain = _resolve[c_int](self.lib, "sqlite3_stmt_isexplain") if self.lib.check_symbol(
+                "sqlite3_stmt_isexplain"
+            ) else None
+            self._sqlite3_bind_pointer = _resolve[c_int](self.lib, "sqlite3_bind_pointer") if self.lib.check_symbol(
+                "sqlite3_bind_pointer"
+            ) else None
+            self._sqlite3_column_database_name = _resolve[Optional[ImmExternalPointer[c_char]]](
+                self.lib, "sqlite3_column_database_name"
+            ) if self.lib.check_symbol("sqlite3_column_database_name") else None
+            self._sqlite3_column_table_name = _resolve[Optional[ImmExternalPointer[c_char]]](
+                self.lib, "sqlite3_column_table_name"
+            ) if self.lib.check_symbol("sqlite3_column_table_name") else None
+            self._sqlite3_column_origin_name = _resolve[Optional[ImmExternalPointer[c_char]]](
+                self.lib, "sqlite3_column_origin_name"
+            ) if self.lib.check_symbol("sqlite3_column_origin_name") else None
+            self._sqlite3_column_decltype = _resolve[Optional[ImmExternalPointer[c_char]]](
+                self.lib, "sqlite3_column_decltype"
+            ) if self.lib.check_symbol("sqlite3_column_decltype") else None
+            self._sqlite3_create_window_function = _resolve[c_int](
+                self.lib, "sqlite3_create_window_function"
+            ) if self.lib.check_symbol("sqlite3_create_window_function") else None
+            self._sqlite3_aggregate_count = _resolve[c_int](
+                self.lib, "sqlite3_aggregate_count"
+            ) if self.lib.check_symbol("sqlite3_aggregate_count") else None
+            self._sqlite3_expired = _resolve[c_int](self.lib, "sqlite3_expired") if self.lib.check_symbol(
+                "sqlite3_expired"
+            ) else None
+            self._sqlite3_transfer_bindings = _resolve[c_int](
+                self.lib, "sqlite3_transfer_bindings"
+            ) if self.lib.check_symbol("sqlite3_transfer_bindings") else None
+            self._sqlite3_global_recover = _resolve[c_int](self.lib, "sqlite3_global_recover") if self.lib.check_symbol(
+                "sqlite3_global_recover"
+            ) else None
+            self._sqlite3_thread_cleanup = _resolve[NoneType](
+                self.lib, "sqlite3_thread_cleanup"
+            ) if self.lib.check_symbol("sqlite3_thread_cleanup") else None
+            self._sqlite3_memory_alarm = _resolve[c_int](self.lib, "sqlite3_memory_alarm") if self.lib.check_symbol(
+                "sqlite3_memory_alarm"
+            ) else None
+            self._sqlite3_value_pointer = _resolve[Optional[MutExternalPointer[NoneType]]](
+                self.lib, "sqlite3_value_pointer"
+            ) if self.lib.check_symbol("sqlite3_value_pointer") else None
+            self._sqlite3_value_nochange = _resolve[c_int](self.lib, "sqlite3_value_nochange") if self.lib.check_symbol(
+                "sqlite3_value_nochange"
+            ) else None
+            self._sqlite3_value_subtype = _resolve[c_uint](self.lib, "sqlite3_value_subtype") if self.lib.check_symbol(
+                "sqlite3_value_subtype"
+            ) else None
+            self._sqlite3_result_pointer = _resolve[NoneType](
+                self.lib, "sqlite3_result_pointer"
+            ) if self.lib.check_symbol("sqlite3_result_pointer") else None
+            self._sqlite3_result_subtype = _resolve[NoneType](
+                self.lib, "sqlite3_result_subtype"
+            ) if self.lib.check_symbol("sqlite3_result_subtype") else None
+            self._sqlite3_soft_heap_limit = _resolve[c_int](
+                self.lib, "sqlite3_soft_heap_limit"
+            ) if self.lib.check_symbol("sqlite3_soft_heap_limit") else None
+            self._sqlite3_table_column_metadata = _resolve[c_int](
+                self.lib, "sqlite3_table_column_metadata"
+            ) if self.lib.check_symbol("sqlite3_table_column_metadata") else None
+            self._sqlite3_load_extension = _resolve[c_int](self.lib, "sqlite3_load_extension") if self.lib.check_symbol(
+                "sqlite3_load_extension"
+            ) else None
+            self._sqlite3_enable_load_extension = _resolve[c_int](
+                self.lib, "sqlite3_enable_load_extension"
+            ) if self.lib.check_symbol("sqlite3_enable_load_extension") else None
+            self._sqlite3_txn_state = _resolve[c_int](self.lib, "sqlite3_txn_state") if self.lib.check_symbol(
+                "sqlite3_txn_state"
+            ) else None
+            self._sqlite3_create_module_v2 = _resolve[c_int](
+                self.lib, "sqlite3_create_module_v2"
+            ) if self.lib.check_symbol("sqlite3_create_module_v2") else None
+            self._sqlite3_blob_open = _resolve[c_int](self.lib, "sqlite3_blob_open") if self.lib.check_symbol(
+                "sqlite3_blob_open"
+            ) else None
+            self._sqlite3_blob_reopen = _resolve[c_int](self.lib, "sqlite3_blob_reopen") if self.lib.check_symbol(
+                "sqlite3_blob_reopen"
+            ) else None
+            self._sqlite3_blob_close = _resolve[c_int](self.lib, "sqlite3_blob_close") if self.lib.check_symbol(
+                "sqlite3_blob_close"
+            ) else None
+            self._sqlite3_blob_bytes = _resolve[c_int](self.lib, "sqlite3_blob_bytes") if self.lib.check_symbol(
+                "sqlite3_blob_bytes"
+            ) else None
+            self._sqlite3_blob_read = _resolve[c_int](self.lib, "sqlite3_blob_read") if self.lib.check_symbol(
+                "sqlite3_blob_read"
+            ) else None
+            self._sqlite3_blob_write = _resolve[c_int](self.lib, "sqlite3_blob_write") if self.lib.check_symbol(
+                "sqlite3_blob_write"
+            ) else None
+            self._sqlite3_unlock_notify = _resolve[c_int](self.lib, "sqlite3_unlock_notify") if self.lib.check_symbol(
+                "sqlite3_unlock_notify"
+            ) else None
+            self._sqlite3_wal_hook = _resolve[Optional[MutExternalPointer[NoneType]]](
+                self.lib, "sqlite3_wal_hook"
+            ) if self.lib.check_symbol("sqlite3_wal_hook") else None
+            self._sqlite3_wal_autocheckpoint = _resolve[c_int](
+                self.lib, "sqlite3_wal_autocheckpoint"
+            ) if self.lib.check_symbol("sqlite3_wal_autocheckpoint") else None
+            self._sqlite3_wal_checkpoint = _resolve[c_int](self.lib, "sqlite3_wal_checkpoint") if self.lib.check_symbol(
+                "sqlite3_wal_checkpoint"
+            ) else None
+            self._sqlite3_wal_checkpoint_v2 = _resolve[c_int](
+                self.lib, "sqlite3_wal_checkpoint_v2"
+            ) if self.lib.check_symbol("sqlite3_wal_checkpoint_v2") else None
+            self._sqlite3_vtab_config = _resolve[c_int](self.lib, "sqlite3_vtab_config") if self.lib.check_symbol(
+                "sqlite3_vtab_config"
+            ) else None
+            self._sqlite3_vtab_on_conflict = _resolve[c_int](
+                self.lib, "sqlite3_vtab_on_conflict"
+            ) if self.lib.check_symbol("sqlite3_vtab_on_conflict") else None
+            self._sqlite3_vtab_nochange = _resolve[c_int](self.lib, "sqlite3_vtab_nochange") if self.lib.check_symbol(
+                "sqlite3_vtab_nochange"
+            ) else None
+            self._sqlite3_vtab_collation = _resolve[Optional[ImmExternalPointer[c_char]]](
+                self.lib, "sqlite3_vtab_collation"
+            ) if self.lib.check_symbol("sqlite3_vtab_collation") else None
+            self._sqlite3_vtab_distinct = _resolve[c_int](self.lib, "sqlite3_vtab_distinct") if self.lib.check_symbol(
+                "sqlite3_vtab_distinct"
+            ) else None
+            self._sqlite3_declare_vtab = _resolve[c_int](self.lib, "sqlite3_declare_vtab") if self.lib.check_symbol(
+                "sqlite3_declare_vtab"
+            ) else None
+            self._sqlite3_db_cacheflush = _resolve[c_int](self.lib, "sqlite3_db_cacheflush") if self.lib.check_symbol(
+                "sqlite3_db_cacheflush"
+            ) else None
+            self._sqlite3_serialize = _resolve[Optional[MutExternalPointer[c_uchar]]](
+                self.lib, "sqlite3_serialize"
+            ) if self.lib.check_symbol("sqlite3_serialize") else None
+            self._sqlite3_deserialize = _resolve[c_int](self.lib, "sqlite3_deserialize") if self.lib.check_symbol(
+                "sqlite3_deserialize"
+            ) else None
         except e:
             os.abort(String(t"Failed to load the SQLite library: {e}"))
 
@@ -1033,7 +1057,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_config(op)
 
-    def sqlite3_db_config[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], op: c_int) -> c_int:
+    def sqlite3_db_config[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], op: c_int) -> c_int:
         """Configure Database Connection Options.
 
         The sqlite3_db_config() interface is used to make configuration
@@ -1055,7 +1081,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_db_config(db, op)
 
-    def sqlite3_extended_result_codes[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], onoff: c_int) -> c_int:
+    def sqlite3_extended_result_codes[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], onoff: c_int) -> c_int:
         """Enable Or Disable Extended Result Codes.
 
         The sqlite3_extended_result_codes() routine enables or disables the
@@ -1077,7 +1105,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_extended_result_codes(db, onoff)
 
-    def sqlite3_last_insert_rowid[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> Int64:
+    def sqlite3_last_insert_rowid[
+        conn_origin: ImmOrigin, //
+    ](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> Int64:
         """Last Insert Rowid.
 
         Each entry in most SQLite tables has a unique 64-bit signed integer key
@@ -1130,7 +1160,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_changes64(db)
 
-    def sqlite3_total_changes[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
+    def sqlite3_total_changes[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Count The Total Number of Rows Modified.
 
         This function returns the total number of rows inserted, modified or
@@ -1150,7 +1182,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_total_changes(db)
 
-    def sqlite3_total_changes64[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> Int64:
+    def sqlite3_total_changes64[
+        conn_origin: ImmOrigin, //
+    ](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> Int64:
         """Count The Total Number of Rows Modified (64-bit).
 
         This function works the same as sqlite3_total_changes() except that it
@@ -1191,7 +1225,9 @@ struct _sqlite3(Movable):
         """
         self._sqlite3_interrupt(db)
 
-    def sqlite3_is_interrupted[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> c_int:
+    def sqlite3_is_interrupted[
+        conn_origin: ImmOrigin, //
+    ](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Test To See If An Interrupt Is Pending.
 
         This routine returns 1 if sqlite3_interrupt() has been called
@@ -1212,11 +1248,13 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_is_interrupted is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_is_interrupted\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_is_interrupted")` before using this feature.'
             )
         return self._sqlite3_is_interrupted.value()(db)
 
-    def sqlite3_busy_handler[conn_origin: MutOrigin, arg_origin: MutOrigin, //](
+    def sqlite3_busy_handler[
+        conn_origin: MutOrigin, arg_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         callback: BusyHandlerCallbackFn,
@@ -1241,11 +1279,11 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._sqlite3_busy_handler(
-            db, callback, arg
-        )
+        return self._sqlite3_busy_handler(db, callback, arg)
 
-    def sqlite3_busy_timeout[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], ms: c_int) -> c_int:
+    def sqlite3_busy_timeout[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], ms: c_int) -> c_int:
         """Set A Busy Timeout.
 
         This routine sets a busy handler that sleeps for a specified amount of
@@ -1310,7 +1348,9 @@ struct _sqlite3(Movable):
         return self._sqlite3_msize(ptr)
 
     def sqlite3_set_authorizer[
-        userdata_origin: MutOrigin, conn_origin: MutOrigin, //,
+        userdata_origin: MutOrigin,
+        conn_origin: MutOrigin,
+        //,
         auth_callback: AuthCallbackFn,
     ](
         self, db: MutPointer[sqlite3_connection, conn_origin], pUserData: Optional[MutOpaquePointer[userdata_origin]]
@@ -1336,18 +1376,18 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        var user_data = Optional[Pointer[NoneType, userdata_origin]](
-            pUserData.value()
-        ) if pUserData else None
+        var user_data = Optional[Pointer[NoneType, userdata_origin]](pUserData.value()) if pUserData else None
         if not self._sqlite3_set_authorizer:
             os.abort(
                 "sqlite3_set_authorizer is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_set_authorizer\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_set_authorizer")` before using this feature.'
             )
         return self._sqlite3_set_authorizer.value()(db, auth_callback, user_data)
 
-    def sqlite3_remove_authorizer[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
+    def sqlite3_remove_authorizer[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Compile-Time Authorization Callbacks.
 
         This routine registers an authorizer callback with a particular database
@@ -1366,11 +1406,13 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_set_authorizer is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_set_authorizer\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_set_authorizer")` before using this feature.'
             )
         return self._sqlite3_set_authorizer.value()(db, _NULL_PTR, _NULL_PTR)
 
-    def sqlite3_trace[conn_origin: MutOrigin, arg_origin: MutOrigin, //](
+    def sqlite3_trace[
+        conn_origin: MutOrigin, arg_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         xTrace: TraceCallbackFn,
@@ -1396,13 +1438,13 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_trace is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_trace\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_trace")` before using this feature.'
             )
-        return self._sqlite3_trace.value()(
-            db, xTrace, pArg
-        )
+        return self._sqlite3_trace.value()(db, xTrace, pArg)
 
-    def sqlite3_profile[conn_origin: MutOrigin, arg_origin: MutOrigin, //](
+    def sqlite3_profile[
+        conn_origin: MutOrigin, arg_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         xProfile: ProfileCallbackFn,
@@ -1427,13 +1469,13 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_profile is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_profile\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_profile")` before using this feature.'
             )
-        return self._sqlite3_profile.value()(
-            db, xProfile, pArg
-        )
+        return self._sqlite3_profile.value()(db, xProfile, pArg)
 
-    def sqlite3_trace_v2[conn_origin: MutOrigin, //](
+    def sqlite3_trace_v2[
+        conn_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         uMask: c_uint,
@@ -1459,7 +1501,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_trace_v2(db, uMask, xCallback, pCtx)
 
-    def sqlite3_progress_handler[conn_origin: MutOrigin, arg_origin: MutOrigin, //](
+    def sqlite3_progress_handler[
+        conn_origin: MutOrigin, arg_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         nOps: c_int,
@@ -1485,15 +1529,13 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_progress_handler is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_progress_handler\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_progress_handler")` before using this feature.'
             )
-        self._sqlite3_progress_handler.value()(
-            db, nOps, xProgress, pArg
-        )
+        self._sqlite3_progress_handler.value()(db, nOps, xProgress, pArg)
 
-    def sqlite3_open_v2[conn_origin: MutOrigin, filename_origin: ImmOrigin,
-        db_origin: MutOrigin,
-        vfs_origin: ImmOrigin, //](
+    def sqlite3_open_v2[
+        conn_origin: MutOrigin, filename_origin: ImmOrigin, db_origin: MutOrigin, vfs_origin: ImmOrigin, //
+    ](
         self,
         filename: ImmPointer[c_char, filename_origin],
         ppDb: MutPointer[MutPointer[sqlite3_connection, conn_origin], db_origin],
@@ -1534,8 +1576,9 @@ struct _sqlite3(Movable):
             zVfs,
         )
 
-    def sqlite3_open_v2[conn_origin: MutOrigin, filename_origin: ImmOrigin,
-        db_origin: MutOrigin, //](
+    def sqlite3_open_v2[
+        conn_origin: MutOrigin, filename_origin: ImmOrigin, db_origin: MutOrigin, //
+    ](
         self,
         filename: ImmPointer[c_char, filename_origin],
         ppDb: MutPointer[MutPointer[sqlite3_connection, conn_origin], db_origin],
@@ -1590,7 +1633,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_errcode(db)
 
-    def sqlite3_extended_errcode[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> c_int:
+    def sqlite3_extended_errcode[
+        conn_origin: ImmOrigin, //
+    ](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Retrieve the most recent extended error code for a database connection.
 
         This function returns the extended result code for the most recent
@@ -1606,7 +1651,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_extended_errcode(db)
 
-    def sqlite3_errmsg[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> Optional[ImmExternalPointer[c_char]]:
+    def sqlite3_errmsg[
+        conn_origin: ImmOrigin, //
+    ](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> Optional[ImmExternalPointer[c_char]]:
         """Retrieve the English-language error message for the most recent error.
 
         This function returns a pointer to a UTF-8 encoded error message
@@ -1639,7 +1686,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_errstr(e)
 
-    def sqlite3_error_offset[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
+    def sqlite3_error_offset[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Get byte offset of SQL error.
 
         This function returns the byte offset into the SQL text of the most
@@ -1658,11 +1707,13 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_error_offset is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_error_offset\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_error_offset")` before using this feature.'
             )
         return self._sqlite3_error_offset.value()(db)
 
-    def sqlite3_limit[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin], id: c_int, newVal: c_int) -> c_int:
+    def sqlite3_limit[
+        conn_origin: ImmOrigin, //
+    ](self, db: ImmPointer[sqlite3_connection, conn_origin], id: c_int, newVal: c_int) -> c_int:
         """Set or retrieve run-time limits on database connection.
 
         This function allows applications to impose limits on various
@@ -1694,7 +1745,12 @@ struct _sqlite3(Movable):
         return self._sqlite3_limit(db, id, newVal)
 
     def sqlite3_prepare_v2[
-        sql_origin: ImmOrigin, stmt_origin: MutOrigin, tail_origin1: ImmOrigin, tail_origin2: MutOrigin, conn_origin: MutOrigin, //
+        sql_origin: ImmOrigin,
+        stmt_origin: MutOrigin,
+        tail_origin1: ImmOrigin,
+        tail_origin2: MutOrigin,
+        conn_origin: MutOrigin,
+        //,
     ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
@@ -1759,7 +1815,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_prepare_v3(db, zSql, nByte, prepFlags, ppStmt, pzTail)
 
-    def sqlite3_sql[stmt_origin: ImmOrigin, //](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin]) -> Optional[ImmExternalPointer[c_char]]:
+    def sqlite3_sql[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin]) -> Optional[ImmExternalPointer[c_char]]:
         """Retrieve the SQL text of a prepared statement.
 
         Returns a pointer to a copy of the UTF-8 SQL text used to create the
@@ -1774,9 +1832,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_sql(pStmt)
 
-    def sqlite3_expanded_sql[stmt_origin: ImmOrigin, //](
-        self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin]
-    ) -> Optional[MutExternalPointer[c_char]]:
+    def sqlite3_expanded_sql[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin]) -> Optional[MutExternalPointer[c_char]]:
         """Retrieve SQL with bound parameters expanded.
 
         Returns a pointer to a UTF-8 string containing the SQL text of the
@@ -1824,7 +1882,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_stmt_isexplain is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_stmt_isexplain\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_stmt_isexplain")` before using this feature.'
             )
         return self._sqlite3_stmt_isexplain.value()(pStmt)
 
@@ -1872,13 +1930,11 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._sqlite3_bind_blob64(
-            pStmt, idx, value, n, destructor_callback
-        )
+        return self._sqlite3_bind_blob64(pStmt, idx, value, n, destructor_callback)
 
-    def sqlite3_bind_double[stmt_origin: MutOrigin, //](
-        self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int, value: Float64
-    ) -> c_int:
+    def sqlite3_bind_double[
+        stmt_origin: MutOrigin, //
+    ](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int, value: Float64) -> c_int:
         """Binding Values To Prepared Statements - REAL.
 
         This routine binds a floating point value to a parameter in a prepared statement.
@@ -1894,7 +1950,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_bind_double(pStmt, idx, value)
 
-    def sqlite3_bind_int64[stmt_origin: MutOrigin, //](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int, value: Int64) -> c_int:
+    def sqlite3_bind_int64[
+        stmt_origin: MutOrigin, //
+    ](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int, value: Int64) -> c_int:
         """Binding Values To Prepared Statements - INTEGER (64-bit).
 
         This routine binds a 64-bit signed integer value to a parameter in a
@@ -1910,7 +1968,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_bind_int64(pStmt, idx, value)
 
-    def sqlite3_bind_null[stmt_origin: MutOrigin, //](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int) -> c_int:
+    def sqlite3_bind_null[
+        stmt_origin: MutOrigin, //
+    ](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int) -> c_int:
         """Binding Values To Prepared Statements - NULL.
 
         This routine binds a NULL value to a parameter in a prepared statement.
@@ -1955,9 +2015,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._sqlite3_bind_text64(
-            pStmt, idx, value, n, destructor_callback, encoding
-        )
+        return self._sqlite3_bind_text64(pStmt, idx, value, n, destructor_callback, encoding)
 
     def sqlite3_bind_pointer[
         value_origin: MutOrigin, type_origin: ImmOrigin, stmt_origin: MutOrigin, //
@@ -1991,7 +2049,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_bind_pointer is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_bind_pointer\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_bind_pointer")` before using this feature.'
             )
         return self._sqlite3_bind_pointer.value()(
             pStmt,
@@ -2001,7 +2059,9 @@ struct _sqlite3(Movable):
             destructor_callback,
         )
 
-    def sqlite3_bind_zeroblob[stmt_origin: MutOrigin, //](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int, n: c_int) -> c_int:
+    def sqlite3_bind_zeroblob[
+        stmt_origin: MutOrigin, //
+    ](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int, n: c_int) -> c_int:
         """Binding Values To Prepared Statements - Zeroblob.
 
         This routine binds a BLOB filled with zeros to a parameter in a prepared
@@ -2019,7 +2079,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_bind_zeroblob(pStmt, idx, n)
 
-    def sqlite3_bind_parameter_count[stmt_origin: ImmOrigin, //](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin]) -> c_int:
+    def sqlite3_bind_parameter_count[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin]) -> c_int:
         """Return the number of parameters in a prepared statement.
 
         This function returns the number of SQL parameters in the prepared
@@ -2052,9 +2114,7 @@ struct _sqlite3(Movable):
         Returns:
             Pointer to parameter name, or None if no name or invalid index.
         """
-        return self._sqlite3_bind_parameter_name(
-            pStmt, idx
-        )
+        return self._sqlite3_bind_parameter_name(pStmt, idx)
 
     def sqlite3_bind_parameter_index[
         origin: ImmOrigin, stmt_origin: ImmOrigin, //
@@ -2072,9 +2132,7 @@ struct _sqlite3(Movable):
         Returns:
             Index of the parameter (1-based), or 0 if not found.
         """
-        return self._sqlite3_bind_parameter_index(
-            pStmt, zName
-        )
+        return self._sqlite3_bind_parameter_index(pStmt, zName)
 
     def sqlite3_clear_bindings[stmt_origin: MutOrigin, //](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin]) -> c_int:
         """Reset All Bindings On A Prepared Statement.
@@ -2106,9 +2164,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_column_count(pStmt)
 
-    def sqlite3_column_name[stmt_origin: ImmOrigin, //](
-        self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], N: c_int
-    ) -> Optional[ImmExternalPointer[c_char]]:
+    def sqlite3_column_name[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], N: c_int) -> Optional[ImmExternalPointer[c_char]]:
         """Column Names In A Result Set.
 
         This routine returns the name assigned to a particular column in the
@@ -2144,13 +2202,11 @@ struct _sqlite3(Movable):
         """
         if not self._sqlite3_column_database_name:
             os.abort(
-                "sqlite3_column_database_name is not available in the loaded libsqlite3: it was left out by the library's"
-                " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_column_database_name\")` before using this feature."
+                "sqlite3_column_database_name is not available in the loaded libsqlite3: it was left out by the"
+                " library's compile-time options or is newer than its SQLite version. Check"
+                ' `sqlite_ffi()[].has_function("sqlite3_column_database_name")` before using this feature.'
             )
-        return self._sqlite3_column_database_name.value()(
-            pStmt, idx
-        )
+        return self._sqlite3_column_database_name.value()(pStmt, idx)
 
     def sqlite3_column_table_name(
         self, pStmt: Optional[MutExternalPointer[sqlite3_stmt]], idx: c_int
@@ -2176,7 +2232,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_column_table_name is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_column_table_name\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_column_table_name")` before using this feature.'
             )
         return self._sqlite3_column_table_name.value()(pStmt, idx)
 
@@ -2202,9 +2258,9 @@ struct _sqlite3(Movable):
         """
         if not self._sqlite3_column_origin_name:
             os.abort(
-                "sqlite3_column_origin_name is not available in the loaded libsqlite3: it was left out by the library's"
-                " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_column_origin_name\")` before using this feature."
+                "sqlite3_column_origin_name is not available in the loaded libsqlite3: it was left out by the"
+                " library's compile-time options or is newer than its SQLite version. Check"
+                ' `sqlite_ffi()[].has_function("sqlite3_column_origin_name")` before using this feature.'
             )
         return self._sqlite3_column_origin_name.value()(pStmt, idx)
 
@@ -2231,7 +2287,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_column_decltype is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_column_decltype\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_column_decltype")` before using this feature.'
             )
         return self._sqlite3_column_decltype.value()(pStmt, idx)
 
@@ -2255,9 +2311,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_step(pStmt)
 
-    def sqlite3_column_blob[stmt_origin: ImmOrigin, //](
-        self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int
-    ) -> Optional[ImmExternalPointer[NoneType]]:
+    def sqlite3_column_blob[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> Optional[ImmExternalPointer[NoneType]]:
         """Result Values From A Query - BLOB.
 
         These routines return information about a single column of the current
@@ -2273,7 +2329,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_column_blob(pStmt, iCol)
 
-    def sqlite3_column_double[stmt_origin: ImmOrigin, //](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> Float64:
+    def sqlite3_column_double[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> Float64:
         """Result Values From A Query - REAL.
 
         This routine returns the value of the specified column as a floating
@@ -2289,7 +2347,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_column_double(pStmt, iCol)
 
-    def sqlite3_column_int64[stmt_origin: ImmOrigin, //](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> Int64:
+    def sqlite3_column_int64[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> Int64:
         """Result Values From A Query - INTEGER (64-bit).
 
         This routine returns the value of the specified column as a 64-bit
@@ -2305,9 +2365,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_column_int64(pStmt, iCol)
 
-    def sqlite3_column_text[stmt_origin: ImmOrigin, //](
-        self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int
-    ) -> Optional[ImmExternalPointer[c_uchar]]:
+    def sqlite3_column_text[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> Optional[ImmExternalPointer[c_uchar]]:
         """Retrieve column data as UTF-8 text.
 
         This function returns the value of the specified column as a UTF-8
@@ -2340,11 +2400,11 @@ struct _sqlite3(Movable):
         Returns:
             Pointer to the sqlite3_value object for the column or None if the column is out of range or an OOM error occurs.
         """
-        return self._sqlite3_column_value(
-            pStmt, iCol
-        )
+        return self._sqlite3_column_value(pStmt, iCol)
 
-    def sqlite3_column_bytes[stmt_origin: ImmOrigin, //](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> c_int:
+    def sqlite3_column_bytes[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> c_int:
         """Size Of A BLOB Or TEXT Result In Bytes.
 
         This routine returns the number of bytes in a BLOB or TEXT result.
@@ -2361,7 +2421,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_column_bytes(pStmt, iCol)
 
-    def sqlite3_column_type[stmt_origin: ImmOrigin, //](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> c_int:
+    def sqlite3_column_type[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> c_int:
         """Datatype Code For The Initial Data Type Of A Result Column.
 
         This routine returns one of SQLITE_INTEGER, SQLITE_FLOAT, SQLITE_TEXT,
@@ -2411,7 +2473,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_reset(pStmt)
 
-    def sqlite3_remove_function[conn_origin: MutOrigin, fn_name_origin: ImmOrigin, //](
+    def sqlite3_remove_function[
+        conn_origin: MutOrigin, fn_name_origin: ImmOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: ImmPointer[c_char, fn_name_origin],
@@ -2444,8 +2508,9 @@ struct _sqlite3(Movable):
             _NULL_PTR,
         )
 
-    def sqlite3_create_scalar_function[conn_origin: MutOrigin, fn_name_origin: ImmOrigin,
-        app_origin: MutOrigin, //](
+    def sqlite3_create_scalar_function[
+        conn_origin: MutOrigin, fn_name_origin: ImmOrigin, app_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: ImmPointer[c_char, fn_name_origin],
@@ -2481,7 +2546,9 @@ struct _sqlite3(Movable):
             destructor_callback,
         )
 
-    def sqlite3_create_scalar_function[conn_origin: MutOrigin, fn_name_origin: ImmOrigin, //](
+    def sqlite3_create_scalar_function[
+        conn_origin: MutOrigin, fn_name_origin: ImmOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: ImmPointer[c_char, fn_name_origin],
@@ -2513,8 +2580,9 @@ struct _sqlite3(Movable):
             _NULL_PTR,
         )
 
-    def sqlite3_create_aggregate_function[conn_origin: MutOrigin, fn_name_origin: ImmOrigin,
-        app_origin: MutOrigin, //](
+    def sqlite3_create_aggregate_function[
+        conn_origin: MutOrigin, fn_name_origin: ImmOrigin, app_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: ImmPointer[c_char, fn_name_origin],
@@ -2552,7 +2620,9 @@ struct _sqlite3(Movable):
             destructor_callback,
         )
 
-    def sqlite3_create_aggregate_function[conn_origin: MutOrigin, fn_name_origin: ImmOrigin, //](
+    def sqlite3_create_aggregate_function[
+        conn_origin: MutOrigin, fn_name_origin: ImmOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: ImmPointer[c_char, fn_name_origin],
@@ -2578,8 +2648,9 @@ struct _sqlite3(Movable):
             db, zFunctionName, nArg, eTextRep, _NULL_PTR, _NULL_PTR, xStep, xFinal, _NULL_PTR
         )
 
-    def sqlite3_create_window_function[conn_origin: MutOrigin, fn_name_origin: ImmOrigin,
-        app_origin: MutOrigin, //](
+    def sqlite3_create_window_function[
+        conn_origin: MutOrigin, fn_name_origin: ImmOrigin, app_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: ImmPointer[c_char, fn_name_origin],
@@ -2611,9 +2682,9 @@ struct _sqlite3(Movable):
         """
         if not self._sqlite3_create_window_function:
             os.abort(
-                "sqlite3_create_window_function is not available in the loaded libsqlite3: it was left out by the library's"
-                " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_create_window_function\")` before using this feature."
+                "sqlite3_create_window_function is not available in the loaded libsqlite3: it was left out by the"
+                " library's compile-time options or is newer than its SQLite version. Check"
+                ' `sqlite_ffi()[].has_function("sqlite3_create_window_function")` before using this feature.'
             )
         return self._sqlite3_create_window_function.value()(
             db,
@@ -2628,7 +2699,9 @@ struct _sqlite3(Movable):
             destructor_callback,
         )
 
-    def sqlite3_create_window_function[conn_origin: MutOrigin, fn_name_origin: ImmOrigin, //](
+    def sqlite3_create_window_function[
+        conn_origin: MutOrigin, fn_name_origin: ImmOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: ImmPointer[c_char, fn_name_origin],
@@ -2656,9 +2729,9 @@ struct _sqlite3(Movable):
         """
         if not self._sqlite3_create_window_function:
             os.abort(
-                "sqlite3_create_window_function is not available in the loaded libsqlite3: it was left out by the library's"
-                " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_create_window_function\")` before using this feature."
+                "sqlite3_create_window_function is not available in the loaded libsqlite3: it was left out by the"
+                " library's compile-time options or is newer than its SQLite version. Check"
+                ' `sqlite_ffi()[].has_function("sqlite3_create_window_function")` before using this feature.'
             )
         return self._sqlite3_create_window_function.value()(
             db,
@@ -2690,7 +2763,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_aggregate_count is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_aggregate_count\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_aggregate_count")` before using this feature.'
             )
         return self._sqlite3_aggregate_count.value()(ctx)
 
@@ -2711,7 +2784,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_expired is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_expired\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_expired")` before using this feature.'
             )
         return self._sqlite3_expired.value()(pStmt)
 
@@ -2734,7 +2807,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_transfer_bindings is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_transfer_bindings\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_transfer_bindings")` before using this feature.'
             )
         return self._sqlite3_transfer_bindings.value()(fromStmt, toStmt)
 
@@ -2752,7 +2825,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_global_recover is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_global_recover\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_global_recover")` before using this feature.'
             )
         return self._sqlite3_global_recover.value()()
 
@@ -2786,11 +2859,9 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_memory_alarm is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_memory_alarm\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_memory_alarm")` before using this feature.'
             )
-        return self._sqlite3_memory_alarm.value()(
-            callback, arg, n
-        )
+        return self._sqlite3_memory_alarm.value()(callback, arg, n)
 
     def sqlite3_value_blob(self, value: MutExternalPointer[sqlite3_value]) -> Optional[ImmExternalPointer[NoneType]]:
         """Obtaining SQL Values - BLOB.
@@ -2856,11 +2927,9 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_value_pointer is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_value_pointer\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_value_pointer")` before using this feature.'
             )
-        return self._sqlite3_value_pointer.value()(
-            value, typeStr.unsafe_origin_cast[ImmUntrackedOrigin]()
-        )
+        return self._sqlite3_value_pointer.value()(value, typeStr.unsafe_origin_cast[ImmUntrackedOrigin]())
 
     def sqlite3_value_text(self, value: MutExternalPointer[sqlite3_value]) -> Optional[ImmExternalPointer[c_uchar]]:
         """Obtaining SQL Values - TEXT.
@@ -2919,7 +2988,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_value_nochange is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_value_nochange\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_value_nochange")` before using this feature.'
             )
         return self._sqlite3_value_nochange.value()(value)
 
@@ -2940,13 +3009,13 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_value_subtype is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_value_subtype\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_value_subtype")` before using this feature.'
             )
         return self._sqlite3_value_subtype.value()(value)
 
-    def sqlite3_aggregate_context[ctx_origin: MutOrigin, //](
-        self, ctx: MutPointer[sqlite3_context, ctx_origin], nBytes: c_int
-    ) -> Optional[MutExternalPointer[NoneType]]:
+    def sqlite3_aggregate_context[
+        ctx_origin: MutOrigin, //
+    ](self, ctx: MutPointer[sqlite3_context, ctx_origin], nBytes: c_int) -> Optional[MutExternalPointer[NoneType]]:
         """Aggregate Function Context.
 
         This routine returns a pointer to memory that is unique to the aggregate
@@ -2965,11 +3034,11 @@ struct _sqlite3(Movable):
         Returns:
             Pointer to aggregate context memory, or None if allocation fails.
         """
-        return self._sqlite3_aggregate_context(
-            ctx, nBytes
-        )
+        return self._sqlite3_aggregate_context(ctx, nBytes)
 
-    def sqlite3_user_data[ctx_origin: ImmOrigin, //](self, ctx: ImmPointer[sqlite3_context, ctx_origin]) -> Optional[MutExternalPointer[NoneType]]:
+    def sqlite3_user_data[
+        ctx_origin: ImmOrigin, //
+    ](self, ctx: ImmPointer[sqlite3_context, ctx_origin]) -> Optional[MutExternalPointer[NoneType]]:
         """User Data For Functions.
 
         This routine returns a copy of the pointer that was the pUserData parameter
@@ -2988,9 +3057,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_user_data(ctx)
 
-    def sqlite3_context_db_handle[ctx_origin: MutOrigin, //](
-        self, ctx: MutPointer[sqlite3_context, ctx_origin]
-    ) -> Optional[MutExternalPointer[sqlite3_connection]]:
+    def sqlite3_context_db_handle[
+        ctx_origin: MutOrigin, //
+    ](self, ctx: MutPointer[sqlite3_context, ctx_origin]) -> Optional[MutExternalPointer[sqlite3_connection]]:
         """Database Connection For Functions.
 
         This routine returns a copy of the pointer to the database connection
@@ -3004,13 +3073,11 @@ struct _sqlite3(Movable):
         Returns:
             Database connection handle or None if the context is invalid.
         """
-        return self._sqlite3_context_db_handle(
-            ctx
-        )
+        return self._sqlite3_context_db_handle(ctx)
 
-    def sqlite3_get_auxdata[ctx_origin: ImmOrigin, //](
-        self, ctx: ImmPointer[sqlite3_context, ctx_origin], N: c_int
-    ) -> Optional[MutExternalPointer[NoneType]]:
+    def sqlite3_get_auxdata[
+        ctx_origin: ImmOrigin, //
+    ](self, ctx: ImmPointer[sqlite3_context, ctx_origin], N: c_int) -> Optional[MutExternalPointer[NoneType]]:
         """Function Auxiliary Data.
 
         This routine returns a pointer to metadata that was previously saved
@@ -3054,9 +3121,7 @@ struct _sqlite3(Movable):
             data: Pointer to auxiliary data to save.
             destructor_callback: Function to call when data should be freed.
         """
-        self._sqlite3_set_auxdata(
-            ctx, N, data, destructor_callback
-        )
+        self._sqlite3_set_auxdata(ctx, N, data, destructor_callback)
 
     def sqlite3_result_blob64[
         origin: ImmOrigin, ctx_origin: MutOrigin, //
@@ -3080,11 +3145,11 @@ struct _sqlite3(Movable):
             n: Size of BLOB in bytes (64-bit).
             destructor_callback: Function to call when SQLite is done with the BLOB.
         """
-        self._sqlite3_result_blob64(
-            ctx, value, n, destructor_callback
-        )
+        self._sqlite3_result_blob64(ctx, value, n, destructor_callback)
 
-    def sqlite3_result_double[ctx_origin: MutOrigin, //](self, ctx: MutPointer[sqlite3_context, ctx_origin], value: Float64):
+    def sqlite3_result_double[
+        ctx_origin: MutOrigin, //
+    ](self, ctx: MutPointer[sqlite3_context, ctx_origin], value: Float64):
         """Setting The Result Of An SQL Function - REAL.
 
         This routine sets the result of an application-defined SQL function to
@@ -3111,9 +3176,7 @@ struct _sqlite3(Movable):
             msg: Error message text (UTF-8).
             n: Length of error message in bytes, or -1 for None-terminated.
         """
-        self._sqlite3_result_error(
-            ctx, msg, n
-        )
+        self._sqlite3_result_error(ctx, msg, n)
 
     def sqlite3_result_error_toobig[ctx_origin: MutOrigin, //](self, ctx: MutPointer[sqlite3_context, ctx_origin]):
         """Setting The Result Of An SQL Function - SQLITE_TOOBIG Error.
@@ -3137,7 +3200,9 @@ struct _sqlite3(Movable):
         """
         self._sqlite3_result_error_nomem(ctx)
 
-    def sqlite3_result_error_code[ctx_origin: MutOrigin, //](self, ctx: MutPointer[sqlite3_context, ctx_origin], code: c_int):
+    def sqlite3_result_error_code[
+        ctx_origin: MutOrigin, //
+    ](self, ctx: MutPointer[sqlite3_context, ctx_origin], code: c_int):
         """Setting The Result Of An SQL Function - Error Code.
 
         This routine changes the error code returned by the SQL function. By
@@ -3150,7 +3215,9 @@ struct _sqlite3(Movable):
         """
         self._sqlite3_result_error_code(ctx, code)
 
-    def sqlite3_result_int64[ctx_origin: MutOrigin, //](self, ctx: MutPointer[sqlite3_context, ctx_origin], value: Int64):
+    def sqlite3_result_int64[
+        ctx_origin: MutOrigin, //
+    ](self, ctx: MutPointer[sqlite3_context, ctx_origin], value: Int64):
         """Setting The Result Of An SQL Function - INTEGER (64-bit).
 
         This routine sets the result of an application-defined SQL function to
@@ -3173,7 +3240,9 @@ struct _sqlite3(Movable):
         """
         self._sqlite3_result_null(ctx)
 
-    def sqlite3_result_text64[ctx_origin: MutOrigin, value_origin: ImmOrigin, //](
+    def sqlite3_result_text64[
+        ctx_origin: MutOrigin, value_origin: ImmOrigin, //
+    ](
         self,
         ctx: MutPointer[sqlite3_context, ctx_origin],
         value: ImmPointer[c_char, value_origin],
@@ -3199,11 +3268,11 @@ struct _sqlite3(Movable):
             encoding: Text encoding (SQLITE_UTF8 or SQLITE_UTF16).
             destructor_callback: Function to call when SQLite is done with the text.
         """
-        self._sqlite3_result_text64(
-            ctx, value, n, destructor_callback, encoding
-        )
+        self._sqlite3_result_text64(ctx, value, n, destructor_callback, encoding)
 
-    def sqlite3_result_value[ctx_origin: MutOrigin, //](self, ctx: MutPointer[sqlite3_context, ctx_origin], value: MutExternalPointer[sqlite3_value]):
+    def sqlite3_result_value[
+        ctx_origin: MutOrigin, //
+    ](self, ctx: MutPointer[sqlite3_context, ctx_origin], value: MutExternalPointer[sqlite3_value]):
         """Setting The Result Of An SQL Function - Value Copy.
 
         This routine sets the result of an application-defined SQL function to
@@ -3217,8 +3286,9 @@ struct _sqlite3(Movable):
         """
         self._sqlite3_result_value(ctx, value)
 
-    def sqlite3_result_pointer[ctx_origin: MutOrigin, ptr_origin: MutOrigin,
-        type_origin: ImmOrigin, //](
+    def sqlite3_result_pointer[
+        ctx_origin: MutOrigin, ptr_origin: MutOrigin, type_origin: ImmOrigin, //
+    ](
         self,
         ctx: MutPointer[sqlite3_context, ctx_origin],
         ptr: MutOpaquePointer[ptr_origin],
@@ -3242,7 +3312,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_result_pointer is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_result_pointer\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_result_pointer")` before using this feature.'
             )
         self._sqlite3_result_pointer.value()(
             ctx,
@@ -3251,7 +3321,9 @@ struct _sqlite3(Movable):
             destructor_callback,
         )
 
-    def sqlite3_result_zeroblob[ctx_origin: MutOrigin, //](self, ctx: MutPointer[sqlite3_context, ctx_origin], n: c_int):
+    def sqlite3_result_zeroblob[
+        ctx_origin: MutOrigin, //
+    ](self, ctx: MutPointer[sqlite3_context, ctx_origin], n: c_int):
         """Setting The Result Of An SQL Function - Zeroblob.
 
         This routine sets the result of an application-defined SQL function to
@@ -3264,7 +3336,9 @@ struct _sqlite3(Movable):
         """
         self._sqlite3_result_zeroblob(ctx, n)
 
-    def sqlite3_result_subtype[ctx_origin: MutOrigin, //](self, ctx: MutPointer[sqlite3_context, ctx_origin], subtype: c_uint):
+    def sqlite3_result_subtype[
+        ctx_origin: MutOrigin, //
+    ](self, ctx: MutPointer[sqlite3_context, ctx_origin], subtype: c_uint):
         """Setting The Subtype Of An SQL Function Result.
 
         This routine sets the subtype of the result value of an application-defined
@@ -3279,7 +3353,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_result_subtype is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_result_subtype\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_result_subtype")` before using this feature.'
             )
         self._sqlite3_result_subtype.value()(ctx, subtype)
 
@@ -3326,7 +3400,9 @@ struct _sqlite3(Movable):
         )
 
     def sqlite3_collation_needed[
-        arg_origin: MutOrigin, conn_origin: MutOrigin, //,
+        arg_origin: MutOrigin,
+        conn_origin: MutOrigin,
+        //,
     ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
@@ -3349,9 +3425,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self._sqlite3_collation_needed(
-            db, pArg, callback
-        )
+        return self._sqlite3_collation_needed(db, pArg, callback)
 
     def sqlite3_soft_heap_limit(self, n: c_int) -> c_int:
         """Deprecated Soft Heap Limit.
@@ -3370,7 +3444,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_soft_heap_limit is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_soft_heap_limit\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_soft_heap_limit")` before using this feature.'
             )
         return self._sqlite3_soft_heap_limit.value()(n)
 
@@ -3423,7 +3497,9 @@ struct _sqlite3(Movable):
         col_seq_ptr_origin: MutOrigin,
         null_origin: MutOrigin,
         pk_origin: MutOrigin,
-        auto_origin: MutOrigin, conn_origin: MutOrigin, //
+        auto_origin: MutOrigin,
+        conn_origin: MutOrigin,
+        //,
     ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
@@ -3462,17 +3538,17 @@ struct _sqlite3(Movable):
         """
         if not self._sqlite3_table_column_metadata:
             os.abort(
-                "sqlite3_table_column_metadata is not available in the loaded libsqlite3: it was left out by the library's"
-                " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_table_column_metadata\")` before using this feature."
+                "sqlite3_table_column_metadata is not available in the loaded libsqlite3: it was left out by the"
+                " library's compile-time options or is newer than its SQLite version. Check"
+                ' `sqlite_ffi()[].has_function("sqlite3_table_column_metadata")` before using this feature.'
             )
         return self._sqlite3_table_column_metadata.value()(
             db, zDbName, zTableName, zColumnName, pzDataType, pzCollSeq, pNotNull, pPrimaryKey, pAutoinc
         )
 
-    def sqlite3_load_extension[conn_origin: MutOrigin, file_origin: ImmOrigin,
-        proc_origin: ImmOrigin,
-        err_msg_origin: MutOrigin, //](
+    def sqlite3_load_extension[
+        conn_origin: MutOrigin, file_origin: ImmOrigin, proc_origin: ImmOrigin, err_msg_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         zFile: ImmPointer[c_char, file_origin],
@@ -3504,11 +3580,13 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_load_extension is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_load_extension\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_load_extension")` before using this feature.'
             )
         return self._sqlite3_load_extension.value()(db, zFile, zProc, pzErrMsg)
 
-    def sqlite3_enable_load_extension[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], onoff: c_int) -> c_int:
+    def sqlite3_enable_load_extension[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], onoff: c_int) -> c_int:
         """Enable Or Disable Extension Loading.
 
         This routine enables or disables the sqlite3_load_extension() interface.
@@ -3524,13 +3602,15 @@ struct _sqlite3(Movable):
         """
         if not self._sqlite3_enable_load_extension:
             os.abort(
-                "sqlite3_enable_load_extension is not available in the loaded libsqlite3: it was left out by the library's"
-                " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_enable_load_extension\")` before using this feature."
+                "sqlite3_enable_load_extension is not available in the loaded libsqlite3: it was left out by the"
+                " library's compile-time options or is newer than its SQLite version. Check"
+                ' `sqlite_ffi()[].has_function("sqlite3_enable_load_extension")` before using this feature.'
             )
         return self._sqlite3_enable_load_extension.value()(db, onoff)
 
-    def sqlite3_get_autocommit[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> c_int:
+    def sqlite3_get_autocommit[
+        conn_origin: ImmOrigin, //
+    ](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Test For Auto-Commit Mode.
 
         This routine returns non-zero if the database connection is in
@@ -3561,9 +3641,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_db_handle(pStmt)
 
-    def sqlite3_db_name[conn_origin: MutOrigin, //](
-        self, db: MutPointer[sqlite3_connection, conn_origin], N: c_int
-    ) -> Optional[ImmExternalPointer[c_char]]:
+    def sqlite3_db_name[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], N: c_int) -> Optional[ImmExternalPointer[c_char]]:
         """Return The Schema Name For A Database.
 
         This routine returns the schema name for the N-th database on the
@@ -3599,9 +3679,7 @@ struct _sqlite3(Movable):
         Returns:
             Pointer to the filename, or None if not found or an empty string if the database is in-memory or temporary.
         """
-        return self._sqlite3_db_filename(
-            db, zDbName
-        )
+        return self._sqlite3_db_filename(db, zDbName)
 
     def sqlite3_db_readonly[
         origin: ImmOrigin, conn_origin: ImmOrigin, //
@@ -3619,9 +3697,7 @@ struct _sqlite3(Movable):
         Returns:
             1 if read-only, 0 if read-write, -1 if not found.
         """
-        return self._sqlite3_db_readonly(
-            db, zDbName
-        )
+        return self._sqlite3_db_readonly(db, zDbName)
 
     def sqlite3_txn_state[
         origin: ImmOrigin, conn_origin: ImmOrigin, //
@@ -3645,13 +3721,13 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_txn_state is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_txn_state\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_txn_state")` before using this feature.'
             )
-        return self._sqlite3_txn_state.value()(
-            db, zSchema
-        )
+        return self._sqlite3_txn_state.value()(db, zSchema)
 
-    def sqlite3_next_stmt[conn_origin: ImmOrigin, //](
+    def sqlite3_next_stmt[
+        conn_origin: ImmOrigin, //
+    ](
         self, pDb: ImmPointer[sqlite3_connection, conn_origin], pStmt: Optional[MutExternalPointer[sqlite3_stmt]]
     ) -> Optional[MutExternalPointer[sqlite3_stmt]]:
         """Find The Next Prepared Statement.
@@ -3671,7 +3747,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_next_stmt(pDb, pStmt)
 
-    def sqlite3_update_hook[conn_origin: MutOrigin, //](
+    def sqlite3_update_hook[
+        conn_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         xCallback: Optional[MutExternalPointer[UpdateHookCallbackFn]],
@@ -3694,7 +3772,9 @@ struct _sqlite3(Movable):
         """
         self._sqlite3_update_hook(db, xCallback, pArg)
 
-    def sqlite3_commit_hook[conn_origin: MutOrigin, //](
+    def sqlite3_commit_hook[
+        conn_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         xCallback: Optional[MutExternalPointer[CommitHookCallbackFn]],
@@ -3717,11 +3797,11 @@ struct _sqlite3(Movable):
         Returns:
             Previously registered user data pointer or None if no previous callback was registered.
         """
-        return self._sqlite3_commit_hook(
-            db, xCallback, pArg
-        )
+        return self._sqlite3_commit_hook(db, xCallback, pArg)
 
-    def sqlite3_rollback_hook[conn_origin: MutOrigin, //](
+    def sqlite3_rollback_hook[
+        conn_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         xCallback: Optional[MutExternalPointer[RollbackHookCallbackFn]],
@@ -3743,9 +3823,7 @@ struct _sqlite3(Movable):
         Returns:
             Previously registered user data pointer or None if no previous callback was registered.
         """
-        return self._sqlite3_rollback_hook(
-            db, xCallback, pArg
-        )
+        return self._sqlite3_rollback_hook(db, xCallback, pArg)
 
     def sqlite3_auto_extension(self, xEntryPoint: ExtensionEntrypointCallbackFn) -> c_int:
         """Register An Auto-Extension.
@@ -3763,7 +3841,9 @@ struct _sqlite3(Movable):
         """
         return self._sqlite3_auto_extension(xEntryPoint)
 
-    def sqlite3_db_release_memory[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
+    def sqlite3_db_release_memory[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Release Memory Used By A Database Connection.
 
         This routine attempts to free as much heap memory as possible from
@@ -3793,9 +3873,7 @@ struct _sqlite3(Movable):
         Returns:
             1 if the extension was found and canceled, 0 otherwise.
         """
-        return self._sqlite3_cancel_auto_extension(
-            xEntryPoint
-        )
+        return self._sqlite3_cancel_auto_extension(xEntryPoint)
 
     def sqlite3_reset_auto_extension(self) -> c_int:
         """Reset The Automatic Extension Loading.
@@ -3846,14 +3924,17 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_create_module_v2 is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_create_module_v2\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_create_module_v2")` before using this feature.'
             )
-        return self._sqlite3_create_module_v2.value()(
-            db, zName, p, pClientData, destructor_callback
-        )
+        return self._sqlite3_create_module_v2.value()(db, zName, p, pClientData, destructor_callback)
 
     def sqlite3_blob_open[
-        db_origin: ImmOrigin, table_origin: ImmOrigin, column_origin: ImmOrigin, blob_origin: MutOrigin, conn_origin: MutOrigin, //
+        db_origin: ImmOrigin,
+        table_origin: ImmOrigin,
+        column_origin: ImmOrigin,
+        blob_origin: MutOrigin,
+        conn_origin: MutOrigin,
+        //,
     ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
@@ -3890,7 +3971,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_blob_open is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_blob_open\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_blob_open")` before using this feature.'
             )
         return self._sqlite3_blob_open.value()(
             db,
@@ -3902,7 +3983,9 @@ struct _sqlite3(Movable):
             ppBlob,
         )
 
-    def sqlite3_blob_reopen[blob_origin: MutOrigin, //](self, pBlob: MutPointer[sqlite3_blob, blob_origin], iRow: Int64) -> c_int:
+    def sqlite3_blob_reopen[
+        blob_origin: MutOrigin, //
+    ](self, pBlob: MutPointer[sqlite3_blob, blob_origin], iRow: Int64) -> c_int:
         """Move A BLOB Handle To A New Row.
 
         This routine moves an existing BLOB handle so that it points to a
@@ -3921,7 +4004,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_blob_reopen is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_blob_reopen\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_blob_reopen")` before using this feature.'
             )
         return self._sqlite3_blob_reopen.value()(pBlob, iRow)
 
@@ -3942,7 +4025,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_blob_close is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_blob_close\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_blob_close")` before using this feature.'
             )
         return self._sqlite3_blob_close.value()(pBlob)
 
@@ -3963,13 +4046,15 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_blob_bytes is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_blob_bytes\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_blob_bytes")` before using this feature.'
             )
         return self._sqlite3_blob_bytes.value()(pBlob)
 
     def sqlite3_blob_read[
         blob_origin: ImmOrigin, buffer_origin: MutOrigin, //
-    ](self, pBlob: ImmPointer[sqlite3_blob, blob_origin], Z: MutOpaquePointer[buffer_origin], N: c_int, iOffset: c_int) -> c_int:
+    ](
+        self, pBlob: ImmPointer[sqlite3_blob, blob_origin], Z: MutOpaquePointer[buffer_origin], N: c_int, iOffset: c_int
+    ) -> c_int:
         """Read Data From A BLOB Incrementally.
 
         This routine reads N bytes of data from the BLOB into buffer Z,
@@ -3990,15 +4075,15 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_blob_read is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_blob_read\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_blob_read")` before using this feature.'
             )
-        return self._sqlite3_blob_read.value()(
-            pBlob, Z, N, iOffset
-        )
+        return self._sqlite3_blob_read.value()(pBlob, Z, N, iOffset)
 
     def sqlite3_blob_write[
         blob_origin: MutOrigin, buffer_origin: ImmOrigin, //
-    ](self, pBlob: MutPointer[sqlite3_blob, blob_origin], z: ImmOpaquePointer[buffer_origin], n: c_int, iOffset: c_int) -> c_int:
+    ](
+        self, pBlob: MutPointer[sqlite3_blob, blob_origin], z: ImmOpaquePointer[buffer_origin], n: c_int, iOffset: c_int
+    ) -> c_int:
         """Write Data Into A BLOB Incrementally.
 
         This routine writes n bytes of data from buffer z into the BLOB,
@@ -4019,11 +4104,9 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_blob_write is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_blob_write\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_blob_write")` before using this feature.'
             )
-        return self._sqlite3_blob_write.value()(
-            pBlob, z, n, iOffset
-        )
+        return self._sqlite3_blob_write.value()(pBlob, z, n, iOffset)
 
     def sqlite3_file_control[
         db_name_origin: ImmOrigin, arg_origin: MutOrigin, conn_origin: MutOrigin, //
@@ -4051,9 +4134,7 @@ struct _sqlite3(Movable):
         Returns:
             SQLITE_OK on success, SQLITE_NOTFOUND if unknown op, or error code.
         """
-        return self._sqlite3_file_control(
-            db, zDbName, op, pArg
-        )
+        return self._sqlite3_file_control(db, zDbName, op, pArg)
 
     def sqlite3_backup_init[
         dest_name_origin: ImmOrigin, source_name_origin: ImmOrigin, dest_origin: MutOrigin, source_origin: MutOrigin, //
@@ -4180,11 +4261,9 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_unlock_notify is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_unlock_notify\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_unlock_notify")` before using this feature.'
             )
-        return self._sqlite3_unlock_notify.value()(
-            pBlocked, xNotify, pNotifyArg
-        )
+        return self._sqlite3_unlock_notify.value()(pBlocked, xNotify, pNotifyArg)
 
     def sqlite3_log[origin: ImmOrigin, //](self, iErrCode: c_int, zFormat: ImmPointer[c_char, origin]):
         """Error Logging Interface.
@@ -4227,13 +4306,13 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_wal_hook is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_wal_hook\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_wal_hook")` before using this feature.'
             )
-        return self._sqlite3_wal_hook.value()(
-            db, xCallback, pArg
-        )
+        return self._sqlite3_wal_hook.value()(db, xCallback, pArg)
 
-    def sqlite3_wal_autocheckpoint[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], N: c_int) -> c_int:
+    def sqlite3_wal_autocheckpoint[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], N: c_int) -> c_int:
         """Configure Automatic Checkpointing.
 
         This routine configures automatic checkpointing of the write-ahead log.
@@ -4250,15 +4329,15 @@ struct _sqlite3(Movable):
         """
         if not self._sqlite3_wal_autocheckpoint:
             os.abort(
-                "sqlite3_wal_autocheckpoint is not available in the loaded libsqlite3: it was left out by the library's"
-                " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_wal_autocheckpoint\")` before using this feature."
+                "sqlite3_wal_autocheckpoint is not available in the loaded libsqlite3: it was left out by the"
+                " library's compile-time options or is newer than its SQLite version. Check"
+                ' `sqlite_ffi()[].has_function("sqlite3_wal_autocheckpoint")` before using this feature.'
             )
         return self._sqlite3_wal_autocheckpoint.value()(db, N)
 
-    def sqlite3_wal_checkpoint[db_origin: ImmOrigin, conn_origin: MutOrigin, //](
-        self, db: MutPointer[sqlite3_connection, conn_origin], zDb: Optional[ImmPointer[c_char, db_origin]]
-    ) -> c_int:
+    def sqlite3_wal_checkpoint[
+        db_origin: ImmOrigin, conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], zDb: Optional[ImmPointer[c_char, db_origin]]) -> c_int:
         """Checkpoint A Database.
 
         This routine runs a checkpoint operation on database zDb. A checkpoint
@@ -4277,7 +4356,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_wal_checkpoint is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_wal_checkpoint\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_wal_checkpoint")` before using this feature.'
             )
         return self._sqlite3_wal_checkpoint.value()(db, zDb)
 
@@ -4318,7 +4397,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_wal_checkpoint_v2 is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_wal_checkpoint_v2\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_wal_checkpoint_v2")` before using this feature.'
             )
         return self._sqlite3_wal_checkpoint_v2.value()(
             db,
@@ -4328,7 +4407,9 @@ struct _sqlite3(Movable):
             pnCkpt,
         )
 
-    def sqlite3_vtab_config[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], op: c_int) -> c_int:
+    def sqlite3_vtab_config[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], op: c_int) -> c_int:
         """Configure Virtual Table Behavior.
 
         This interface is used to configure virtual table implementations.
@@ -4348,11 +4429,13 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_vtab_config is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_vtab_config\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_vtab_config")` before using this feature.'
             )
         return self._sqlite3_vtab_config.value()(db, op)
 
-    def sqlite3_vtab_on_conflict[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
+    def sqlite3_vtab_on_conflict[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Determine The Virtual Table Conflict Policy.
 
         This function may only be called from within a call to the xUpdate
@@ -4371,7 +4454,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_vtab_on_conflict is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_vtab_on_conflict\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_vtab_on_conflict")` before using this feature.'
             )
         return self._sqlite3_vtab_on_conflict.value()(db)
 
@@ -4393,7 +4476,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_vtab_nochange is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_vtab_nochange\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_vtab_nochange")` before using this feature.'
             )
         return self._sqlite3_vtab_nochange.value()(ctx)
 
@@ -4418,11 +4501,9 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_vtab_collation is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_vtab_collation\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_vtab_collation")` before using this feature.'
             )
-        return self._sqlite3_vtab_collation.value()(
-            pIdxInfo, iCons
-        )
+        return self._sqlite3_vtab_collation.value()(pIdxInfo, iCons)
 
     def sqlite3_vtab_distinct(self, pIdxInfo: MutExternalPointer[sqlite3_index_info]) -> c_int:
         """Determine If A Virtual Table Query Is DISTINCT.
@@ -4442,7 +4523,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_vtab_distinct is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_vtab_distinct\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_vtab_distinct")` before using this feature.'
             )
         return self._sqlite3_vtab_distinct.value()(pIdxInfo)
 
@@ -4470,11 +4551,13 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_declare_vtab is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_declare_vtab\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_declare_vtab")` before using this feature.'
             )
         return self._sqlite3_declare_vtab.value()(db, zSQL)
 
-    def sqlite3_db_cacheflush[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
+    def sqlite3_db_cacheflush[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin]) -> c_int:
         """Flush Cached Database Pages.
 
         This routine attempts to flush any dirty pages in the database cache
@@ -4493,13 +4576,15 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_db_cacheflush is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_db_cacheflush\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_db_cacheflush")` before using this feature.'
             )
         return self._sqlite3_db_cacheflush.value()(db)
 
     def sqlite3_serialize[
         schema_origin: ImmOrigin,
-        size_origin: MutOrigin, conn_origin: MutOrigin, //,
+        size_origin: MutOrigin,
+        conn_origin: MutOrigin,
+        //,
     ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
@@ -4531,7 +4616,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_serialize is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_serialize\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_serialize")` before using this feature.'
             )
         return self._sqlite3_serialize.value()(
             db,
@@ -4576,7 +4661,7 @@ struct _sqlite3(Movable):
             os.abort(
                 "sqlite3_deserialize is not available in the loaded libsqlite3: it was left out by the library's"
                 " compile-time options or is newer than its SQLite version. Check"
-                " `sqlite_ffi()[].has_function(\"sqlite3_deserialize\")` before using this feature."
+                ' `sqlite_ffi()[].has_function("sqlite3_deserialize")` before using this feature.'
             )
         return self._sqlite3_deserialize.value()(
             db,

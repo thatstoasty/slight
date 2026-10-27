@@ -56,9 +56,9 @@ def is_locked[conn_origin: ImmOrigin, //](db: ImmPointer[sqlite3_connection, con
     return rc.value & 0xFF == SQLITE_LOCKED and sqlite_ffi()[].extended_errcode(db) == SQLite3Result.LOCKED_SHAREDCACHE
 
 
-def wait_for_unlock_notify[conn_origin: MutOrigin, //](
-    db: MutPointer[sqlite3_connection, conn_origin],
-) -> SQLite3Result:
+def wait_for_unlock_notify[
+    conn_origin: MutOrigin, //
+](db: MutPointer[sqlite3_connection, conn_origin],) -> SQLite3Result:
     """Block until an unlock-notify callback fires, then return SQLITE_OK.
 
     This function registers for an unlock-notify callback via

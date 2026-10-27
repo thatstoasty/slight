@@ -150,7 +150,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_threadsafe()
 
-    def close[conn_origin: MutOrigin, //](self, connection: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
+    def close[
+        conn_origin: MutOrigin, //
+    ](self, connection: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
         """Closing A Database Connection.
 
         * The `sqlite3_close()` and `sqlite3_close_v2()` routines are destructors
@@ -218,7 +220,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_config(op)
 
-    def configure_database_connection[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], op: c_int) -> SQLite3Result:
+    def configure_database_connection[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], op: c_int) -> SQLite3Result:
         """Configure Database Connection Options.
 
         The sqlite3_db_config() interface is used to make configuration
@@ -240,7 +244,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_db_config(db, op)
 
-    def extended_result_codes[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], onoff: c_int) -> SQLite3Result:
+    def extended_result_codes[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], onoff: c_int) -> SQLite3Result:
         """Enable Or Disable Extended Result Codes.
 
         The sqlite3_extended_result_codes() routine enables or disables the
@@ -315,7 +321,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_changes64(db)
 
-    def total_changes[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
+    def total_changes[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
         """Count The Total Number of Rows Modified.
 
         This function returns the total number of rows inserted, modified or
@@ -395,7 +403,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_is_interrupted(db) == 1
 
-    def busy_handler[conn_origin: MutOrigin, arg_origin: MutOrigin, //](
+    def busy_handler[
+        conn_origin: MutOrigin, arg_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         callback: BusyHandlerCallbackFn,
@@ -426,7 +436,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_busy_handler(db, callback, arg)
 
-    def busy_timeout[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], ms: c_int) -> SQLite3Result:
+    def busy_timeout[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], ms: c_int) -> SQLite3Result:
         """Set A Busy Timeout.
 
         This routine sets a busy handler that sleeps for a specified amount of time
@@ -478,9 +490,13 @@ struct sqlite3(Movable):
         return self.lib.sqlite3_msize(ptr)
 
     def set_authorizer[
-        userdata_origin: MutOrigin, conn_origin: MutOrigin, //,
+        userdata_origin: MutOrigin,
+        conn_origin: MutOrigin,
+        //,
         auth_callback: AuthCallbackFn,
-    ](self, db: MutPointer[sqlite3_connection, conn_origin], pUserData: MutOpaquePointer[userdata_origin]) -> SQLite3Result:
+    ](
+        self, db: MutPointer[sqlite3_connection, conn_origin], pUserData: MutOpaquePointer[userdata_origin]
+    ) -> SQLite3Result:
         """Register An Authorizer Callback.
 
         This routine registers a callback function to be invoked by SQLite whenever
@@ -500,7 +516,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_set_authorizer[auth_callback](db, pUserData)
 
-    def remove_authorizer[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
+    def remove_authorizer[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
         """Register An Authorizer Callback.
 
         This routine registers a callback function to be invoked by SQLite whenever
@@ -568,7 +586,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_profile(db, xProfile, pArg)
 
-    def trace_v2[conn_origin: MutOrigin, //](
+    def trace_v2[
+        conn_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         uMask: UInt32,
@@ -676,7 +696,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_errcode(db)
 
-    def extended_errcode[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
+    def extended_errcode[
+        conn_origin: ImmOrigin, //
+    ](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
         """Retrieve the most recent extended error code for a database connection.
 
         This function returns the extended result code for the most recent
@@ -692,7 +714,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_extended_errcode(db)
 
-    def errmsg[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> Optional[ImmExternalPointer[c_char]]:
+    def errmsg[
+        conn_origin: ImmOrigin, //
+    ](self, db: ImmPointer[sqlite3_connection, conn_origin]) -> Optional[ImmExternalPointer[c_char]]:
         """Retrieve the English-language error message for the most recent error.
 
         This function returns a pointer to a UTF-8 encoded error message
@@ -736,7 +760,9 @@ struct sqlite3(Movable):
         #     return None
         # return StringSpan(unsafe_from_utf8_ptr=ptr).get_immutable()
 
-    def error_offset[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
+    def error_offset[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
         """Get byte offset of SQL error.
 
         This function returns the byte offset into the SQL text of the most
@@ -753,7 +779,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_error_offset(db)
 
-    def limit[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin], id: c_int, newVal: c_int) -> c_int:
+    def limit[
+        conn_origin: ImmOrigin, //
+    ](self, db: ImmPointer[sqlite3_connection, conn_origin], id: c_int, newVal: c_int) -> c_int:
         """Set or retrieve run-time limits on database connection.
 
         This function allows applications to impose limits on various
@@ -819,7 +847,9 @@ struct sqlite3(Movable):
             db, zSql.as_c_string_span().ptr(), nByte, Pointer(to=ppStmt), Pointer(to=pzTail)
         )
 
-    def prepare_v3[conn_origin: MutOrigin, sql: ImmOrigin, tail: MutOrigin, //](
+    def prepare_v3[
+        conn_origin: MutOrigin, sql: ImmOrigin, tail: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         zSql: ImmPointer[c_char, sql],
@@ -851,7 +881,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_prepare_v3(db, zSql, nByte, prepFlags, Pointer(to=ppStmt), pzTail)
 
-    def sql[stmt_origin: ImmOrigin, //](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin]) -> Optional[ImmExternalPointer[c_char]]:
+    def sql[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin]) -> Optional[ImmExternalPointer[c_char]]:
         """Retrieve the SQL text of a prepared statement.
 
         Returns a pointer to a copy of the UTF-8 SQL text used to create the
@@ -866,7 +898,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_sql(pStmt)
 
-    def expanded_sql[stmt_origin: ImmOrigin, //](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin]) raises -> SQLiteMallocString:
+    def expanded_sql[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin]) raises -> SQLiteMallocString:
         """Retrieve SQL with bound parameters expanded.
 
         Returns a pointer to a UTF-8 string containing the SQL text of the
@@ -965,9 +999,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_bind_blob64(pStmt, idx, value, n, destructor_callback)
 
-    def bind_double[stmt_origin: MutOrigin, //](
-        self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int, value: Float64
-    ) -> SQLite3Result:
+    def bind_double[
+        stmt_origin: MutOrigin, //
+    ](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int, value: Float64) -> SQLite3Result:
         """Binding Values To Prepared Statements - REAL.
 
         This routine binds a floating point value to a parameter in a prepared statement.
@@ -983,7 +1017,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_bind_double(pStmt, idx, value)
 
-    def bind_int64[stmt_origin: MutOrigin, //](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int, value: Int64) -> SQLite3Result:
+    def bind_int64[
+        stmt_origin: MutOrigin, //
+    ](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int, value: Int64) -> SQLite3Result:
         """Binding Values To Prepared Statements - INTEGER (64-bit).
 
         This routine binds a 64-bit signed integer value to a parameter in a
@@ -999,7 +1035,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_bind_int64(pStmt, idx, value)
 
-    def bind_null[stmt_origin: MutOrigin, //](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int) -> SQLite3Result:
+    def bind_null[
+        stmt_origin: MutOrigin, //
+    ](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int) -> SQLite3Result:
         """Binding Values To Prepared Statements - NULL.
 
         This routine binds a NULL value to a parameter in a prepared statement.
@@ -1083,11 +1121,11 @@ struct sqlite3(Movable):
         Returns:
             SQLITE_OK on success, or an error code on failure.
         """
-        return self.lib.sqlite3_bind_pointer[](
-            pStmt, idx, value, typeStr.as_c_string_span().ptr(), destructor_callback
-        )
+        return self.lib.sqlite3_bind_pointer[](pStmt, idx, value, typeStr.as_c_string_span().ptr(), destructor_callback)
 
-    def bind_zeroblob[stmt_origin: MutOrigin, //](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int, n: c_int) -> SQLite3Result:
+    def bind_zeroblob[
+        stmt_origin: MutOrigin, //
+    ](self, pStmt: MutPointer[sqlite3_stmt, stmt_origin], idx: c_int, n: c_int) -> SQLite3Result:
         """Binding Values To Prepared Statements - Zeroblob.
 
         This routine binds a BLOB filled with zeros to a parameter in a prepared
@@ -1139,7 +1177,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_bind_parameter_name(pStmt, idx)
 
-    def bind_parameter_index[stmt_origin: ImmOrigin, //](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], mut zName: String) -> c_int:
+    def bind_parameter_index[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], mut zName: String) -> c_int:
         """Get the index of a named parameter.
 
         This function returns the index of an SQL parameter given its name.
@@ -1185,7 +1225,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_column_count(pStmt)
 
-    def column_name[stmt_origin: ImmOrigin, //](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], N: c_int) -> Optional[ImmExternalPointer[c_char]]:
+    def column_name[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], N: c_int) -> Optional[ImmExternalPointer[c_char]]:
         """Get the name of a column in a result set.
 
         This function returns the name assigned to a particular column in the
@@ -1322,9 +1364,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_step(pStmt)
 
-    def column_blob[stmt_origin: ImmOrigin, //](
-        self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int
-    ) -> Optional[ImmExternalPointer[NoneType]]:
+    def column_blob[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> Optional[ImmExternalPointer[NoneType]]:
         """Result Values From A Query - BLOB.
 
         These routines return information about a single column of the current
@@ -1340,7 +1382,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_column_blob(pStmt, iCol)
 
-    def column_double[stmt_origin: ImmOrigin, //](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> Float64:
+    def column_double[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> Float64:
         """Result Values From A Query - REAL.
 
         This routine returns the value of the specified column as a floating
@@ -1356,7 +1400,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_column_double(pStmt, iCol)
 
-    def column_int64[stmt_origin: ImmOrigin, //](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> Int64:
+    def column_int64[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> Int64:
         """Result Values From A Query - INTEGER (64-bit).
 
         This routine returns the value of the specified column as a 64-bit
@@ -1372,9 +1418,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_column_int64(pStmt, iCol)
 
-    def column_text[stmt_origin: ImmOrigin, //](
-        self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int
-    ) -> Optional[CStringSpan[ImmUntrackedOrigin]]:
+    def column_text[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> Optional[CStringSpan[ImmUntrackedOrigin]]:
         """Retrieve column data as UTF-8 text.
 
         This function returns the value of the specified column as a UTF-8
@@ -1392,7 +1438,7 @@ struct sqlite3(Movable):
         if not ptr:
             return None
 
-        return CStringSpan(unsafe_from_ptr=ptr.take().unsafe_bitcast[Int8]())
+        return CStringSpan(unsafe_from_ptr=ptr.take().unsafe_bitcast[c_char]())
 
     def column_value(
         self, pStmt: MutExternalPointer[sqlite3_stmt], iCol: c_int
@@ -1420,7 +1466,9 @@ struct sqlite3(Movable):
 
         return ptr.take()
 
-    def column_bytes[stmt_origin: ImmOrigin, //](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> c_int:
+    def column_bytes[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> c_int:
         """Size Of A BLOB Or TEXT Result In Bytes.
 
         This routine returns the number of bytes in a BLOB or TEXT result.
@@ -1437,7 +1485,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_column_bytes(pStmt, iCol)
 
-    def column_type[stmt_origin: ImmOrigin, //](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> c_int:
+    def column_type[
+        stmt_origin: ImmOrigin, //
+    ](self, pStmt: ImmPointer[sqlite3_stmt, stmt_origin], iCol: c_int) -> c_int:
         """Datatype Code For The Initial Data Type Of A Result Column.
 
         This routine returns one of SQLITE_INTEGER, SQLITE_FLOAT, SQLITE_TEXT,
@@ -1487,12 +1537,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_reset(pStmt)
 
-    def remove_function[conn_origin: MutOrigin, //](
-        self,
-        db: MutPointer[sqlite3_connection, conn_origin],
-        mut zFunctionName: String,
-        nArg: c_int,
-    ) -> SQLite3Result:
+    def remove_function[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], mut zFunctionName: String, nArg: c_int,) -> SQLite3Result:
         """Remove a user-defined SQL function or aggregate.
 
         This function is used to remove a user-defined SQL function or aggregate from the database connection.
@@ -1550,7 +1597,9 @@ struct sqlite3(Movable):
             db, func_name.as_c_string_span().ptr(), nArg, eTextRep, pApp, xFunc, destructor_callback
         )
 
-    def create_scalar_function[conn_origin: MutOrigin, //](
+    def create_scalar_function[
+        conn_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: StringSpan,
@@ -1576,9 +1625,7 @@ struct sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         var func_name = String(zFunctionName)
-        return self.lib.sqlite3_create_scalar_function(
-            db, func_name.as_c_string_span().ptr(), nArg, eTextRep, xFunc
-        )
+        return self.lib.sqlite3_create_scalar_function(db, func_name.as_c_string_span().ptr(), nArg, eTextRep, xFunc)
 
     def create_aggregate_function[
         app_origin: MutOrigin, conn_origin: MutOrigin, //
@@ -1621,7 +1668,9 @@ struct sqlite3(Movable):
             db, func_name.as_c_string_span().ptr(), nArg, eTextRep, pApp, xStep, xFinal, destructor_callback
         )
 
-    def create_aggregate_function[conn_origin: MutOrigin, //](
+    def create_aggregate_function[
+        conn_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: StringSpan,
@@ -1707,7 +1756,9 @@ struct sqlite3(Movable):
             destructor_callback,
         )
 
-    def create_window_function[conn_origin: MutOrigin, //](
+    def create_window_function[
+        conn_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         zFunctionName: StringSpan,
@@ -1971,9 +2022,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_value_subtype(value)
 
-    def aggregate_context[origin: MutOrigin, //](
-        self, ctx: MutPointer[sqlite3_context, origin], nBytes: c_int
-    ) -> Optional[MutExternalPointer[NoneType]]:
+    def aggregate_context[
+        origin: MutOrigin, //
+    ](self, ctx: MutPointer[sqlite3_context, origin], nBytes: c_int) -> Optional[MutExternalPointer[NoneType]]:
         """Get Aggregate Function Context.
 
         This routine allocates or returns the aggregate context for an aggregate
@@ -1990,7 +2041,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_aggregate_context(ctx, nBytes)
 
-    def user_data[origin: ImmOrigin, //](self, ctx: ImmPointer[sqlite3_context, origin]) -> Optional[MutExternalPointer[NoneType]]:
+    def user_data[
+        origin: ImmOrigin, //
+    ](self, ctx: ImmPointer[sqlite3_context, origin]) -> Optional[MutExternalPointer[NoneType]]:
         """Get User Data For SQL Functions.
 
         This routine returns the user data pointer that was passed to
@@ -2004,9 +2057,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_user_data(ctx)
 
-    def context_db_handle[origin: MutOrigin, //](
-        self, ctx: MutPointer[sqlite3_context, origin]
-    ) -> Optional[MutExternalPointer[sqlite3_connection]]:
+    def context_db_handle[
+        origin: MutOrigin, //
+    ](self, ctx: MutPointer[sqlite3_context, origin]) -> Optional[MutExternalPointer[sqlite3_connection]]:
         """Get Database Connection Handle From Context.
 
         This routine returns the database connection handle for the function.
@@ -2019,7 +2072,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_context_db_handle(ctx)
 
-    def get_auxdata[origin: ImmOrigin, //](self, ctx: ImmPointer[sqlite3_context, origin], N: c_int) -> Optional[MutExternalPointer[NoneType]]:
+    def get_auxdata[
+        origin: ImmOrigin, //
+    ](self, ctx: ImmPointer[sqlite3_context, origin], N: c_int) -> Optional[MutExternalPointer[NoneType]]:
         """Get Metadata For SQL Functions.
 
         This routine returns metadata that was previously set using
@@ -2035,8 +2090,7 @@ struct sqlite3(Movable):
         return self.lib.sqlite3_get_auxdata(ctx, N)
 
     def set_auxdata[
-        origin: MutOrigin,
-        data_origin: MutOrigin, //
+        origin: MutOrigin, data_origin: MutOrigin, //
     ](
         self,
         ctx: MutPointer[sqlite3_context, origin],
@@ -2062,8 +2116,7 @@ struct sqlite3(Movable):
         self.lib.sqlite3_set_auxdata(ctx, N, data, destructor_callback)
 
     def result_blob64[
-        origin: MutOrigin,
-        value_origin: ImmOrigin, //
+        origin: MutOrigin, value_origin: ImmOrigin, //
     ](
         self,
         ctx: MutPointer[sqlite3_context, origin],
@@ -2162,7 +2215,9 @@ struct sqlite3(Movable):
         """
         self.lib.sqlite3_result_null(ctx)
 
-    def result_text64[origin: MutOrigin, //](
+    def result_text64[
+        origin: MutOrigin, //
+    ](
         self,
         ctx: MutPointer[sqlite3_context, origin],
         mut value: String,
@@ -2183,7 +2238,9 @@ struct sqlite3(Movable):
         """
         self.lib.sqlite3_result_text64(ctx, value.as_c_string_span().ptr(), n, encoding, destructor_callback)
 
-    def result_value[origin: MutOrigin, //](self, ctx: MutPointer[sqlite3_context, origin], value: MutExternalPointer[sqlite3_value]):
+    def result_value[
+        origin: MutOrigin, //
+    ](self, ctx: MutPointer[sqlite3_context, origin], value: MutExternalPointer[sqlite3_value]):
         """Set The Result Of A Function To A Copy Of Another Value.
 
         This routine sets the result of a SQL function to a copy of the given sqlite3_value.
@@ -2350,7 +2407,9 @@ struct sqlite3(Movable):
         """
         return Int32(self.lib.sqlite3_stmt_status(pStmt, op, resetFlg))
 
-    def table_column_metadata[conn_origin: MutOrigin, //](
+    def table_column_metadata[
+        conn_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         mut zTableName: String,
@@ -2402,7 +2461,9 @@ struct sqlite3(Movable):
             pAutoinc_ptr,
         )
 
-    def load_extension[conn_origin: MutOrigin, //](
+    def load_extension[
+        conn_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         mut zFile: String,
@@ -2429,7 +2490,9 @@ struct sqlite3(Movable):
             Pointer(to=pzErrMsg),
         )
 
-    def enable_load_extension[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], onoff: c_int) -> SQLite3Result:
+    def enable_load_extension[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], onoff: c_int) -> SQLite3Result:
         """Enable Or Disable Extension Loading.
 
         This routine enables or disables the loading of SQLite extensions.
@@ -2470,9 +2533,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_db_handle(pStmt)
 
-    def db_name[conn_origin: MutOrigin, //](
-        self, db: MutPointer[sqlite3_connection, conn_origin], N: c_int
-    ) -> Optional[CStringSpan[ImmUntrackedOrigin]]:
+    def db_name[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], N: c_int) -> Optional[CStringSpan[ImmUntrackedOrigin]]:
         """Return The Name Of An Attached Database.
 
         This routine returns the name of the Nth attached database.
@@ -2490,9 +2553,11 @@ struct sqlite3(Movable):
 
         return CStringSpan(unsafe_from_ptr=ptr.take())
 
-    def db_filename[conn_origin: ImmOrigin, //](
-        self, db: ImmPointer[sqlite3_connection, conn_origin], mut zDbName: String
-    ) -> Optional[CStringSpan[ImmUntrackedOrigin]]:
+    def db_filename[
+        conn_origin: ImmOrigin, //
+    ](self, db: ImmPointer[sqlite3_connection, conn_origin], mut zDbName: String) -> Optional[
+        CStringSpan[ImmUntrackedOrigin]
+    ]:
         """Return The Filename For A Database Connection.
 
         This routine returns the filename associated with a database connection.
@@ -2510,7 +2575,9 @@ struct sqlite3(Movable):
 
         return CStringSpan(unsafe_from_ptr=ptr.take())
 
-    def db_readonly[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin], mut zDbName: String) -> SQLite3Result:
+    def db_readonly[
+        conn_origin: ImmOrigin, //
+    ](self, db: ImmPointer[sqlite3_connection, conn_origin], mut zDbName: String) -> SQLite3Result:
         """Determine If A Database Is Read-Only.
 
         This routine returns 1 if the database is read-only, 0 if it is read-write,
@@ -2525,7 +2592,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_db_readonly(db, zDbName.as_c_string_span().ptr())
 
-    def txn_state[conn_origin: ImmOrigin, //](self, db: ImmPointer[sqlite3_connection, conn_origin], mut zSchema: String) -> SQLite3Result:
+    def txn_state[
+        conn_origin: ImmOrigin, //
+    ](self, db: ImmPointer[sqlite3_connection, conn_origin], mut zSchema: String) -> SQLite3Result:
         """Determine The Transaction State Of A Database.
 
         This routine returns the transaction state for a database connection.
@@ -2539,7 +2608,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_txn_state(db, zSchema.as_c_string_span().ptr())
 
-    def next_stmt[conn_origin: ImmOrigin, //](
+    def next_stmt[
+        conn_origin: ImmOrigin, //
+    ](
         self, pDb: ImmPointer[sqlite3_connection, conn_origin], pStmt: Optional[MutExternalPointer[sqlite3_stmt]]
     ) -> Optional[MutExternalPointer[sqlite3_stmt]]:
         """Find The Next Prepared Statement.
@@ -2556,7 +2627,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_next_stmt(pDb, pStmt)
 
-    def update_hook[conn_origin: MutOrigin, //](
+    def update_hook[
+        conn_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         xCallback: Optional[MutExternalPointer[UpdateHookCallbackFn]],
@@ -2575,7 +2648,9 @@ struct sqlite3(Movable):
         """
         self.lib.sqlite3_update_hook(db, xCallback, pArg)
 
-    def commit_hook[conn_origin: MutOrigin, //](
+    def commit_hook[
+        conn_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         xCallback: Optional[MutExternalPointer[CommitHookCallbackFn]],
@@ -2597,7 +2672,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_commit_hook(db, xCallback, pArg)
 
-    def rollback_hook[conn_origin: MutOrigin, //](
+    def rollback_hook[
+        conn_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         xCallback: Optional[MutExternalPointer[RollbackHookCallbackFn]],
@@ -2632,7 +2709,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_auto_extension(xEntryPoint)
 
-    def db_release_memory[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
+    def db_release_memory[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
         """Free Memory Used By A Database Connection.
 
         This routine attempts to free as much heap memory as possible from the
@@ -2671,7 +2750,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_reset_auto_extension()
 
-    def blob_open[conn_origin: MutOrigin, blob_origin: MutOrigin, //](
+    def blob_open[
+        conn_origin: MutOrigin, blob_origin: MutOrigin, //
+    ](
         self,
         db: MutPointer[sqlite3_connection, conn_origin],
         mut zDb: String,
@@ -2755,8 +2836,7 @@ struct sqlite3(Movable):
         return self.lib.sqlite3_blob_bytes(pBlob)
 
     def blob_read[
-        blob_origin: ImmOrigin,
-        buffer_origin: MutOrigin, //
+        blob_origin: ImmOrigin, buffer_origin: MutOrigin, //
     ](
         self, pBlob: ImmPointer[sqlite3_blob, blob_origin], Z: MutOpaquePointer[buffer_origin], N: c_int, iOffset: c_int
     ) -> SQLite3Result:
@@ -2780,9 +2860,7 @@ struct sqlite3(Movable):
         return self.lib.sqlite3_blob_read(pBlob, Z, N, iOffset)
 
     def blob_write[
-        blob_origin: MutOrigin,
-        buffer_origin: ImmOrigin,
-        //
+        blob_origin: MutOrigin, buffer_origin: ImmOrigin, //
     ](
         self, pBlob: MutPointer[sqlite3_blob, blob_origin], z: ImmOpaquePointer[buffer_origin], n: c_int, iOffset: c_int
     ) -> SQLite3Result:
@@ -2834,7 +2912,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_file_control(db, zDbName.as_c_string_span().ptr(), op, pArg)
 
-    def backup_init[dest_origin: MutOrigin, source_origin: MutOrigin, //](
+    def backup_init[
+        dest_origin: MutOrigin, source_origin: MutOrigin, //
+    ](
         self,
         pDest: MutPointer[sqlite3_connection, dest_origin],
         mut zDestName: String,
@@ -2976,7 +3056,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_wal_hook(db, xCallback, pArg)
 
-    def wal_autocheckpoint[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], N: c_int) -> SQLite3Result:
+    def wal_autocheckpoint[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], N: c_int) -> SQLite3Result:
         """Configure WAL Auto-Checkpoint.
 
         This routine configures the database connection to automatically checkpoint
@@ -2991,7 +3073,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_wal_autocheckpoint(db, N)
 
-    def wal_checkpoint[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], var zDb: Optional[String]) -> SQLite3Result:
+    def wal_checkpoint[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], var zDb: Optional[String]) -> SQLite3Result:
         """Checkpoint A Database.
 
         This routine checkpoints database zDb attached to connection db.
@@ -3042,7 +3126,9 @@ struct sqlite3(Movable):
             pnCkpt,
         )
 
-    def vtab_config[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin], op: c_int) -> SQLite3Result:
+    def vtab_config[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], op: c_int) -> SQLite3Result:
         """Configure Virtual Table Behavior.
 
         This routine configures various aspects of virtual table behavior.
@@ -3056,7 +3142,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_vtab_config(db, op)
 
-    def vtab_on_conflict[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
+    def vtab_on_conflict[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
         """Determine The ON CONFLICT Mode For A Virtual Table.
 
         This routine returns the ON CONFLICT mode for the virtual table update
@@ -3154,11 +3242,9 @@ struct sqlite3(Movable):
             DestructorHint.static_destructor(),
         )
 
-    def declare_vtab[conn_origin: MutOrigin, //](
-        self,
-        db: MutPointer[sqlite3_connection, conn_origin],
-        mut schema_sql: String,
-    ) -> SQLite3Result:
+    def declare_vtab[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin], mut schema_sql: String,) -> SQLite3Result:
         """Declare The Schema Of A Virtual Table.
 
         Must be called from within an xCreate or xConnect method to declare
@@ -3173,7 +3259,9 @@ struct sqlite3(Movable):
         """
         return self.lib.sqlite3_declare_vtab(db, schema_sql.as_c_string_span().ptr())
 
-    def db_cacheflush[conn_origin: MutOrigin, //](self, db: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
+    def db_cacheflush[
+        conn_origin: MutOrigin, //
+    ](self, db: MutPointer[sqlite3_connection, conn_origin]) -> SQLite3Result:
         """Flush Dirty Pages To Disk.
 
         This routine attempts to flush any dirty pages in the pager cache to disk.

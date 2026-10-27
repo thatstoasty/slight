@@ -48,7 +48,7 @@ __extension List(Params):
                 break
             stmt.bind_parameter(self[i], UInt(index))
         if index != expected:
-            raise Error(t"Invalid parameter count: {index}, expected: {expected}")
+            raise Error(t"Invalid parameter count: got {len(self)}, expected {expected}")
 
 
 __extension Array(Params):
@@ -80,11 +80,11 @@ __extension Array(Params):
                     break
                 stmt.bind_parameter(self[i], UInt(index))
             if index != expected:
-                raise Error(t"Invalid parameter count: {index}, expected: {expected}")
+                raise Error(t"Invalid parameter count: got {Self.length}, expected {expected}")
         else:
             # Without this, parameters the statement expects would silently be left NULL.
             if expected != 0:
-                raise Error(t"Invalid parameter count: 0, expected: {expected}")
+                raise Error(t"Invalid parameter count: got 0, expected {expected}")
 
 
 __extension Dict(Params):
@@ -149,8 +149,8 @@ __extension Tuple(Params):
                     break
                 stmt.bind_parameter(self[i], UInt(index))
             if index != expected:
-                raise Error(t"Invalid parameter count: {index}, expected: {expected}")
+                raise Error(t"Invalid parameter count: got {parameter_count}, expected {expected}")
         else:
             # Without this, parameters the statement expects would silently be left NULL.
             if expected != 0:
-                raise Error(t"Invalid parameter count: 0, expected: {expected}")
+                raise Error(t"Invalid parameter count: got 0, expected {expected}")
