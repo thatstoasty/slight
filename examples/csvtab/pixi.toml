@@ -10,5 +10,4 @@ preview = ["pixi-build"]
 run = "mojo main.mojo"
 
 [dependencies]
-mojo = ">=1.0.0rc0,<1.0.0"
 slight = { path = "../../" }

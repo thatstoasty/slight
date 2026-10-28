@@ -183,5 +183,35 @@ def test_window_with_partition_by() raises:
     assert_equal(results[4][2], 20)
 
 
+def test_window_value_before_any_step() raises:
+    """The xValue callback on an empty leading frame gets `None` instead of failing."""
+    var db = Connection.open_in_memory()
+    _setup_numbers_table(db)
+
+    db.create_window_function[win_sum_init, win_sum_step, win_sum_finalize, win_sum_value, win_sum_inverse](
+        "win_sum", n_arg=1,
+    )
+
+    # The first row's frame (the two rows before it) is empty, so SQLite asks for a value before any xStep.
+    var stmt = db.prepare(
+        """
+        SELECT win_sum(value) OVER (ORDER BY value ROWS BETWEEN 2 PRECEDING AND 1 PRECEDING)
+        FROM numbers
+        """
+    )
+    var rows = stmt.query()
+    var results = List[Optional[Int64]]()
+    for row in rows:
+        results.append(row.get[Optional[Int64]](0))
+    rows.raise_if_error()
+
+    assert_equal(len(results), 5)
+    assert_false(results[0])
+    assert_equal(results[1].value(), 1)
+    assert_equal(results[2].value(), 3)
+    assert_equal(results[3].value(), 5)
+    assert_equal(results[4].value(), 7)
+
+
 def main() raises:
     TestSuite.discover_tests[__functions_in_module()]().run()

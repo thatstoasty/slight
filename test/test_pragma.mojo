@@ -2,6 +2,8 @@ from slight.pragma import Sql, is_identifier
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 from slight import Connection, Row
+from slight.types.to_sql import ToSQL, ToSqlOutput
+from slight.types.value import Value
 
 
 def test_pragma_query_value() raises:
@@ -233,6 +235,51 @@ def test_identifier_edge_cases() raises:
 #     # Query table info using pragma with string parameter
 #     db.pragma[collect_column](None, "table_info", "test")
 #     assert_equal(len(columns), 2)
+
+
+@fieldwise_init
+struct Computed(Copyable, Movable):
+    """Returns an owned `Value` of the storage class selected by `kind`."""
+
+    var kind: Int
+
+
+__extension Computed(ToSQL):
+    def to_sql(ref self) raises -> ToSqlOutput[origin_of(self)]:
+        if self.kind == 0:
+            return Value()
+        elif self.kind == 1:
+            return Value.integer(42)
+        elif self.kind == 2:
+            return Value.real(1.5)
+        return Value.text(String("it's"))
+
+
+def test_sql_builder_owned_value() raises:
+    """Owned `Value` pragma values render as literals; NULL is rejected."""
+    var int_sql = Sql()
+    int_sql.push_value(Computed(1))
+    assert_equal(String(int_sql), "42")
+
+    var real_sql = Sql()
+    real_sql.push_value(Computed(2))
+    assert_equal(String(real_sql), "1.5")
+
+    var text_sql = Sql()
+    text_sql.push_value(Computed(3))
+    assert_equal(String(text_sql), "'it''s'")
+
+    var null_sql = Sql()
+    with assert_raises(contains="Unsupported parameter type"):
+        null_sql.push_value(Computed(0))
+
+    var db = Connection.open_in_memory()
+    db.pragma_update("user_version", Computed(1))
+
+    def get_int(r: Row) raises -> Int:
+        return r.get[Int](0)
+
+    assert_equal(db.pragma_query_value[get_int]("user_version"), 42)
 
 
 def main() raises:

@@ -1,21 +1,28 @@
 """Raw SQLite statment wrapper."""
-from std.ffi import c_int, CStringSpan
+from std.ffi import c_int, c_char, CStringSpan
 from std.os import abort
 from slight.c.types import ImmExternalPointer, MutExternalPointer, ResultDestructorFn, sqlite3_stmt
 from slight.api import sqlite_ffi
 from slight.sqlite_string import SQLiteMallocString
 from slight.result import SQLite3Result
-from slight.enums import TextEncoding
+from slight.enums import DataType, TextEncoding
 from slight.trace import StatementStatus
 
 
-@fieldwise_init
 @explicit_destroy("RawStatement must be explicitly destroyed. Use self.finalize() to destroy.")
 struct RawStatement(Deinitable where False, Movable):
     """A raw SQL statement wrapper around a pointer to a `sqlite3_stmt`."""
 
     var stmt: MutExternalPointer[sqlite3_stmt]
     """A pointer to the `sqlite3_stmt` that represents this statement."""
+
+    def __init__(out self, stmt: MutExternalPointer[sqlite3_stmt]):
+        """Wraps a prepared statement.
+
+        Args:
+            stmt: The prepared statement to take ownership of.
+        """
+        self.stmt = stmt
 
     def unsafe_ptr[
         origin: Origin, address_space: AddressSpace, //
@@ -86,9 +93,7 @@ struct RawStatement(Deinitable where False, Movable):
             raise Error("Unexpected SQLITE_TEXT column type with NULL data.")
 
         return StringSpan(
-            unsafe_from_utf8=CStringSpan(
-                unsafe_from_ptr=text.take().ptr().unsafe_origin_cast[origin_of(self)]()
-            )
+            unsafe_from_utf8=CStringSpan(unsafe_from_ptr=text.take().ptr().unsafe_origin_cast[origin_of(self)]())
         )
 
     def unsafe_column_blob(self, idx: UInt) raises -> Span[Byte, origin_of(self)]:
@@ -109,6 +114,13 @@ struct RawStatement(Deinitable where False, Movable):
         """
         var ptr = sqlite_ffi()[].column_blob(self.unsafe_ptr(), Int32(idx))
         if not ptr:
+            # SQLite returns a NULL pointer for a zero-length BLOB. Anything else (a NULL column, or
+            # an out-of-memory error while converting) is reported as an error.
+            if (
+                DataType(self.column_type(idx)) == DataType.blob
+                and sqlite_ffi()[].column_bytes(self.unsafe_ptr(), Int32(idx)) == 0
+            ):
+                return Span[Byte, origin_of(self)]()
             raise Error("unexpected SQLITE_BLOB column type with NULL data")
 
         var length = sqlite_ffi()[].column_bytes(self.unsafe_ptr(), Int32(idx))
@@ -221,7 +233,12 @@ struct RawStatement(Deinitable where False, Movable):
             The SQLite result code from binding the text value.
         """
         return sqlite_ffi()[].bind_text64(
-            self.unsafe_ptr(), Int32(index), value, UInt64(len(value.as_bytes())), TextEncoding.UTF8, destructor_callback
+            self.unsafe_ptr(),
+            Int32(index),
+            value,
+            UInt64(len(value.as_bytes())),
+            TextEncoding.utf8,
+            destructor_callback,
         )
 
     def bind_blob[
@@ -314,7 +331,7 @@ struct RawStatement(Deinitable where False, Movable):
         """
         return sqlite_ffi()[].clear_bindings(self.unsafe_ptr())
 
-    def column_name(self, idx: UInt) -> Optional[ImmExternalPointer[Int8]]:
+    def column_name(self, idx: UInt) -> Optional[ImmExternalPointer[c_char]]:
         """Returns the name of the specified column.
 
         Args:

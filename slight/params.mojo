@@ -48,7 +48,7 @@ __extension List(Params):
                 break
             stmt.bind_parameter(self[i], UInt(index))
         if index != expected:
-            raise Error(t"Invalid parameter count: {index}, expected: {expected}")
+            raise Error(t"Invalid parameter count: got {len(self)}, expected {expected}")
 
 
 __extension Array(Params):
@@ -71,8 +71,8 @@ __extension Array(Params):
             ElementConformsTo="ToSQL",
         ]()
 
+        var expected = Int(stmt.bind_parameter_count())
         comptime if Self.length > 0:
-            var expected = Int(stmt.bind_parameter_count())
             var index = 0
             for i in range(len(self)):
                 index += 1  # The leftmost SQL parameter has an index of 1.
@@ -80,7 +80,11 @@ __extension Array(Params):
                     break
                 stmt.bind_parameter(self[i], UInt(index))
             if index != expected:
-                raise Error(t"Invalid parameter count: {index}, expected: {expected}")
+                raise Error(t"Invalid parameter count: got {Self.length}, expected {expected}")
+        else:
+            # Without this, parameters the statement expects would silently be left NULL.
+            if expected != 0:
+                raise Error(t"Invalid parameter count: got 0, expected {expected}")
 
 
 __extension Dict(Params):
@@ -129,8 +133,8 @@ __extension Tuple(Params):
             Error: If the parameters cannot be bound to the statement.
         """
         comptime parameter_count = len(Self.Ts)
+        var expected = Int(stmt.bind_parameter_count())
         comptime if parameter_count > 0:
-            var expected = Int(stmt.bind_parameter_count())
             var index = 0
             comptime for i in range(parameter_count):
                 comptime assert conforms_to(Self.Ts[i], ToSQL), String(
@@ -145,4 +149,8 @@ __extension Tuple(Params):
                     break
                 stmt.bind_parameter(self[i], UInt(index))
             if index != expected:
-                raise Error(t"Invalid parameter count: {index}, expected: {expected}")
+                raise Error(t"Invalid parameter count: got {parameter_count}, expected {expected}")
+        else:
+            # Without this, parameters the statement expects would silently be left NULL.
+            if expected != 0:
+                raise Error(t"Invalid parameter count: got 0, expected {expected}")

@@ -101,7 +101,7 @@ ignore the action.
 # ── C-compatible callback ────────────────────────────────────────────────
 
 
-def _to_string_span(ptr: ImmExternalPointer[c_char]) -> Optional[ImmExternalStringSlice]:
+def _to_string_span(ptr: Optional[ImmExternalPointer[c_char]]) -> Optional[ImmExternalStringSlice]:
     """Decode a possibly-NULL `const char*` into an `Optional[StringSpan]`.
 
     Args:
@@ -110,7 +110,9 @@ def _to_string_span(ptr: ImmExternalPointer[c_char]) -> Optional[ImmExternalStri
     Returns:
         `None` if `ptr` is NULL, otherwise the decoded `StringSpan`.
     """
-    return StringSpan(unsafe_from_utf8=CStringSpan(unsafe_from_ptr=ptr))
+    if not ptr:
+        return None
+    return StringSpan(unsafe_from_utf8=CStringSpan(unsafe_from_ptr=ptr.value()))
 
 
 def _authorizer_callback(
@@ -145,9 +147,9 @@ def _authorizer_callback(
     var callback = Pointer(to=fn_as_int).unsafe_bitcast[AuthorizerFn]()[]
     var result = callback(
         AuthAction(action),
-        arg1.and_then(_to_string_span),
-        arg2.and_then(_to_string_span),
-        db_name.and_then(_to_string_span),
-        trigger_or_view.and_then(_to_string_span),
+        _to_string_span(arg1),
+        _to_string_span(arg2),
+        _to_string_span(db_name),
+        _to_string_span(trigger_or_view),
     )
     return result.value

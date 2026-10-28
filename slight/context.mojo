@@ -1,5 +1,5 @@
 """SQLite Function Evaluation Context."""
-from std.ffi import c_int, CStringSpan
+from std.ffi import c_int, c_char, CStringSpan
 from slight.c.types import MutExternalPointer, sqlite3_connection, sqlite3_context, sqlite3_value, ResultDestructorFn
 from slight.api import sqlite_ffi
 from slight.types import value_ref, value
@@ -35,8 +35,13 @@ struct Context(Boolable, Movable, Sized):
 
     var _ctx: MutExternalPointer[sqlite3_context]
     """The raw SQLite function context pointer."""
-    var _args: List[MutExternalPointer[sqlite3_value]]
-    """The number of arguments passed to the function."""
+    var _args: Span[MutExternalPointer[sqlite3_value], MutUntrackedOrigin]
+    """The arguments passed to the function.
+
+    A view of the `argv` array SQLite passes to the callback, not a copy, so creating a `Context`
+    does not allocate. SQLite keeps `argv` valid for the whole callback, and a `Context` never
+    outlives it: it is created by the callback wrappers and only lent to user code as `mut`.
+    """
 
     def __init__(
         out self,
@@ -48,7 +53,7 @@ struct Context(Boolable, Movable, Sized):
             ctx: The raw SQLite function context pointer.
         """
         self._ctx = ctx
-        self._args = []
+        self._args = Span[MutExternalPointer[sqlite3_value], MutUntrackedOrigin]()
 
     def __init__(
         out self,
@@ -64,7 +69,10 @@ struct Context(Boolable, Movable, Sized):
             argv: A pointer to the array of argument value pointers.
         """
         self._ctx = ctx
-        self._args = [argv[unsafe_offset=i] for i in range(argc)]
+        if argc > 0:
+            self._args = Span(unsafe_ptr=argv, length=Int(argc))
+        else:
+            self._args = Span[MutExternalPointer[sqlite3_value], MutUntrackedOrigin]()
 
     # ===------------------------------------------------------------------=== #
     # Argument Access
@@ -171,7 +179,7 @@ struct Context(Boolable, Movable, Sized):
         # We're laundering the origin here. It should be safe because the value should
         # live as long as the context is alive. That conveys more information than using an external origin.
         return CStringSpan(
-            unsafe_from_ptr=text.value().unsafe_ptr().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)](),
+            unsafe_from_ptr=text.value().unsafe_ptr().unsafe_bitcast[c_char]().unsafe_origin_cast[origin_of(self)](),
         )
 
     def get_blob(self, idx: Int) -> Optional[Span[Byte, origin_of(self)]]:
@@ -218,7 +226,7 @@ struct Context(Boolable, Movable, Sized):
             idx: The 0-based argument index.
 
         Returns:
-            The DataType of the argument (INTEGER, FLOAT, TEXT, BLOB, or NULL).
+            The DataType of the argument (integer, float, text, blob, or null).
         """
         debug_assert(idx < len(self), "Argument index out of bounds")
         return DataType(sqlite_ffi()[].value_type(self._args[idx]))
@@ -255,8 +263,8 @@ struct Context(Boolable, Movable, Sized):
             self.unsafe_ptr(),
             value,
             UInt64(value.byte_length()),
-            TextEncoding.UTF8.value,
-            DestructorHint.transient_destructor(),
+            TextEncoding.utf8.code(),
+            DestructorHint.transient.destructor(),
         )
 
     def result_null(mut self):
@@ -275,7 +283,7 @@ struct Context(Boolable, Movable, Sized):
             self.unsafe_ptr(),
             data.unsafe_ptr().unsafe_bitcast[NoneType](),
             UInt64(len(data)),
-            DestructorHint.transient_destructor(),
+            DestructorHint.transient.destructor(),
         )
 
     def result_error(mut self, msg: Some[Writable]):
@@ -336,23 +344,20 @@ struct Context(Boolable, Movable, Sized):
         Args:
             result: The ValueRef containing the value to set as the function result.
         """
-        if result.isa[value_ref.Null]():
-            self.result_null()
-        elif result.isa[value_ref.Integer]():
-            self.result_int64(result[value_ref.Integer].value)
-        elif result.isa[value_ref.Real]():
-            self.result_double(result[value_ref.Real].value)
-        elif result.isa[value_ref.Text[origin_of(result)]]():
-            self.result_text(String(result[value_ref.Text[origin_of(result)]].value))
-        elif result.isa[value_ref.Blob[origin_of(result)]]():
-            ref value = result[value_ref.Blob[origin_of(result)]].value
-            if len(value) == 0:
-                self.result_zero_blob(0)
-            else:
-                self.result_blob(result[value_ref.Blob[origin_of(result)]].value)
-        else:
-            self.result_error("Unsupported return type from function.")
-        return
+        match result:
+            case .null:
+                self.result_null()
+            case .integer(value):
+                self.result_int64(value)
+            case .real(value):
+                self.result_double(value)
+            case .text(value):
+                self.result_text(String(value))
+            case .blob(value):
+                if len(value) == 0:
+                    self.result_zero_blob(0)
+                else:
+                    self.result_blob(value)
 
     def set_result_output[origin: ImmOrigin, //](mut self, output: ToSqlOutput[origin]):
         """Set the function result from a `ToSqlOutput`.
@@ -366,23 +371,20 @@ struct Context(Boolable, Movable, Sized):
             output: The `ToSqlOutput` produced by a `ToSQL` conversion.
         """
         if output.isa[value.Value]():
-            ref owned = output[value.Value]
-            if owned.isa[value.Null]():
-                self.result_null()
-            elif owned.isa[value.Integer]():
-                self.result_int64(owned[value.Integer].value)
-            elif owned.isa[value.Real]():
-                self.result_double(owned[value.Real].value)
-            elif owned.isa[value.Text]():
-                self.result_text(owned[value.Text].value.copy())
-            elif owned.isa[value.Blob]():
-                ref b = owned[value.Blob].value
-                if len(b) == 0:
-                    self.result_zero_blob(0)
-                else:
-                    self.result_blob(Span(b))
-            else:
-                self.result_error("Unsupported return type from function.")
+            match output[value.Value]:
+                case .null:
+                    self.result_null()
+                case .integer(value):
+                    self.result_int64(value)
+                case .real(value):
+                    self.result_double(value)
+                case .text(value):
+                    self.result_text(value.copy())
+                case .blob(value):
+                    if len(value) == 0:
+                        self.result_zero_blob(0)
+                    else:
+                        self.result_blob(Span(value))
             return
 
         self.set_result(output[ValueRef[origin_of(output)]])

@@ -2,7 +2,7 @@
 
 `slight` is a Mojo wrapper around the SQLite3 C library, providing a safe and ergonomic interface for interacting with SQLite databases in Mojo applications.
 
-![Mojo Version](https://img.shields.io/badge/Mojo%F0%9F%94%A5-1.1.0-orange)
+![Mojo Version](https://img.shields.io/badge/Mojo%F0%9F%94%A5-1.2.0-orange)
 ![Build Status](https://github.com/thatstoasty/slight/actions/workflows/build.yml/badge.svg)
 ![Test Status](https://github.com/thatstoasty/slight/actions/workflows/test.yml/badge.svg)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -50,7 +50,7 @@ There's two ways to build `slight` from source: directly from the Git repository
 Run the following commands in your terminal:
 
 ```bash
-pixi add slight --git "https://github.com/thatstoasty/slight.git" --tag "v0.3.1" && pixi install
+pixi add slight --git "https://github.com/thatstoasty/slight.git" --tag "v0.4.0" && pixi install
 ```
 
 #### Building from source: Local
@@ -262,7 +262,7 @@ def main() raises:
         tx.commit()  # Explicitly commit; otherwise rolls back on scope exit
     
     # Transaction with specific behavior
-    with db.transaction(TransactionBehavior.IMMEDIATE) as tx:
+    with db.transaction(TransactionBehavior.immediate) as tx:
         _ = tx.execute("UPDATE accounts SET balance = balance - 100 WHERE name = 'Alice'")
         _ = tx.execute("UPDATE accounts SET balance = balance + 100 WHERE name = 'Bob'")
         tx.commit()
@@ -469,11 +469,11 @@ def main() raises:
     var db = Connection.open_in_memory()
 
     # Query the current maximum SQL length
-    var current = db.limit(Limit.SQL_LENGTH)
+    var current = db.limit(Limit.sql_length)
     print("Current SQL length limit:", current)
 
     # Lower the limit and get the previous value back
-    var previous = db.set_limit(Limit.SQL_LENGTH, 10000)
+    var previous = db.set_limit(Limit.sql_length, 10000)
     print("Previous SQL length limit:", previous)
 ```
 
@@ -481,18 +481,18 @@ Available limits:
 
 | Limit | Description |
 | ------- | ------------- |
-| `Limit.LENGTH` | Maximum size of any string or BLOB or table row (bytes) |
-| `Limit.SQL_LENGTH` | Maximum length of an SQL statement (bytes) |
-| `Limit.COLUMN` | Maximum number of columns in a table, result set, index, or ORDER BY / GROUP BY |
-| `Limit.EXPR_DEPTH` | Maximum depth of the parse tree on any expression |
-| `Limit.COMPOUND_SELECT` | Maximum number of terms in a compound SELECT |
-| `Limit.VDBE_OP` | Maximum number of VM instructions per SQL statement |
-| `Limit.FUNCTION_ARG` | Maximum number of arguments on a function |
-| `Limit.ATTACHED` | Maximum number of attached databases |
-| `Limit.LIKE_PATTERN_LENGTH` | Maximum length of a LIKE or GLOB pattern |
-| `Limit.VARIABLE_NUMBER` | Maximum parameter index in an SQL statement |
-| `Limit.TRIGGER_DEPTH` | Maximum depth of recursion for triggers |
-| `Limit.WORKER_THREADS` | Maximum number of worker threads per prepared statement |
+| `Limit.length` | Maximum size of any string or BLOB or table row (bytes) |
+| `Limit.sql_length` | Maximum length of an SQL statement (bytes) |
+| `Limit.column` | Maximum number of columns in a table, result set, index, or ORDER BY / GROUP BY |
+| `Limit.expr_depth` | Maximum depth of the parse tree on any expression |
+| `Limit.compound_select` | Maximum number of terms in a compound SELECT |
+| `Limit.vdbe_op` | Maximum number of VM instructions per SQL statement |
+| `Limit.function_arg` | Maximum number of arguments on a function |
+| `Limit.attached` | Maximum number of attached databases |
+| `Limit.like_pattern_length` | Maximum length of a LIKE or GLOB pattern |
+| `Limit.variable_number` | Maximum parameter index in an SQL statement |
+| `Limit.trigger_depth` | Maximum depth of recursion for triggers |
+| `Limit.worker_threads` | Maximum number of worker threads per prepared statement |
 
 ### Tracing
 
@@ -577,7 +577,7 @@ def main() raises:
     db.clear_update_hook()
 ```
 
-> **Note:** Returning `True` from a commit hook converts the commit into a rollback (SQLite semantics: a non-zero return aborts the commit). There can only be one hook of each kind per connection; registering a new one replaces the previous one. `UpdateOperation` is one of `INSERT`, `UPDATE`, or `DELETE`.
+> **Note:** Returning `True` from a commit hook converts the commit into a rollback (SQLite semantics: a non-zero return aborts the commit). There can only be one hook of each kind per connection; registering a new one replaces the previous one. `UpdateOperation` is one of `insert`, `update`, or `delete`.
 
 ### Custom Collations
 
@@ -751,7 +751,7 @@ def main() raises:
     var db2 = Connection.open(url, flags)
 
     # db1 acquires a write lock via an IMMEDIATE transaction
-    var tx = db1.transaction(TransactionBehavior.IMMEDIATE)
+    var tx = db1.transaction(TransactionBehavior.immediate)
     tx.execute_batch("INSERT INTO items VALUES (42)")
 
     # db2 can check if it's locked and wait for the notification
@@ -963,11 +963,11 @@ def main() raises:
         db.execute_batch("CREATE TABLE t (value INTEGER)")
         _ = db.execute("INSERT INTO t (value) VALUES (?1)", (1,))
 
-        var log_frames, checkpointed_frames = db.wal_checkpoint_v2(CheckpointMode.FULL)
+        var log_frames, checkpointed_frames = db.wal_checkpoint_v2(CheckpointMode.full)
         print(checkpointed_frames, "/", log_frames, "frames checkpointed")
 ```
 
-`CheckpointMode` has four variants: `PASSIVE` (the default, non-blocking), `FULL`, `RESTART`, and `TRUNCATE` (each progressively more aggressive about blocking writers/readers and truncating the WAL file — see the [SQLite documentation](https://www.sqlite.org/c3ref/wal_checkpoint_v2.html) for details).
+`CheckpointMode` has four cases: `passive` (the default, non-blocking), `full`, `restart`, and `truncate` (each progressively more aggressive about blocking writers/readers and truncating the WAL file — see the [SQLite documentation](https://www.sqlite.org/c3ref/wal_checkpoint_v2.html) for details).
 
 > **Note:** WAL mode requires a real file on disk; it does not apply to in-memory databases (`Connection.open_in_memory()`).
 
@@ -1060,7 +1060,7 @@ __extension Date(ToSQL):
     def to_sql(ref self) raises -> ToSqlOutput[origin_of(self)]:
         # The ISO string exists nowhere in `self`, so it must be owned.
         return ToSqlOutput[origin_of(self)](
-            value.Value(value.Text(String(self.year, "-", self.month, "-", self.day)))
+            value.Value.text(String(self.year, "-", self.month, "-", self.day))
         )
 
 def main() raises:

@@ -260,7 +260,7 @@ struct InnerConnection(Deinitable where False, Movable):
                 tail = 0
             else:
                 tail = UInt(n)
-        
+
         if not stmt:
             return (None, tail)
         return stmt.value(), tail
@@ -306,6 +306,22 @@ struct InnerConnection(Deinitable where False, Movable):
             Error: If the SQLite error code is not `SQLITE_OK`.
         """
         raise_if_error(self.unsafe_ptr(), code)
+
+    def error_code(self) -> SQLite3Result:
+        """Returns the primary result code of the most recent failed call on this connection.
+
+        Returns:
+            The primary result code, e.g. `SQLite3Result.CONSTRAINT`.
+        """
+        return sqlite_ffi()[].errcode(self.unsafe_ptr())
+
+    def extended_error_code(self) -> SQLite3Result:
+        """Returns the extended result code of the most recent failed call on this connection.
+
+        Returns:
+            The extended result code, e.g. `SQLite3Result.CONSTRAINT_UNIQUE`.
+        """
+        return sqlite_ffi()[].extended_errcode(self.unsafe_ptr())
 
     def error_msg(self, code: SQLite3Result) -> Optional[String]:
         """Checks for the error message set in sqlite3, or what the description of the provided code is.
@@ -464,7 +480,7 @@ struct InnerConnection(Deinitable where False, Movable):
             flags.value,
             pAppPtr.unsafe_bitcast[NoneType](),
             _call_step_callback[init_fn, step_fn],
-            _call_final_callback[final_fn],
+            _call_final_callback[init_fn, final_fn],
             _typed_destructor[P],
         )
 
@@ -509,7 +525,7 @@ struct InnerConnection(Deinitable where False, Movable):
             c_int(n_arg),
             flags.value,
             _call_step_callback[init_fn, step_fn],
-            _call_final_callback[final_fn],
+            _call_final_callback[init_fn, final_fn],
         )
 
     def create_window_function[
@@ -566,7 +582,7 @@ struct InnerConnection(Deinitable where False, Movable):
             flags.value,
             pAppPtr.unsafe_bitcast[NoneType](),
             _call_step_callback[init_fn, step_fn],
-            _call_final_callback[final_fn],
+            _call_final_callback[init_fn, final_fn],
             _call_value_callback[value_fn],
             _call_inverse_callback[inverse_fn],
             _typed_destructor[P],
@@ -617,7 +633,7 @@ struct InnerConnection(Deinitable where False, Movable):
             c_int(n_arg),
             flags.value,
             _call_step_callback[init_fn, step_fn],
-            _call_final_callback[final_fn],
+            _call_final_callback[init_fn, final_fn],
             _call_value_callback[value_fn],
             _call_inverse_callback[inverse_fn],
         )
@@ -773,7 +789,7 @@ struct InnerConnection(Deinitable where False, Movable):
             The current value of the limit, or -1 if the limit category is
             invalid.
         """
-        return sqlite_ffi()[].limit(self.unsafe_ptr(), c_int(limit.value), c_int(-1))
+        return sqlite_ffi()[].limit(self.unsafe_ptr(), c_int(limit.code()), c_int(-1))
 
     def set_limit(mut self, limit: Limit, new_val: Int32) -> Int32:
         """Changes a run-time limit, returning the prior value.
@@ -786,7 +802,7 @@ struct InnerConnection(Deinitable where False, Movable):
             The previous value of the limit, or -1 if the limit category is
             invalid.
         """
-        return sqlite_ffi()[].limit(self.unsafe_ptr(), c_int(limit.value), c_int(new_val))
+        return sqlite_ffi()[].limit(self.unsafe_ptr(), c_int(limit.code()), c_int(new_val))
 
     def trace_v2(mut self, mask: TraceEventCodes, callback: TraceFn) -> SQLite3Result:
         """Register a trace callback (version 2).
@@ -1106,12 +1122,14 @@ struct InnerConnection(Deinitable where False, Movable):
         """
         self.raise_if_error(sqlite_ffi()[].wal_checkpoint(self.unsafe_ptr(), schema^))
 
-    def wal_checkpoint_v2(mut self, mode: CheckpointMode, var schema: Optional[String] = None) raises -> Tuple[Int, Int]:
+    def wal_checkpoint_v2(
+        mut self, mode: CheckpointMode, var schema: Optional[String] = None
+    ) raises -> Tuple[Int, Int]:
         """Checkpoints the write-ahead log with additional control over the
         checkpoint operation.
 
         Args:
-            mode: The checkpoint mode (PASSIVE, FULL, RESTART, or TRUNCATE).
+            mode: The checkpoint mode (passive, full, restart, or truncate).
             schema: Name of the database schema to checkpoint (e.g. "main").
                 If None, all attached databases are checkpointed.
 
@@ -1129,7 +1147,7 @@ struct InnerConnection(Deinitable where False, Movable):
             sqlite_ffi()[].wal_checkpoint_v2(
                 self.unsafe_ptr(),
                 schema^,
-                c_int(mode.value),
+                c_int(mode.code()),
                 Pointer(to=log_frames),
                 Pointer(to=checkpointed_frames),
             )

@@ -2,7 +2,7 @@
 from std.os import abort
 from std.sys import stderr
 from std.utils import Variant
-from std.ffi import CStringSpan
+from std.ffi import c_char, CStringSpan
 from slight.c.raw_bindings import sqlite3_stmt
 from slight.c.types import MutExternalPointer, ResultDestructorFn
 from slight.sqlite_string import SQLiteMallocString
@@ -22,10 +22,12 @@ from slight.enums import DataType, DestructorHint
 
 @fieldwise_init
 struct InvalidColumnIndexError(Movable, TrivialRegisterPassable, Writable):
-    """An error type for invalid column index indexing."""
+    """An error type for a column index that is out of range for the result set."""
 
-    comptime msg = "InvalidColumnIndex: Index provided is greater than the number of columns."
-    """Error message."""
+    var index: Int
+    """The column index that was requested."""
+    var column_count: Int
+    """The number of columns in the result set."""
 
     def write_to(self, mut writer: Some[Writer]):
         """Writes the error message to the provided writer.
@@ -33,7 +35,13 @@ struct InvalidColumnIndexError(Movable, TrivialRegisterPassable, Writable):
         Args:
             writer: A mutable reference to a Writer where the error message will be written.
         """
-        writer.write_string(Self.msg)
+        writer.write(
+            "InvalidColumnIndexError: column index ",
+            self.index,
+            " is out of range for a result with ",
+            self.column_count,
+            " column(s).",
+        )
 
 
 @fieldwise_init
@@ -59,8 +67,6 @@ struct InvalidColumnNameError(Movable, Writable):
 struct InvalidColumnError(Movable, Writable):
     """An error type for invalid column indexing, encompassing both index and name errors."""
 
-    comptime msg = "InvalidColumnNameError: Name provided does not match any column. Column name: "
-    """Error message."""
     var err: Variant[InvalidColumnNameError, InvalidColumnIndexError]
     """The specific error that occurred."""
 
@@ -81,6 +87,17 @@ struct InvalidColumnError(Movable, Writable):
             e: The original error.
         """
         self.err = e
+
+    def write_to(self, mut writer: Some[Writer]):
+        """Writes the message of the wrapped error to the provided writer.
+
+        Args:
+            writer: A mutable reference to a Writer where the error message will be written.
+        """
+        if self.err.isa[InvalidColumnNameError]():
+            self.err[InvalidColumnNameError].write_to(writer)
+        else:
+            self.err[InvalidColumnIndexError].write_to(writer)
 
 
 def eq_ignore_ascii_case(a: ImmSpan[Byte, ...], b: ImmSpan[Byte, ...]) -> Bool:
@@ -155,9 +172,10 @@ struct Statement[conn: MutOrigin](Movable):
         Returns:
             A string representation of the statement.
         """
-        # var sql = String(self.sql().value()) if self.stmt else ""
-        var sql = String(self.sql().value())
-        return String(t"Statement({sql})")
+        var sql = self.sql()
+        if not sql:
+            return "Statement(<no SQL>)"
+        return String(t"Statement({sql.value()})")
 
     def column_count(self) -> UInt:
         """Returns the number of columns in the result set.
@@ -202,7 +220,7 @@ struct Statement[conn: MutOrigin](Movable):
         var text = self.stmt.unsafe_column_text(idx)
 
         var c_str_slice = CStringSpan(
-            unsafe_from_ptr=text.unsafe_ptr().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)]()
+            unsafe_from_ptr=text.unsafe_ptr().unsafe_bitcast[c_char]().unsafe_origin_cast[origin_of(self)]()
         )
         return StringSpan(unsafe_from_utf8=c_str_slice)
 
@@ -239,27 +257,26 @@ struct Statement[conn: MutOrigin](Movable):
         """
         # TODO: Generally need to handle nulls here, for now we're kind of asserting that
         # data requested via this function is not null.
-        var column_type = self.column_type(col)
-        if DataType.NULL == column_type:
-            return value_ref.Null()
-        elif DataType.INTEGER == column_type:
-            return value_ref.Integer(self.stmt.column_int64(col))
-        elif DataType.FLOAT == column_type:
-            return value_ref.Real(self.stmt.column_double(col))
-        elif DataType.TEXT == column_type:
-            # We should generally be fine and not hit the case where column_text or blob return None.
-            # If the column is nullable, the data type will be NULL.
-            try:
-                return value_ref.Text(self.unsafe_column_text(col))
-            except e:
-                abort(String(e))
-        elif DataType.BLOB == column_type:
-            try:
-                return value_ref.Blob(self.unsafe_column_blob(col))
-            except e:
-                abort(String(e))
-        else:
-            abort(t"[UNREACHABLE] sqlite3_column_type returned an invalid value: {column_type.value}")
+        comptime ValueRefT = ValueRef[origin_of(self)]
+        match self.column_type(col):
+            case .null:
+                return ValueRefT.null
+            case .integer:
+                return ValueRefT.integer(self.stmt.column_int64(col))
+            case .float:
+                return ValueRefT.real(self.stmt.column_double(col))
+            case .text:
+                # We should generally be fine and not hit the case where column_text or blob return None.
+                # If the column is nullable, the data type will be NULL.
+                try:
+                    return ValueRefT.text(self.unsafe_column_text(col))
+                except e:
+                    abort(String(e))
+            case .blob:
+                try:
+                    return ValueRefT.blob(self.unsafe_column_blob(col))
+                except e:
+                    abort(String(e))
 
     def finalize(deinit self) raises -> None:
         """Finalizes the statement and releases its resources.
@@ -286,11 +303,7 @@ struct Statement[conn: MutOrigin](Movable):
         elif r == SQLite3Result.DONE:
             return False
         else:
-            var error = self.connection[].error_msg(r)
-            if error:
-                raise Error(error[])
-            else:
-                raise Error("Unknown error occurred during step execution: ", r)
+            raise self.connection[].decode_error(r)
 
     def reset(mut self) raises -> None:
         """Resets the statement to its initial state for re-execution.
@@ -327,11 +340,7 @@ struct Statement[conn: MutOrigin](Movable):
         elif r == SQLite3Result.ROW:
             raise Error("Query returned rows.")
         else:
-            var error = self.connection[].error_msg(r)
-            if error:
-                raise Error(error[])
-            else:
-                raise Error("Unknown error occurred during step execution: ", r)
+            raise self.connection[].decode_error(r)
 
     def execute[P: AnyType](mut self, params: P = ()) raises -> Int64:
         """Executes the statement with the given parameters and returns the number of affected rows.
@@ -355,6 +364,9 @@ struct Statement[conn: MutOrigin](Movable):
         comptime assert conforms_to(P, Params), String(
             "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
+        # Binding to a statement that has been stepped but not reset fails with SQLITE_MISUSE.
+        # The result is ignored: it repeats the error of the previous step, which was already reported.
+        _ = self.stmt.reset()
         params.bind(self)
         return self._execute()
 
@@ -412,7 +424,7 @@ struct Statement[conn: MutOrigin](Movable):
             Error: If the bind operation fails.
         """
         # Enforce transient destructor so sqlite copies the data.
-        self.connection[].raise_if_error(self.stmt.bind_text(index, value, DestructorHint.transient_destructor()))
+        self.connection[].raise_if_error(self.stmt.bind_text(index, value, DestructorHint.transient.destructor()))
 
     def bind_blob[origin: ImmOrigin, //](mut self, index: UInt, value: ImmSpan[Byte, origin]) raises -> None:
         """Binds a blob value to the specified parameter.
@@ -425,7 +437,7 @@ struct Statement[conn: MutOrigin](Movable):
             Error: If the bind operation fails.
         """
         # Enforce transient destructor so sqlite copies the data.
-        self.connection[].raise_if_error(self.stmt.bind_blob(index, value, DestructorHint.transient_destructor()))
+        self.connection[].raise_if_error(self.stmt.bind_blob(index, value, DestructorHint.transient.destructor()))
 
     def parameter_index(self, var name: String) -> Optional[UInt]:
         """Returns the index of the parameter with the specified name.
@@ -459,36 +471,32 @@ struct Statement[conn: MutOrigin](Movable):
         if output.isa[value.Value]():
             # The value was computed by `to_sql` and owns its buffers. Binding
             # is transient, so SQLite copies before `owned` is dropped here.
-            ref owned = output[value.Value]
-            if owned.isa[value.Null]():
-                self.bind_null(index)
-            elif owned.isa[value.Text]():
-                self.bind_text(index, owned[value.Text].value)
-            elif owned.isa[value.Integer]():
-                self.bind_int64(index, owned[value.Integer].value)
-            elif owned.isa[value.Real]():
-                self.bind_double(index, owned[value.Real].value)
-            elif owned.isa[value.Blob]():
-                self.bind_blob(index, Span(owned[value.Blob].value))
-            else:
-                raise Error("Unsupported parameter type")
+            match output[value.Value]:
+                case .null:
+                    self.bind_null(index)
+                case .text(value):
+                    self.bind_text(index, value)
+                case .integer(value):
+                    self.bind_int64(index, value)
+                case .real(value):
+                    self.bind_double(index, value)
+                case .blob(value):
+                    self.bind_blob(index, Span(value))
             return
 
         comptime param_origin = origin_of(parameter)
-        ref borrowed = output[ValueRef[param_origin]]
-        if borrowed.isa[value_ref.Null]():
-            self.bind_null(index)
-        elif borrowed.isa[value_ref.Text[param_origin]]():
-            self.bind_text(index, borrowed[value_ref.Text[param_origin]].value)
-        elif borrowed.isa[value_ref.Integer]():
-            self.bind_int64(index, borrowed[value_ref.Integer].value)
-        elif borrowed.isa[value_ref.Real]():
-            self.bind_double(index, borrowed[value_ref.Real].value)
-        elif borrowed.isa[value_ref.Blob[param_origin]]():
-            self.bind_blob(index, borrowed[value_ref.Blob[param_origin]].value)
-        else:
-            raise Error("Unsupported parameter type")
-    
+        match output[ValueRef[param_origin]]:
+            case .null:
+                self.bind_null(index)
+            case .text(value):
+                self.bind_text(index, value)
+            case .integer(value):
+                self.bind_int64(index, value)
+            case .real(value):
+                self.bind_double(index, value)
+            case .blob(value):
+                self.bind_blob(index, value)
+
     def bind_parameter_count(self) -> Int32:
         """Returns the number of parameters in the prepared statement.
 
@@ -518,6 +526,9 @@ struct Statement[conn: MutOrigin](Movable):
         comptime assert conforms_to(P, Params), String(
             "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
+        # `Rows` resets the statement when it is destroyed, but reset here too in case the
+        # statement was stepped manually. The result repeats the previous step's error, if any.
+        _ = self.stmt.reset()
         params.bind(self)
         return Rows(Pointer(to=self))
 
@@ -602,11 +613,9 @@ struct Statement[conn: MutOrigin](Movable):
             "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         var rows = self.query(params)
-        try:
-            _ = rows.__next__()
+        if rows.next():
             return True
-        except StopIteration:
-            return False
+        return False
 
     def one_row[T: Movable, P: AnyType, //, transform: RowTransformFn[T]](mut self, params: P = ()) raises -> T:
         """Executes a SQL query and returns a single row.
@@ -629,10 +638,9 @@ struct Statement[conn: MutOrigin](Movable):
             "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         var rows = self.query[transform](params)
-        try:
-            return next(rows)
-        except StopIteration:
+        if not rows._advance():
             raise Error("No rows returned by query.")
+        return rows._current()
 
     def maybe_one_row[
         T: Movable, P: AnyType, //, transform: RowTransformFn[T]
@@ -657,10 +665,7 @@ struct Statement[conn: MutOrigin](Movable):
             "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         var rows = self.query[transform](params)
-        try:
-            return next(rows)
-        except StopIteration:
-            return None
+        return rows.next()
 
     def one_column[T: Movable, P: AnyType](mut self, params: P = ()) raises -> T:
         """Fetches a single column from the first row of the result set.
@@ -689,12 +694,10 @@ struct Statement[conn: MutOrigin](Movable):
             "`params` must conform to the `Params` trait. ", reflect[P].name(), " does not implement `Params`."
         )
         var rows = self.query(params)
-        var row: Row[Self.conn, origin_of(self)]
-        try:
-            row = next(rows)
-        except StopIteration:
+        var row = rows.next()
+        if not row:
             raise Error("No rows returned by query.")
-        return row.get[T](0)
+        return row.value().get[T](0)
 
     def clear_bindings(mut self) raises -> None:
         """Clears all bound parameters from the statement.
@@ -744,10 +747,10 @@ struct Statement[conn: MutOrigin](Movable):
         """
         var name = self.stmt.column_name(idx)
         if not name:
-            raise Error("InvalidColumnIndexError: column index is out of bounds.")
+            raise Error(InvalidColumnIndexError(Int(idx), Int(self.column_count())))
 
         var c_str_slice = CStringSpan(
-            unsafe_from_ptr=name.value().unsafe_bitcast[Int8]().unsafe_origin_cast[origin_of(self)]()
+            unsafe_from_ptr=name.value().unsafe_bitcast[c_char]().unsafe_origin_cast[origin_of(self)]()
         )
         return StringSpan(unsafe_from_utf8=c_str_slice)
 
@@ -769,7 +772,7 @@ struct Statement[conn: MutOrigin](Movable):
             if eq_ignore_ascii_case(name.as_bytes(), self.column_name(UInt(i)).as_bytes()):
                 return UInt(i)
 
-        raise Error("InvalidColumnNameError: no column with the specified name exists.")
+        raise Error(InvalidColumnNameError(String(name)))
 
     def insert[P: AnyType](mut self, params: P = ()) raises -> Int64:
         """Executes an INSERT statement and returns the last inserted row ID.

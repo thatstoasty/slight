@@ -1,9 +1,9 @@
 """Informational Enums."""
+from std.os import abort
 from slight.c.types import ResultDestructorFn
 
 
-@fieldwise_init
-struct DataType(Equatable, TrivialRegisterPassable, Writable):
+__enum DataType(Equatable, ImplicitlyCopyable, Writable):
     """Fundamental Datatypes.
 
     Every value in SQLite has one of five fundamental datatypes:
@@ -13,82 +13,121 @@ struct DataType(Equatable, TrivialRegisterPassable, Writable):
     * BLOB
     * NULL
 
-    These constants are codes for each of those types.
+    These cases correspond to the `SQLITE_*` datatype codes; see `code()`.
     """
 
-    var value: Int32
-    """Internal enum value."""
-    comptime INTEGER = Self(1)
+    case integer
     """`SQLITE_INTEGER`: 64-bit signed integer."""
-    comptime FLOAT = Self(2)
+    case float
     """`SQLITE_FLOAT`: 64-bit IEEE floating point number."""
-    comptime TEXT = Self(3)
+    case text
     """`SQLITE_TEXT`: String."""
-    comptime BLOB = Self(4)
+    case blob
     """`SQLITE_BLOB`: BLOB."""
-    comptime NULL = Self(5)
+    case null
     """`SQLITE_NULL`: NULL."""
 
-    def __eq__(self, other: Int32) -> Bool:
-        """Checks if this value is equal to a raw integer value.
+    def __init__(out self, code: Int32):
+        """Converts a raw `SQLITE_*` datatype code, as returned by `sqlite3_column_type` or `sqlite3_value_type`.
 
         Args:
-            other: The raw integer value to compare against.
+            code: The raw datatype code.
+
+        Notes:
+            SQLite only ever returns the five codes above, so any other value aborts.
+        """
+        if code == 1:
+            self = Self.integer
+        elif code == 2:
+            self = Self.float
+        elif code == 3:
+            self = Self.text
+        elif code == 4:
+            self = Self.blob
+        elif code == 5:
+            self = Self.null
+        else:
+            abort(t"[UNREACHABLE] invalid SQLite datatype code: {code}")
+
+    def code(self) -> Int32:
+        """Returns the raw `SQLITE_*` datatype code.
 
         Returns:
-            True if the `DataType`'s value is equal to the raw integer value, False otherwise.
+            The integer code SQLite uses for this datatype.
         """
-        return self.value == other
+        match self:
+            case .integer:
+                return 1
+            case .float:
+                return 2
+            case .text:
+                return 3
+            case .blob:
+                return 4
+            case .null:
+                return 5
+
+    def __eq__(self, other: Self) -> Bool:
+        """Checks if two datatypes are the same.
+
+        Args:
+            other: The datatype to compare against.
+
+        Returns:
+            True if both are the same datatype, False otherwise.
+        """
+        return self.code() == other.code()
 
 
-@fieldwise_init
-struct TextEncoding(TrivialRegisterPassable, Writable):
+__enum TextEncoding(ImplicitlyCopyable, Writable):
     """Text Encodings.
 
-    These constant define integer codes that represent the various
-    text encodings supported by SQLite.
+    These cases correspond to the integer codes SQLite uses for the text
+    encodings it supports; see `code()`.
     """
 
-    var value: UInt8
-    """Internal enum value."""
-    comptime UTF8 = Self(1)
+    case utf8
     """`SQLITE_UTF8`: UTF-8 encoding."""
 
+    def code(self) -> UInt8:
+        """Returns the raw `SQLITE_*` encoding code.
 
-@fieldwise_init
-struct DestructorHint(TrivialRegisterPassable, Writable):
+        Returns:
+            The integer code SQLite uses for this encoding.
+        """
+        match self:
+            case .utf8:
+                return 1
+
+
+__enum DestructorHint(ImplicitlyCopyable, Writable):
     """If the destructor argument is `SQLITE_STATIC`, it means that the content pointer is constant
     and will never change. It does not need to be destroyed. The
     `SQLITE_TRANSIENT` value means that the content will likely change in
     the near future and that SQLite should make its own private copy of
     the content before returning.
 
-    To use these as destructors for libsqlite3, first create a pointer to the value.
-    Then bitcast it to `ResultDestructorFn`. Then when calling `sqlite3_bind_text` or
-    `sqlite3_result_blob`, pass the dereferenced pointer as the destructor argument."""
+    Pass `destructor()` as the destructor argument when calling `sqlite3_bind_text` or
+    `sqlite3_result_blob`."""
 
-    var value: Int
-    """Internal enum value."""
-    comptime STATIC = 0
+    case static
     """`SQLITE_STATIC`: The content pointer is constant and will never change."""
-    comptime TRANSIENT = -1
+    case transient
     """`SQLITE_TRANSIENT`: The content will likely change in the near future and SQLite should make its own private copy of the content before returning."""
 
-    # Why do I have to do this cursed conversion?
-    @staticmethod
-    def static_destructor() -> ResultDestructorFn:
-        """Returns a function pointer representing the `SQLITE_STATIC` destructor.
+    def destructor(self) -> ResultDestructorFn:
+        """Returns the sentinel function pointer SQLite recognizes for this hint.
+
+        SQLite defines `SQLITE_STATIC` and `SQLITE_TRANSIENT` as the integers 0 and -1
+        cast to a destructor function pointer, so the integer is reinterpreted here.
 
         Returns:
-            A function pointer representing the `SQLITE_STATIC` destructor.
+            The destructor argument to pass to SQLite.
         """
-        return Pointer(to=Self.STATIC).unsafe_bitcast[ResultDestructorFn]()[]
-
-    @staticmethod
-    def transient_destructor() -> ResultDestructorFn:
-        """Returns a function pointer representing the `SQLITE_TRANSIENT` destructor.
-
-        Returns:
-            A function pointer representing the `SQLITE_TRANSIENT` destructor.
-        """
-        return Pointer(to=Self.TRANSIENT).unsafe_bitcast[ResultDestructorFn]()[]
+        var sentinel: Int
+        match self:
+            case .static:
+                sentinel = 0
+            case .transient:
+                sentinel = -1
+        return Pointer(to=sentinel).unsafe_bitcast[ResultDestructorFn]()[]
