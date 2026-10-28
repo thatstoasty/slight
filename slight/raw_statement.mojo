@@ -3,7 +3,6 @@ from std.ffi import c_int, c_char, CStringSpan
 from std.os import abort
 from slight.c.types import ImmExternalPointer, MutExternalPointer, ResultDestructorFn, sqlite3_stmt
 from slight.api import sqlite_ffi
-from slight.bindings import sqlite3
 from slight.sqlite_string import SQLiteMallocString
 from slight.result import SQLite3Result
 from slight.enums import DataType, TextEncoding
@@ -16,13 +15,6 @@ struct RawStatement(Deinitable where False, Movable):
 
     var stmt: MutExternalPointer[sqlite3_stmt]
     """A pointer to the `sqlite3_stmt` that represents this statement."""
-    var _ffi: MutExternalPointer[sqlite3]
-    """The process-global SQLite binding, cached from `sqlite_ffi()`.
-
-    Looking the global up costs about 8ns, roughly nine times the cost of a trivial SQLite call,
-    so it is looked up once here instead of on every call. The binding is only freed at process
-    exit, so this pointer cannot dangle.
-    """
 
     def __init__(out self, stmt: MutExternalPointer[sqlite3_stmt]):
         """Wraps a prepared statement.
@@ -31,7 +23,6 @@ struct RawStatement(Deinitable where False, Movable):
             stmt: The prepared statement to take ownership of.
         """
         self.stmt = stmt
-        self._ffi = sqlite_ffi()
 
     def unsafe_ptr[
         origin: Origin, address_space: AddressSpace, //
@@ -60,7 +51,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The value of the specified column as a 64-bit integer.
         """
-        return self._ffi[].column_int64(self.unsafe_ptr(), Int32(idx))
+        return sqlite_ffi()[].column_int64(self.unsafe_ptr(), Int32(idx))
 
     def column_double(self, idx: UInt) -> Float64:
         """Returns the value of the specified column as a double-precision float.
@@ -71,7 +62,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The value of the specified column as a Float64.
         """
-        return self._ffi[].column_double(self.unsafe_ptr(), Int32(idx))
+        return sqlite_ffi()[].column_double(self.unsafe_ptr(), Int32(idx))
 
     def unsafe_column_text(self, idx: UInt) raises -> StringSpan[origin_of(self)]:
         """Returns the value of the specified column as a borrowed text string.
@@ -97,7 +88,7 @@ struct RawStatement(Deinitable where False, Movable):
         Raises:
             Error: If the column contains NULL data.
         """
-        var text = self._ffi[].column_text(self.unsafe_ptr(), Int32(idx))
+        var text = sqlite_ffi()[].column_text(self.unsafe_ptr(), Int32(idx))
         if not text:
             raise Error("Unexpected SQLITE_TEXT column type with NULL data.")
 
@@ -121,15 +112,18 @@ struct RawStatement(Deinitable where False, Movable):
         Raises:
             Error: If the column contains NULL data or has negative length.
         """
-        var ptr = self._ffi[].column_blob(self.unsafe_ptr(), Int32(idx))
+        var ptr = sqlite_ffi()[].column_blob(self.unsafe_ptr(), Int32(idx))
         if not ptr:
             # SQLite returns a NULL pointer for a zero-length BLOB. Anything else (a NULL column, or
             # an out-of-memory error while converting) is reported as an error.
-            if DataType.BLOB == self.column_type(idx) and self._ffi[].column_bytes(self.unsafe_ptr(), Int32(idx)) == 0:
+            if (
+                DataType(self.column_type(idx)) == DataType.blob
+                and sqlite_ffi()[].column_bytes(self.unsafe_ptr(), Int32(idx)) == 0
+            ):
                 return Span[Byte, origin_of(self)]()
             raise Error("unexpected SQLITE_BLOB column type with NULL data")
 
-        var length = self._ffi[].column_bytes(self.unsafe_ptr(), Int32(idx))
+        var length = sqlite_ffi()[].column_bytes(self.unsafe_ptr(), Int32(idx))
         if length < 0:
             raise Error("unexpected SQLITE_BLOB column type with negative length: ", length)
 
@@ -148,7 +142,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The SQLite data type constant for the column.
         """
-        return self._ffi[].column_type(self.unsafe_ptr(), Int32(idx))
+        return sqlite_ffi()[].column_type(self.unsafe_ptr(), Int32(idx))
 
     def column_count(self) -> Int32:
         """Returns the number of columns in the result set.
@@ -156,7 +150,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The number of columns returned by the prepared statement.
         """
-        return self._ffi[].column_count(self.unsafe_ptr())
+        return sqlite_ffi()[].column_count(self.unsafe_ptr())
 
     def bind_parameter_index(self, var name: String) -> Optional[UInt]:
         """Returns the index of the parameter with the given name.
@@ -167,7 +161,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The 1-based index of the parameter, or 0 if not found.
         """
-        var result = self._ffi[].bind_parameter_index(self.unsafe_ptr(), name)
+        var result = sqlite_ffi()[].bind_parameter_index(self.unsafe_ptr(), name)
         if result == 0:
             return None
 
@@ -179,7 +173,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The number of SQL parameters (?, ?NNN, :VVV, @VVV, $VVV) in the statement.
         """
-        return self._ffi[].bind_parameter_count(self.unsafe_ptr())
+        return sqlite_ffi()[].bind_parameter_count(self.unsafe_ptr())
 
     def bind_null(mut self, index: UInt) -> SQLite3Result:
         """Binds a NULL value to the specified parameter.
@@ -190,7 +184,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The SQLite result code from binding the NULL value.
         """
-        return self._ffi[].bind_null(self.unsafe_ptr(), Int32(index))
+        return sqlite_ffi()[].bind_null(self.unsafe_ptr(), Int32(index))
 
     def bind_int64(mut self, index: UInt, value: Int64) -> SQLite3Result:
         """Binds a 64-bit integer value to the specified parameter.
@@ -202,7 +196,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The SQLite result code from binding the integer value.
         """
-        return self._ffi[].bind_int64(self.unsafe_ptr(), Int32(index), value)
+        return sqlite_ffi()[].bind_int64(self.unsafe_ptr(), Int32(index), value)
 
     def bind_double(mut self, index: UInt, value: Float64) -> SQLite3Result:
         """Binds a double-precision float value to the specified parameter.
@@ -214,7 +208,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The SQLite result code from binding the float value.
         """
-        return self._ffi[].bind_double(self.unsafe_ptr(), Int32(index), value)
+        return sqlite_ffi()[].bind_double(self.unsafe_ptr(), Int32(index), value)
 
     def bind_text[
         origin: ImmOrigin, //
@@ -238,12 +232,12 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The SQLite result code from binding the text value.
         """
-        return self._ffi[].bind_text64(
+        return sqlite_ffi()[].bind_text64(
             self.unsafe_ptr(),
             Int32(index),
             value,
             UInt64(len(value.as_bytes())),
-            TextEncoding.UTF8,
+            TextEncoding.utf8,
             destructor_callback,
         )
 
@@ -260,7 +254,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The SQLite result code from binding the blob value.
         """
-        return self._ffi[].bind_blob64(
+        return sqlite_ffi()[].bind_blob64(
             self.unsafe_ptr(),
             Int32(index),
             value.unsafe_ptr().unsafe_bitcast[NoneType](),
@@ -276,7 +270,7 @@ struct RawStatement(Deinitable where False, Movable):
         """
         # We don't really know the origin of this string, it's a pointer returned by SQLite.
         # But it should be valid as long as the statement is valid, so we use the same origin as the statement.
-        var sql_ptr = self._ffi[].sql(self.unsafe_ptr())
+        var sql_ptr = sqlite_ffi()[].sql(self.unsafe_ptr())
         if not sql_ptr:
             return None
         return StringSpan(
@@ -295,7 +289,7 @@ struct RawStatement(Deinitable where False, Movable):
         """
         # We don't really know the origin of this string, it's a pointer returned by SQLite.
         # But it should be valid as long as the statement is valid, so we use the same origin as the statement.
-        return self._ffi[].expanded_sql(self.unsafe_ptr())
+        return sqlite_ffi()[].expanded_sql(self.unsafe_ptr())
 
     def finalize(deinit self) -> SQLite3Result:
         """Destroys the prepared statement and releases its resources.
@@ -305,7 +299,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The SQLite result code from finalizing the statement.
         """
-        return self._ffi[].finalize(self.unsafe_ptr())
+        return sqlite_ffi()[].finalize(self.unsafe_ptr())
 
     def step(mut self) -> SQLite3Result:
         """Executes the prepared statement and advances to the next result row.
@@ -314,7 +308,7 @@ struct RawStatement(Deinitable where False, Movable):
             SQLITE_ROW if a new row is available, SQLITE_DONE if execution is complete,
             or another SQLite result code.
         """
-        return self._ffi[].step(self.unsafe_ptr())
+        return sqlite_ffi()[].step(self.unsafe_ptr())
 
     def reset(mut self) -> SQLite3Result:
         """Resets the prepared statement back to its initial state.
@@ -325,7 +319,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The SQLite result code.
         """
-        return self._ffi[].reset(self.unsafe_ptr())
+        return sqlite_ffi()[].reset(self.unsafe_ptr())
 
     def clear_bindings(mut self) -> SQLite3Result:
         """Clears all bound parameter values from the prepared statement.
@@ -335,7 +329,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The SQLite result code.
         """
-        return self._ffi[].clear_bindings(self.unsafe_ptr())
+        return sqlite_ffi()[].clear_bindings(self.unsafe_ptr())
 
     def column_name(self, idx: UInt) -> Optional[ImmExternalPointer[c_char]]:
         """Returns the name of the specified column.
@@ -351,7 +345,7 @@ struct RawStatement(Deinitable where False, Movable):
             return None
 
         # Null ptr indicates an OOM, which we treat as None here.
-        var ptr = self._ffi[].column_name(self.unsafe_ptr(), i)
+        var ptr = sqlite_ffi()[].column_name(self.unsafe_ptr(), i)
         if not ptr:
             return None
 
@@ -365,7 +359,7 @@ struct RawStatement(Deinitable where False, Movable):
             * 1 if the prepared statement is an EXPLAIN statement.
             * 2 if the statement is an EXPLAIN QUERY PLAN.
         """
-        return self._ffi[].stmt_isexplain(self.unsafe_ptr())
+        return sqlite_ffi()[].stmt_isexplain(self.unsafe_ptr())
 
     def is_read_only(self) -> Bool:
         """Returns whether the prepared statement is read-only.
@@ -375,7 +369,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             True if the statement is read-only, False otherwise.
         """
-        return self._ffi[].stmt_readonly(self.unsafe_ptr()) != 0
+        return sqlite_ffi()[].stmt_readonly(self.unsafe_ptr()) != 0
 
     def get_status(self, status: StatementStatus) -> Int32:
         """Returns the current value of a status counter for this statement.
@@ -389,7 +383,7 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The current value of the requested counter.
         """
-        return self._ffi[].stmt_status(self.unsafe_ptr(), c_int(status.value), c_int(0))
+        return sqlite_ffi()[].stmt_status(self.unsafe_ptr(), c_int(status.value), c_int(0))
 
     def reset_status(mut self, status: StatementStatus) -> Int32:
         """Returns the current value of a status counter, then resets it to zero.
@@ -400,4 +394,4 @@ struct RawStatement(Deinitable where False, Movable):
         Returns:
             The value of the counter before it was reset.
         """
-        return self._ffi[].stmt_status(self.unsafe_ptr(), c_int(status.value), c_int(1))
+        return sqlite_ffi()[].stmt_status(self.unsafe_ptr(), c_int(status.value), c_int(1))

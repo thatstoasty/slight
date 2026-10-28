@@ -60,7 +60,7 @@ def _hook_state() -> MutExternalPointer[_HookState]:
 def _update_hook(op: UpdateOperation, db_name: String, table_name: String, rowid: Int64) -> NoneType:
     var state = _hook_state()
     state[].update_calls += 1
-    state[].last_op = op.value
+    state[].last_op = op.code()
     state[].last_db = db_name
     state[].last_table = table_name
     state[].last_rowid = rowid
@@ -77,18 +77,18 @@ def test_update_hook_insert_update_delete() raises:
     db.execute_batch("CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)")
     _ = db.execute("INSERT INTO t (id, name) VALUES (?1, ?2)", (1, "hello"))
     assert_equal(_hook_state()[].update_calls, 1)
-    assert_equal(Int(_hook_state()[].last_op), Int(UpdateOperation.INSERT.value))
+    assert_equal(Int(_hook_state()[].last_op), Int(UpdateOperation.insert.code()))
     assert_equal(_hook_state()[].last_db, "main")
     assert_equal(_hook_state()[].last_table, "t")
     assert_equal(_hook_state()[].last_rowid, Int64(1))
 
     _ = db.execute("UPDATE t SET name = ?1 WHERE id = ?2", ("world", 1))
     assert_equal(_hook_state()[].update_calls, 2)
-    assert_equal(Int(_hook_state()[].last_op), Int(UpdateOperation.UPDATE.value))
+    assert_equal(Int(_hook_state()[].last_op), Int(UpdateOperation.update.code()))
 
     _ = db.execute("DELETE FROM t WHERE id = ?1", (1,))
     assert_equal(_hook_state()[].update_calls, 3)
-    assert_equal(Int(_hook_state()[].last_op), Int(UpdateOperation.DELETE.value))
+    assert_equal(Int(_hook_state()[].last_op), Int(UpdateOperation.delete.code()))
 
     db.clear_update_hook()
     _ = db.execute("INSERT INTO t (id, name) VALUES (?1, ?2)", (2, "again"))

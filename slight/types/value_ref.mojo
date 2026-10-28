@@ -3,276 +3,90 @@
 Used for scalar/aggregate function arguments and other places that read a
 SQLite-owned value without copying it.
 """
-from std.os import abort
-from std.utils import Variant
 from slight.c.types import sqlite3_value, MutExternalPointer
 from slight.api import sqlite_ffi
 from slight.enums import DataType
 
 
-trait SQLRefType(ImplicitlyCopyable, Writable):
-    """A marker trait for types that represent SQL ValueRef types."""
-
-    pass
-
-
-@fieldwise_init
-struct Null(SQLRefType):
-    """Represents a SQL NULL value.
-
-    This is a zero-sized struct that represents the absence of a value
-    in SQL contexts. It implements the necessary traits for SQL value
-    handling and can be copied and moved efficiently.
-    """
-
-    def write_to(self, mut writer: Some[Writer]):
-        """Writes a human-readable representation of this value.
-
-        Args:
-            writer: The writer to write to.
-        """
-        writer.write("NULL")
-
-
-struct Integer(SQLRefType):
-    """Represents a SQL INTEGER value.
-
-    This struct wraps a 64-bit signed integer value as used by SQLite.
-    SQLite uses 64-bit integers internally for all integer values.
-    """
-
-    var value: Int64
-    """The underlying integer value."""
-
-    @implicit
-    def __init__(out self, value: Int64):
-        """Initialize a `Integer` with the given `Int64` value.
-
-        Args:
-            value: The value to wrap.
-        """
-        self.value = value
-
-    @implicit
-    def __init__(out self, value: Int):
-        """Initialize a `Integer` with the given `Int` value.
-
-        Args:
-            value: The value to wrap.
-        """
-        self.value = Int64(value)
-
-    def write_to(self, mut writer: Some[Writer]):
-        """Writes a human-readable representation of this value.
-
-        Args:
-            writer: The writer to write to.
-        """
-        writer.write(self.value)
-
-
-struct Real(SQLRefType):
-    """Represents a SQL REAL (floating-point) value.
-
-    This struct wraps a 64-bit floating-point value as used by SQLite.
-    SQLite uses double-precision floating-point numbers for all real values.
-    """
-
-    var value: Float64
-    """The underlying floating-point value."""
-
-    @implicit
-    def __init__(out self, value: Float64):
-        """Initialize a `Real` with the given `Float64` value.
-
-        Args:
-            value: The value to wrap.
-        """
-        self.value = value
-
-    def write_to(self, mut writer: Some[Writer]):
-        """Writes a human-readable representation of this value.
-
-        Args:
-            writer: The writer to write to.
-        """
-        writer.write(self.value)
-
-
-struct Text[stmt: ImmOrigin](SQLRefType):
-    """Represents a SQL TEXT value.
-
-    This struct wraps a text string value from SQLite. The text is stored
-    as a StringSpan that references memory owned by the SQLite statement,
-    so it's only valid for the lifetime of the statement.
-
-    Parameters:
-        stmt: The origin of the statement that owns the text memory.
-    """
-
-    var value: StringSpan[Self.stmt]
-    """The underlying text value."""
-
-    @implicit
-    def __init__(out self, value: StringSpan[Self.stmt]):
-        """Initialize a `Text` with the given `StringSpan` value.
-
-        Args:
-            value: The text value to wrap.
-        """
-        self.value = value
-
-    def write_to(self, mut writer: Some[Writer]):
-        """Writes a human-readable representation of this value.
-
-        Args:
-            writer: The writer to write to.
-        """
-        writer.write(self.value)
-
-
-struct Blob[stmt: ImmOrigin](SQLRefType):
-    """Represents a SQL BLOB (binary large object) value.
-
-    This struct wraps binary data from SQLite. The data is stored as a Span
-    that references memory owned by the SQLite statement, so it's only valid
-    for the lifetime of the statement.
-
-    Parameters:
-        stmt: The origin of the statement that owns the blob memory.
-    """
-
-    var value: Span[Byte, Self.stmt]
-    """The underlying blob value."""
-
-    @implicit
-    def __init__(out self, value: Span[Byte, Self.stmt]):
-        """Initialize a `Blob` with the given `Span` value.
-
-        Args:
-            value: The blob value to wrap.
-        """
-        self.value = value
-
-    def write_to(self, mut writer: Some[Writer]):
-        """Writes a human-readable representation of this value.
-
-        Args:
-            writer: The writer to write to.
-        """
-        # TODO: Improve blob representation
-        writer.write("BLOB(")
-        writer.write(len(self.value))
-        writer.write(" bytes)")
-
-
-struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
-    """A non-owning dynamic type value. Typically, the memory backing this value is var by SQLite.
+__enum ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
+    """A non-owning dynamic type value. Typically, the memory backing this value is owned by SQLite.
 
     Parameters:
         stmt: The origin of the statement that owns the value memory.
     """
 
-    comptime _type = Variant[Null, Integer, Real, Text[Self.stmt], Blob[Self.stmt]]
-    var value: Self._type
-    """The actual value stored in the variant."""
-
-    def __init__(out self, value: Self._type):
-        """Initialize a ValueRef by copying another ValueRef.
-
-        Args:
-            value: The ValueRef to copy.
-        """
-        if value.isa[Null]():
-            self.value = value[Null]
-        elif value.isa[Integer]():
-            self.value = value[Integer]
-        elif value.isa[Real]():
-            self.value = value[Real]
-        elif value.isa[Text[Self.stmt]]():
-            self.value = value[Text[Self.stmt]]
-        elif value.isa[Blob[Self.stmt]]():
-            self.value = value[Blob[Self.stmt]]
-        else:
-            abort("UNREACHABLE: invalid variant type for ValueRef initialization")
-
-    @implicit
-    def __init__(out self, var value: Null):
-        """Initialize a ValueRef with a NULL value.
-
-        Args:
-            value: The Null value to store.
-        """
-        self.value = value^
-
-    @implicit
-    def __init__(out self, var value: Integer):
-        """Initialize a ValueRef with an INTEGER value.
-
-        Args:
-            value: The Integer value to store.
-        """
-        self.value = value^
-
-    @implicit
-    def __init__(out self, var value: Real):
-        """Initialize a ValueRef with a REAL (floating-point) value.
-
-        Args:
-            value: The Real value to store.
-        """
-        self.value = value^
-
-    @implicit
-    def __init__(out self, var value: Text[Self.stmt]):
-        """Initialize a ValueRef with a TEXT value.
-
-        Args:
-            value: The Text value to store.
-        """
-        self.value = value^
-
-    @implicit
-    def __init__(out self, var value: Blob[Self.stmt]):
-        """Initialize a ValueRef with a BLOB value.
-
-        Args:
-            value: The Blob value to store.
-        """
-        self.value = value^
+    case null
+    """A SQL NULL value."""
+    case integer(Int64)
+    """A SQL INTEGER value. SQLite stores all integers as 64-bit signed values."""
+    case real(Float64)
+    """A SQL REAL value. SQLite stores all reals as double-precision floats."""
+    case text(StringSpan[Self.stmt])
+    """A SQL TEXT value, borrowing memory owned by the statement."""
+    case blob(Span[Byte, Self.stmt])
+    """A SQL BLOB value, borrowing memory owned by the statement."""
 
     def __init__(out self, value: MutExternalPointer[sqlite3_value]):
-        """Returns the `idx`th argument as a `ValueRef`.
+        """Reads a `ValueRef` from a raw `sqlite3_value` pointer.
 
         This reads the type and value from the raw `sqlite3_value` pointer.
         Blob and Text types reference SQLite owned data and may be invalidated.
 
         Args:
             value: A pointer to the sqlite3_value representing the SQL value.
+        """
+        match DataType(sqlite_ffi()[].value_type(value)):
+            case .null:
+                self = Self.null
+            case .integer:
+                self = Self.integer(sqlite_ffi()[].value_int64(value))
+            case .float:
+                self = Self.real(sqlite_ffi()[].value_double(value))
+            case .text:
+                var text = sqlite_ffi()[].value_text(value)
+                if not text:
+                    self = Self.null
+                    return
+                self = ValueRef[ImmUntrackedOrigin].text(text.value()).unsafe_origin_cast[Self.stmt]()
+            case .blob:
+                var blob = sqlite_ffi()[].value_blob(value)
+                if not blob:
+                    self = Self.null
+                    return
+                self = ValueRef[ImmUntrackedOrigin].blob(blob.value()).unsafe_origin_cast[Self.stmt]()
+
+    def unsafe_origin_cast[target: ImmOrigin](self) -> ValueRef[target]:
+        """Re-labels the origin of the borrowed TEXT or BLOB memory.
+
+        **Unsafe: the compiler cannot check this.** The caller must guarantee the
+        memory stays valid for as long as `target` is live. NULL, INTEGER and REAL
+        values hold no borrowed memory and are copied as-is.
+
+        Parameters:
+            target: The origin to attach to the borrowed memory.
 
         Returns:
-            A `ValueRef` containing the argument's value with its appropriate type.
+            The same value, borrowing from `target`.
         """
-        var value_type = sqlite_ffi()[].value_type(value)
-
-        if DataType.NULL == value_type:
-            return Null()
-        elif DataType.INTEGER == value_type:
-            return Integer(sqlite_ffi()[].value_int64(value))
-        elif DataType.FLOAT == value_type:
-            return Real(sqlite_ffi()[].value_double(value))
-        elif DataType.TEXT == value_type:
-            var text = sqlite_ffi()[].value_text(value)
-            if not text:
-                return Null()
-            return Self(Text(text.value()))
-        elif DataType.BLOB == value_type:
-            var blob = sqlite_ffi()[].value_blob(value)
-            if not blob:
-                return Null()
-            return Self(Blob(blob.value()))
-        else:
-            abort("[UNREACHABLE] sqlite3_value_type returned an invalid value")
+        match self:
+            case .null:
+                return ValueRef[target].null
+            case .integer(value):
+                return ValueRef[target].integer(value)
+            case .real(value):
+                return ValueRef[target].real(value)
+            case .text(value):
+                return ValueRef[target].text(
+                    StringSpan(
+                        unsafe_from_utf8=Span(
+                            unsafe_ptr=value.unsafe_ptr().unsafe_origin_cast[target](), length=value.byte_length()
+                        )
+                    )
+                )
+            case .blob(value):
+                return ValueRef[target].blob(
+                    Span(unsafe_ptr=value.unsafe_ptr().unsafe_origin_cast[target](), length=len(value))
+                )
 
     def type_name(self) -> StaticString:
         """Returns the SQLite storage class of this value.
@@ -280,15 +94,17 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         Returns:
             One of `NULL`, `INTEGER`, `REAL`, `TEXT` or `BLOB`.
         """
-        if self.isa[Null]():
-            return "NULL"
-        elif self.isa[Integer]():
-            return "INTEGER"
-        elif self.isa[Real]():
-            return "REAL"
-        elif self.isa[Text[Self.stmt]]():
-            return "TEXT"
-        return "BLOB"
+        match self:
+            case .null:
+                return "NULL"
+            case .integer:
+                return "INTEGER"
+            case .real:
+                return "REAL"
+            case .text:
+                return "TEXT"
+            case .blob:
+                return "BLOB"
 
     def _type_error(self, expected: StaticString) -> Error:
         """Builds the error raised when this value is not of the requested type.
@@ -301,32 +117,17 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         """
         return Error(t"InvalidColumnTypeError: value is {self.type_name()}, expected {expected}")
 
-    def isa[T: SQLRefType](self) -> Bool:
-        """Check if the value is of the specified type T.
-
-        This method allows runtime type checking of the stored SQL value.
-
-        Parameters:
-            T: The type to check against. Must be Copyable and Movable.
+    def is_null(self) -> Bool:
+        """Checks whether this value is SQL NULL.
 
         Returns:
-            True if the stored value is of type T, False otherwise.
+            True if the value is NULL, False otherwise.
         """
-        return self.value.isa[T]()
-
-    def __getitem_param__[T: SQLRefType](self) -> ref[origin_of(self.value)._get_owned_interior["value"]] T:
-        """Get the value as the specified type T.
-
-        This method provides type-safe access to the stored SQL value. The type T
-        must implement FromSQL trait and be the correct type for the stored value.
-
-        Parameters:
-            T: The type to retrieve the value as. Must be Copyable, Movable, and FromSQL.
-
-        Returns:
-            A reference to the value cast to type T.
-        """
-        return self.value[T]
+        match self:
+            case .null:
+                return True
+            case _:
+                return False
 
     def write_to(self, mut writer: Some[Writer]):
         """Write the string representation of the SQL value to the given writer.
@@ -337,11 +138,18 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         Args:
             writer: The writer to which the string representation will be written.
         """
-        comptime for i in range(len(self._type.Ts)):
-            comptime T = self._type.Ts[i]
-            if self.value.isa[T]():
-                comptime assert conforms_to(T, Writable)
-                writer.write(self.value[T])
+        match self:
+            case .null:
+                writer.write("NULL")
+            case .integer(value):
+                writer.write(value)
+            case .real(value):
+                writer.write(value)
+            case .text(value):
+                writer.write(value)
+            case .blob(value):
+                # TODO: Improve blob representation
+                writer.write("BLOB(", len(value), " bytes)")
 
     def unsafe_as_string_slice(self) raises -> StringSpan[Self.stmt]:
         """Convert the SQL value to a borrowed string slice.
@@ -360,10 +168,11 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         Raises:
             Error: If the value is not of type TEXT.
         """
-        if self.isa[Text[Self.stmt]]():
-            return self[Text[Self.stmt]].value
-
-        raise self._type_error("TEXT")
+        match self:
+            case .text(value):
+                return value
+            case _:
+                raise self._type_error("TEXT")
 
     def unsafe_as_string_slice_or_null(self) raises -> Optional[StringSpan[Self.stmt]]:
         """Convert the SQL value to a borrowed string slice, or None if NULL.
@@ -378,12 +187,13 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         Raises:
             Error: If the value is not of type TEXT or NULL.
         """
-        if self.isa[Text[Self.stmt]]():
-            return self[Text[Self.stmt]].value
-        elif self.isa[Null]():
-            return None
-
-        raise self._type_error("TEXT")
+        match self:
+            case .text(value):
+                return value
+            case .null:
+                return None
+            case _:
+                raise self._type_error("TEXT")
 
     def as_int64(self) raises -> Int64:
         """Convert the SQL value to its Int64 representation.
@@ -397,10 +207,11 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         Raises:
             Error: If the value is not of type INTEGER.
         """
-        if self.isa[Integer]():
-            return self[Integer].value
-
-        raise self._type_error("INTEGER")
+        match self:
+            case .integer(value):
+                return value
+            case _:
+                raise self._type_error("INTEGER")
 
     def as_int64_or_null(self) raises -> Optional[Int64]:
         """Convert the SQL value to its Int64 representation.
@@ -414,12 +225,13 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         Raises:
             Error: If the value is not of type INTEGER or NULL.
         """
-        if self.isa[Integer]():
-            return self[Integer].value
-        elif self.isa[Null]():
-            return None
-
-        raise self._type_error("INTEGER")
+        match self:
+            case .integer(value):
+                return value
+            case .null:
+                return None
+            case _:
+                raise self._type_error("INTEGER")
 
     def as_float64(self) raises -> Float64:
         """Convert the SQL value to its Float64 representation.
@@ -434,12 +246,13 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         Raises:
             Error: If the value is not of type REAL or INTEGER.
         """
-        if self.isa[Real]():
-            return self[Real].value
-        elif self.isa[Integer]():
-            return Float64(self[Integer].value)
-
-        raise self._type_error("REAL")
+        match self:
+            case .real(value):
+                return value
+            case .integer(value):
+                return Float64(value)
+            case _:
+                raise self._type_error("REAL")
 
     def as_float64_or_null(self) raises -> Optional[Float64]:
         """Convert the SQL value to its Float64 representation.
@@ -452,14 +265,15 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         Raises:
             Error: If the value is not of type REAL, INTEGER or NULL.
         """
-        if self.isa[Real]():
-            return self[Real].value
-        elif self.isa[Integer]():
-            return Float64(self[Integer].value)
-        elif self.isa[Null]():
-            return None
-
-        raise self._type_error("REAL")
+        match self:
+            case .real(value):
+                return value
+            case .integer(value):
+                return Float64(value)
+            case .null:
+                return None
+            case _:
+                raise self._type_error("REAL")
 
     def unsafe_as_blob(self) raises -> Span[Byte, Self.stmt]:
         """Convert the SQL value to its BLOB representation.
@@ -479,10 +293,11 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         Raises:
             Error: If the value is not of type BLOB.
         """
-        if self.isa[Blob[Self.stmt]]():
-            return self[Blob[Self.stmt]].value
-
-        raise self._type_error("BLOB")
+        match self:
+            case .blob(value):
+                return value
+            case _:
+                raise self._type_error("BLOB")
 
     def unsafe_as_blob_or_null(self) raises -> Optional[Span[Byte, Self.stmt]]:
         """Convert the SQL value to its BLOB representation.
@@ -502,12 +317,13 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         Raises:
             Error: If the value is not of type BLOB or NULL.
         """
-        if self.isa[Blob[Self.stmt]]():
-            return self[Blob[Self.stmt]].value
-        elif self.isa[Null]():
-            return None
-
-        raise self._type_error("BLOB")
+        match self:
+            case .blob(value):
+                return value
+            case .null:
+                return None
+            case _:
+                raise self._type_error("BLOB")
 
     def unsafe_as_bytes(self) raises -> Span[Byte, Self.stmt]:
         """Convert the SQL value to a byte representation.
@@ -526,12 +342,13 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         Raises:
             Error: If the value is not of type BLOB or TEXT.
         """
-        if self.isa[Blob[Self.stmt]]():
-            return self[Blob[Self.stmt]].value
-        if self.isa[Text[Self.stmt]]():
-            return self[Text[Self.stmt]].value.as_bytes()
-
-        raise self._type_error("BLOB or TEXT")
+        match self:
+            case .blob(value):
+                return value
+            case .text(value):
+                return value.as_bytes()
+            case _:
+                raise self._type_error("BLOB or TEXT")
 
     def unsafe_as_bytes_or_null(self) raises -> Optional[Span[Byte, Self.stmt]]:
         """Convert the SQL value to a byte representation.
@@ -550,11 +367,12 @@ struct ValueRef[stmt: ImmOrigin](ImplicitlyCopyable, Writable):
         Raises:
             Error: If the value is not of type BLOB, TEXT, or NULL.
         """
-        if self.isa[Blob[Self.stmt]]():
-            return self[Blob[Self.stmt]].value
-        if self.isa[Text[Self.stmt]]():
-            return self[Text[Self.stmt]].value.as_bytes()
-        elif self.isa[Null]():
-            return None
-
-        raise self._type_error("BLOB or TEXT")
+        match self:
+            case .blob(value):
+                return value
+            case .text(value):
+                return value.as_bytes()
+            case .null:
+                return None
+            case _:
+                raise self._type_error("BLOB or TEXT")

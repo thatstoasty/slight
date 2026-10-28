@@ -1,5 +1,5 @@
 """`FromSQL` trait: SQLite → Mojo type conversion for reading columns."""
-from slight.types.value_ref import ValueRef, Null
+from slight.types.value_ref import ValueRef
 from std.builtin.rebind import downcast
 from std.sys import size_of
 
@@ -29,7 +29,7 @@ __extension Optional(FromSQL):
             reflect[Self.T].name(),
             " does not implement `FromSQL`.",
         )
-        if value.isa[Null]():
+        if value.is_null():
             self = Optional[Self.T](None)
         else:
             self = Optional[Self.T](downcast[Self.T, FromSQL](value))

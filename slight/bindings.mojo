@@ -1088,7 +1088,7 @@ struct sqlite3(Movable):
             SQLITE_OK on success, or an error code on failure.
         """
         return self.lib.sqlite3_bind_text64(
-            pStmt, idx, value.unsafe_ptr().unsafe_bitcast[c_char](), n, encoding.value, destructor_callback
+            pStmt, idx, value.unsafe_ptr().unsafe_bitcast[c_char](), n, encoding.code(), destructor_callback
         )
 
     def bind_pointer[
@@ -1894,7 +1894,7 @@ struct sqlite3(Movable):
         var ptr = self.lib.sqlite3_value_blob(value)
         if not ptr:
             # SQLite returns a NULL pointer for a zero-length BLOB too; only the type tells them apart.
-            if DataType.BLOB == self.lib.sqlite3_value_type(value):
+            if DataType(self.lib.sqlite3_value_type(value)) == DataType.blob:
                 return Span[Byte, ImmUntrackedOrigin]()
             return None
         return Span(unsafe_ptr=ptr.take().unsafe_bitcast[Byte](), length=Int(self.lib.sqlite3_value_bytes(value)))
@@ -3239,7 +3239,7 @@ struct sqlite3(Movable):
             name.as_c_string_span().ptr(),
             module_ptr,
             None,
-            DestructorHint.static_destructor(),
+            DestructorHint.static.destructor(),
         )
 
     def declare_vtab[

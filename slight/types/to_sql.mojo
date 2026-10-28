@@ -3,7 +3,6 @@
 This module provides the ToSQL trait which allows converting Mojo types
 into SQLite-compatible values for binding to prepared statements.
 """
-from slight.types import value_ref
 from slight.types import value
 from slight.types.value_ref import ValueRef
 from slight.types.value import Value
@@ -112,29 +111,17 @@ __extension Optional(ToSQL):
             " does not implement `ToSQL`.",
         )
         if not self:
-            return ValueRef[origin_of(self)](value_ref.Null())
+            return ValueRef[origin_of(self)].null
 
-        # Delegate to the wrapped value. The borrowed arms still have to be
-        # unwrapped and re-wrapped to re-origin the ValueRef, but an owned
-        # inner value now passes straight through instead of being dropped.
+        # Delegate to the wrapped value. A borrowed result is re-origined onto
+        # `self` (the payload lives inside it), while an owned inner value
+        # passes straight through instead of being dropped.
         var inner = self.value().to_sql()
         if inner.isa[Value]():
             return inner[Value].copy()
 
         comptime inner_origin = origin_of(self.value())
-        ref vr = inner[ValueRef[inner_origin]]
-        if vr.isa[value_ref.Integer]():
-            return ValueRef[origin_of(self)](vr[value_ref.Integer])
-        elif vr.isa[value_ref.Real]():
-            return ValueRef[origin_of(self)](vr[value_ref.Real])
-        elif vr.isa[value_ref.Text[inner_origin]]():
-            return ValueRef[origin_of(self)](vr[value_ref.Text[inner_origin]])
-        elif vr.isa[value_ref.Blob[inner_origin]]():
-            return ValueRef[origin_of(self)](vr[value_ref.Blob[inner_origin]])
-        elif vr.isa[value_ref.Null]():
-            return ValueRef[origin_of(self)](value_ref.Null())
-        else:
-            raise Error("Unsupported type in Optional for ToSQL conversion")
+        return inner[ValueRef[inner_origin]].unsafe_origin_cast[origin_of(self)]()
 
 
 __extension Bool(ToSQL):
@@ -144,7 +131,7 @@ __extension Bool(ToSQL):
         Returns:
             A ValueRef containing the SQLite-compatible value.
         """
-        return ValueRef[origin_of(self)](value_ref.Integer(Int64(self)))
+        return ValueRef[origin_of(self)].integer(Int64(self))
 
 
 __extension SIMD(ToSQL):
@@ -156,7 +143,7 @@ __extension SIMD(ToSQL):
         """
         comptime assert Self.length == 1, "Only SIMD vectors of size 1 can be converted to SQL parameters"
         comptime if Self.dtype in (DType.float16, DType.float32, DType.float64):
-            return ValueRef[origin_of(self)](value_ref.Real(Float64(self._refine[self.dtype, 1]())))
+            return ValueRef[origin_of(self)].real(Float64(self._refine[self.dtype, 1]()))
         elif Self.dtype in (
             DType.int,
             DType.int8,
@@ -174,7 +161,7 @@ __extension SIMD(ToSQL):
             comptime if Self.dtype.is_unsigned() and size_of[Self]() >= size_of[Int64]():
                 if v > Scalar[Self.dtype](Int64.MAX):
                     raise Error(t"IntegralValueOutOfRange: {v} does not fit in a SQLite INTEGER (Int64)")
-            return ValueRef[origin_of(self)](value_ref.Integer(Int64(v)))
+            return ValueRef[origin_of(self)].integer(Int64(v))
         else:
             raise Error("InvalidColumnType: Unsupported SIMD dtype for size 1")
 
@@ -186,7 +173,7 @@ __extension String(ToSQL):
         Returns:
             A ValueRef containing the SQLite-compatible value.
         """
-        return ValueRef[origin_of(self)](value_ref.Text(self))
+        return ValueRef[origin_of(self)].text(self)
 
 
 __extension NoneType(ToSQL):
@@ -196,7 +183,7 @@ __extension NoneType(ToSQL):
         Returns:
             A ValueRef containing the SQLite-compatible value.
         """
-        return ValueRef[origin_of(self)](value_ref.Null())
+        return ValueRef[origin_of(self)].null
 
 
 __extension List(ToSQL):
@@ -209,7 +196,7 @@ __extension List(ToSQL):
         comptime assert Self.T == Byte, String(
             t"List can only be used with Byte type for `ToSQL`. {reflect[Self.T].name()} is not Byte."
         )
-        return ValueRef[origin_of(self)](value_ref.Blob(rebind[List[Byte]](self)))
+        return ValueRef[origin_of(self)].blob(Span(rebind[List[Byte]](self)))
 
 
 __extension Span(ToSQL):
@@ -222,4 +209,10 @@ __extension Span(ToSQL):
         comptime assert Self.T == Byte, String(
             t"Span can only be used with Byte type for `ToSQL`. {reflect[Self.T].name()} is not Byte."
         )
-        return ValueRef[origin_of(self)](value_ref.Blob(rebind[Span[Byte, self.origin]](self)))
+        var bytes = rebind[Span[Byte, self.origin]](self)
+        return ValueRef[origin_of(self)].blob(
+            Span(
+                unsafe_ptr=bytes.unsafe_ptr().unsafe_mut_cast[False]().unsafe_origin_cast[origin_of(self)](),
+                length=len(bytes),
+            )
+        )

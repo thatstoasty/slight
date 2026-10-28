@@ -4,7 +4,6 @@ from slight.result import SQLite3Result
 from slight.row import Row
 from slight.statement import InvalidColumnError, InvalidColumnIndexError, InvalidColumnNameError
 from slight.trace import StatementStatus
-from slight.types.value_ref import Null
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 
@@ -141,7 +140,7 @@ def test_unbound_parameters_are_null() raises:
     def get_value(r: Row) raises -> NoneType:
         # Exercises the get_ref() zero-copy escape hatch.
         var result = r.get_ref(0)
-        if result.isa[Null]():
+        if result.is_null():
             return
         raise Error("Expected NULL value!")
 

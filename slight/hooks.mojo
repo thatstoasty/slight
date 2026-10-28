@@ -14,6 +14,7 @@ See:
 """
 
 from std.ffi import c_char, c_int, CStringSpan
+from std.os import abort
 from std.memory import MutPointer
 from slight.c.types import (
     MutExternalPointer,
@@ -26,34 +27,62 @@ from slight.c.types import (
 # ── Update operation codes ─────────────────────────────────────────────
 
 
-@fieldwise_init
-struct UpdateOperation(Equatable, TrivialRegisterPassable, Writable):
+__enum UpdateOperation(Equatable, ImplicitlyCopyable, Writable):
     """The kind of row-level change reported by an update hook callback.
 
     Corresponds to the `SQLITE_INSERT`, `SQLITE_UPDATE`, and `SQLITE_DELETE`
-    action codes.
+    action codes; see `code()`.
     """
 
-    var value: Int32
-    """Internal enum value."""
-
-    comptime INSERT = Self(18)
+    case insert
     """`SQLITE_INSERT`: A new row was inserted."""
-    comptime DELETE = Self(9)
+    case delete
     """`SQLITE_DELETE`: A row was deleted."""
-    comptime UPDATE = Self(23)
+    case update
     """`SQLITE_UPDATE`: A row was updated."""
+
+    def __init__(out self, code: Int32):
+        """Converts a raw action code, as passed to an update hook.
+
+        Args:
+            code: The raw action code.
+
+        Notes:
+            The update hook only ever receives the three codes above, so any other value aborts.
+        """
+        if code == 18:
+            self = Self.insert
+        elif code == 9:
+            self = Self.delete
+        elif code == 23:
+            self = Self.update
+        else:
+            abort(t"[UNREACHABLE] invalid update hook action code: {code}")
+
+    def code(self) -> Int32:
+        """Returns the raw `SQLITE_*` action code.
+
+        Returns:
+            The integer code SQLite uses for this operation.
+        """
+        match self:
+            case .insert:
+                return 18
+            case .delete:
+                return 9
+            case .update:
+                return 23
 
     def __eq__(self, other: Self) -> Bool:
         """Test equality.
 
         Args:
-            other: The other operation code.
+            other: The other operation.
 
         Returns:
-            True if both have the same value.
+            True if both are the same operation.
         """
-        return self.value == other.value
+        return self.code() == other.code()
 
     def write_to(self, mut writer: Some[Writer]):
         """Write a human-readable representation.
@@ -61,14 +90,13 @@ struct UpdateOperation(Equatable, TrivialRegisterPassable, Writable):
         Args:
             writer: The writer to write to.
         """
-        if self.value == Self.INSERT.value:
-            writer.write("SQLITE_INSERT")
-        elif self.value == Self.DELETE.value:
-            writer.write("SQLITE_DELETE")
-        elif self.value == Self.UPDATE.value:
-            writer.write("SQLITE_UPDATE")
-        else:
-            writer.write("SQLITE_UNKNOWN(", self.value, ")")
+        match self:
+            case .insert:
+                writer.write("SQLITE_INSERT")
+            case .delete:
+                writer.write("SQLITE_DELETE")
+            case .update:
+                writer.write("SQLITE_UPDATE")
 
 
 # ── Callback types ──────────────────────────────────────────────────────

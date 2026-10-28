@@ -3914,7 +3914,7 @@ struct _sqlite3(Movable):
                 or None for no client data.
             destructor_callback: Destructor invoked on pClientData when the
                 module is unregistered. Pass
-                `DestructorHint.static_destructor()` (a NULL callback) when the
+                `DestructorHint.static.destructor()` (a NULL callback) when the
                 caller retains ownership of pClientData.
 
         Returns:

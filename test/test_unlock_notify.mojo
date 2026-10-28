@@ -95,7 +95,7 @@ def test_shared_cache_locked() raises:
     var db2 = Connection.open(url, flags)
 
     # Begin an IMMEDIATE transaction on db1, acquiring the write lock.
-    var tx = db1.transaction(TransactionBehavior.IMMEDIATE)
+    var tx = db1.transaction(TransactionBehavior.immediate)
     tx.execute_batch("INSERT INTO foo VALUES (42)")
 
     # db2 should fail to write because db1 holds the lock.

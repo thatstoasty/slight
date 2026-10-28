@@ -109,26 +109,26 @@ struct Sql(Movable, Writable):
 
         comptime value_origin = origin_of(val)
         if output.isa[value.Value]():
-            ref owned = output[value.Value]
-            if owned.isa[value.Integer]():
-                self.push_int(Int(owned[value.Integer].value))
-            elif owned.isa[value.Real]():
-                self.push_real(owned[value.Real].value)
-            elif owned.isa[value.Text]():
-                self.push_string_literal(owned[value.Text].value)
-            else:
-                raise Error(SQLITE_MISUSE, " Unsupported parameter type for pragma value")
+            match output[value.Value]:
+                case .integer(value):
+                    self.push_int(Int(value))
+                case .real(value):
+                    self.push_real(value)
+                case .text(value):
+                    self.push_string_literal(value)
+                case _:
+                    raise Error(SQLITE_MISUSE, " Unsupported parameter type for pragma value")
             return
 
-        ref sql = output[value_ref.ValueRef[value_origin]]
-        if sql.isa[value_ref.Integer]():
-            self.push_int(Int(sql[value_ref.Integer].value))
-        elif sql.isa[value_ref.Real]():
-            self.push_real(sql[value_ref.Real].value)
-        elif sql.isa[value_ref.Text[value_origin]]():
-            self.push_string_literal(sql[value_ref.Text[value_origin]].value)
-        else:
-            raise Error(SQLITE_MISUSE, " Unsupported parameter type for pragma value")
+        match output[value_ref.ValueRef[value_origin]]:
+            case .integer(value):
+                self.push_int(Int(value))
+            case .real(value):
+                self.push_real(value)
+            case .text(value):
+                self.push_string_literal(value)
+            case _:
+                raise Error(SQLITE_MISUSE, " Unsupported parameter type for pragma value")
 
     def push_string_literal(mut self, s: StringSpan):
         """Push a string literal to the buffer, properly escaped.

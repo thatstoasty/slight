@@ -1,8 +1,11 @@
 from slight.connection import Connection
+from slight.enums import DataType
 from slight.context import Context
 from slight.functions import FunctionFlags
 from slight.row import Row
-from slight.types.value_ref import Null, Blob, ValueRef
+from slight.types.value_ref import ValueRef
+from slight.types.to_sql import ToSQL, ToSqlOutput
+from slight.types.value import Value
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 
@@ -223,12 +226,11 @@ def test_varargs_function() raises:
 
 def blob_len(mut ctx: Context) raises -> Int:
     """Return the length of a blob argument, or 0 if NULL."""
-    var raw = ctx.get_raw(0)
-    if raw.isa[Null]():
-        return 0
-    if raw.isa[Blob[origin_of(raw)]]():
-        return len(raw[Blob[origin_of(raw)]].value)
-    return 0
+    match ctx.get_raw(0):
+        case .blob(value):
+            return len(value)
+        case _:
+            return 0
 
 
 def test_blob() raises:
@@ -267,6 +269,71 @@ def test_empty_blob_argument_is_not_null() raises:
     assert_equal(db.one_row[get_int]("SELECT blob_len(X'')"), 0)
     assert_equal(db.one_row[get_int]("SELECT blob_len(zeroblob(0))"), 0)
     assert_equal(db.one_row[get_int]("SELECT blob_len(NULL)"), -1)
+
+
+# ===----------------------------------------------------------------------=== #
+# Owned `Value` output: a ToSQL type whose representation must be computed
+# ===----------------------------------------------------------------------=== #
+@fieldwise_init
+struct Computed(Copyable, Movable):
+    """Returns an owned `Value` of the storage class selected by `kind`."""
+
+    var kind: Int
+
+
+__extension Computed(ToSQL):
+    def to_sql(ref self) raises -> ToSqlOutput[origin_of(self)]:
+        if self.kind == 0:
+            return Value()
+        elif self.kind == 1:
+            return Value.integer(42)
+        elif self.kind == 2:
+            return Value.real(1.5)
+        elif self.kind == 3:
+            return Value.text(String("computed"))
+        return Value.blob([Byte(1), Byte(2)])
+
+
+
+def computed(mut ctx: Context) raises -> Computed:
+    """Return an owned `Value` of the storage class named by the first argument."""
+    return Computed(Int(ctx.get_int64(0)))
+
+
+def test_scalar_owned_value_result() raises:
+    """A scalar function result of an owned `Value` sets every storage class."""
+    var db = Connection.open_in_memory()
+    db.create_scalar_function[computed]("computed", n_arg=1)
+
+    comptime sql = "SELECT typeof(computed(?1)) || ':' || quote(computed(?1))"
+    assert_equal(db.one_column[String](sql, (0,)), "null:NULL")
+    assert_equal(db.one_column[String](sql, (1,)), "integer:42")
+    assert_equal(db.one_column[String](sql, (2,)), "real:1.5")
+    assert_equal(db.one_column[String](sql, (3,)), "text:'computed'")
+    assert_equal(db.one_column[String](sql, (4,)), "blob:X'0102'")
+
+
+def arg_type_code(mut ctx: Context) raises -> Int64:
+    """Return the `SQLITE_*` datatype code of the first argument, after checking the enum round-trips."""
+    var data_type = ctx.get_value_type(0)
+    if DataType(data_type.code()) != data_type:
+        raise Error("DataType code did not round-trip")
+    return Int64(data_type.code())
+
+
+def test_scalar_value_type() raises:
+    """`get_value_type` maps each SQLite datatype to the matching `DataType` case."""
+    var db = Connection.open_in_memory()
+    db.create_scalar_function[arg_type_code]("arg_type_code", n_arg=1)
+
+    comptime sql = "SELECT arg_type_code(?1)"
+    assert_equal(db.one_column[Int64](sql, (Int64(1),)), Int64(DataType.integer.code()))
+    assert_equal(db.one_column[Int64](sql, (Float64(1.5),)), Int64(DataType.float.code()))
+    assert_equal(db.one_column[Int64](sql, ("a",)), Int64(DataType.text.code()))
+    assert_equal(db.one_column[Int64](sql, (List[Byte]([Byte(1)]),)), Int64(DataType.blob.code()))
+    assert_equal(db.one_column[Int64]("SELECT arg_type_code(NULL)"), Int64(DataType.null.code()))
+    assert_true(DataType.integer == DataType.integer)
+    assert_true(DataType.integer != DataType.text)
 
 
 def main() raises:

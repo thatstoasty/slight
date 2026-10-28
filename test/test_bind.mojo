@@ -2,6 +2,8 @@ from slight.bind import BindIndex, BindIndexError
 from slight.connection import Connection
 from slight.row import Row
 from slight.statement import eq_ignore_ascii_case
+from slight.types.to_sql import ToSQL, ToSqlOutput
+from slight.types.value import Value
 from std.testing import TestSuite, assert_equal, assert_false, assert_not_equal, assert_raises, assert_true
 
 
@@ -159,6 +161,41 @@ def test_bind_index_string_vs_string_slice_consistency() raises:
     # Both should return the same index for the same parameter name
     assert_equal(param_x.bind_idx(stmt), StringSpan(param_x).bind_idx(stmt))
     assert_equal(param_y.bind_idx(stmt), StringSpan(param_y).bind_idx(stmt))
+
+
+# ===----------------------------------------------------------------------=== #
+# Owned `Value` output: a ToSQL type whose representation must be computed
+# ===----------------------------------------------------------------------=== #
+@fieldwise_init
+struct Computed(Copyable, Movable):
+    """Returns an owned `Value` of the storage class selected by `kind`."""
+
+    var kind: Int
+
+
+__extension Computed(ToSQL):
+    def to_sql(ref self) raises -> ToSqlOutput[origin_of(self)]:
+        if self.kind == 0:
+            return Value()
+        elif self.kind == 1:
+            return Value.integer(42)
+        elif self.kind == 2:
+            return Value.real(1.5)
+        elif self.kind == 3:
+            return Value.text(String("computed"))
+        return Value.blob([Byte(1), Byte(2)])
+
+
+
+def test_bind_owned_value() raises:
+    """A `ToSQL` type returning an owned `Value` binds every storage class."""
+    var db = Connection.open_in_memory()
+    comptime sql = "SELECT typeof(?1) || ':' || quote(?1)"
+    assert_equal(db.one_column[String](sql, (Computed(0),)), "null:NULL")
+    assert_equal(db.one_column[String](sql, (Computed(1),)), "integer:42")
+    assert_equal(db.one_column[String](sql, (Computed(2),)), "real:1.5")
+    assert_equal(db.one_column[String](sql, (Computed(3),)), "text:'computed'")
+    assert_equal(db.one_column[String](sql, (Computed(4),)), "blob:X'0102'")
 
 
 def main() raises:

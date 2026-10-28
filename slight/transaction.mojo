@@ -6,22 +6,19 @@ from slight.row import RowTransformFn
 from slight.types.from_sql import FromSQL
 
 
-@fieldwise_init
-struct TransactionBehavior(Equatable, ImplicitlyCopyable, TrivialRegisterPassable):
+__enum TransactionBehavior(Equatable, ImplicitlyCopyable):
     """Options for transaction behavior.
 
     See [BEGIN TRANSACTION](http://www.sqlite.org/lang_transaction.html) for details.
     """
 
-    var value: Int
-    """Internal enum value."""
-    comptime DEFERRED = Self(0)
+    case deferred
     """DEFERRED means that the transaction does not actually start until the
     database is first accessed."""
-    comptime IMMEDIATE = Self(1)
+    case immediate
     """IMMEDIATE cause the database connection to start a new write
     immediately, without waiting for a writes statement."""
-    comptime EXCLUSIVE = Self(2)
+    case exclusive
     """EXCLUSIVE prevents other database connections from reading the database
     while the transaction is underway."""
 
@@ -34,7 +31,7 @@ struct TransactionBehavior(Equatable, ImplicitlyCopyable, TrivialRegisterPassabl
         Returns:
             True if the values are equal, False otherwise.
         """
-        return self.value == other.value
+        return self.to_sql() == other.to_sql()
 
     def to_sql(self) -> StaticString:
         """Convert the transaction behavior to its SQL representation.
@@ -42,12 +39,13 @@ struct TransactionBehavior(Equatable, ImplicitlyCopyable, TrivialRegisterPassabl
         Returns:
             The SQL string corresponding to the transaction behavior.
         """
-        if self == Self.DEFERRED:
-            return "BEGIN DEFERRED"
-        elif self == Self.IMMEDIATE:
-            return "BEGIN IMMEDIATE"
-        else:  # EXCLUSIVE
-            return "BEGIN EXCLUSIVE"
+        match self:
+            case .deferred:
+                return "BEGIN DEFERRED"
+            case .immediate:
+                return "BEGIN IMMEDIATE"
+            case .exclusive:
+                return "BEGIN EXCLUSIVE"
 
 
 @fieldwise_init
@@ -138,14 +136,14 @@ struct Transaction[conn_origin: MutOrigin](Movable):
     def __init__(
         out self,
         conn: Pointer[Connection, Self.conn_origin],
-        behavior: TransactionBehavior = TransactionBehavior.DEFERRED,
+        behavior: TransactionBehavior = TransactionBehavior.deferred,
         delete_behavior: DeleteBehavior = DeleteBehavior.ROLLBACK,
     ) raises:
         """Begin a new transaction.
 
         Args:
             conn: The database connection.
-            behavior: The transaction behavior (DEFERRED, IMMEDIATE, or EXCLUSIVE).
+            behavior: The transaction behavior (deferred, immediate, or exclusive).
             delete_behavior: The cleanup behavior, defaults to ROLLBACK.
 
         Raises:

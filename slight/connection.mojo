@@ -1654,7 +1654,7 @@ struct Connection(Movable):
     def wal_checkpoint(mut self, schema: Optional[String] = None) raises:
         """Checkpoints the write-ahead log using the default (passive) mode.
 
-        This is equivalent to `wal_checkpoint_v2(CheckpointMode.PASSIVE, schema)`
+        This is equivalent to `wal_checkpoint_v2(CheckpointMode.passive, schema)`
         but does not report the number of log/checkpointed frames.
 
         Args:
@@ -1689,7 +1689,7 @@ struct Connection(Movable):
         from slight.checkpoint import CheckpointMode
 
         def checkpoint_wal(mut conn: Connection) raises:
-            var log_frames, checkpointed_frames = conn.wal_checkpoint_v2(CheckpointMode.FULL)
+            var log_frames, checkpointed_frames = conn.wal_checkpoint_v2(CheckpointMode.full)
         ```
         """
         sqlite_ffi()[].require_function("sqlite3_wal_checkpoint_v2")

@@ -40,7 +40,7 @@ def test_wal_checkpoint_v2_returns_sane_frame_counts() raises:
         for i in range(50):
             _ = db.execute("INSERT INTO t (value) VALUES (?1)", (i,))
 
-        var log_frames, checkpointed_frames = db.wal_checkpoint_v2(CheckpointMode.FULL)
+        var log_frames, checkpointed_frames = db.wal_checkpoint_v2(CheckpointMode.full)
 
         assert_true(log_frames >= 0)
         assert_true(checkpointed_frames >= 0)
@@ -56,7 +56,7 @@ def test_wal_checkpoint_v2_truncate_mode() raises:
         db.execute_batch("CREATE TABLE t (value INTEGER)")
         _ = db.execute("INSERT INTO t (value) VALUES (?1)", (1,))
 
-        var log_frames, checkpointed_frames = db.wal_checkpoint_v2(CheckpointMode.TRUNCATE)
+        var log_frames, checkpointed_frames = db.wal_checkpoint_v2(CheckpointMode.truncate)
         assert_true(log_frames >= 0)
         assert_true(checkpointed_frames >= 0)
 

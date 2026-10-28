@@ -184,17 +184,17 @@ def test_transaction_behavior() raises:
     db.execute_batch("CREATE TABLE foo (x INTEGER)")
     
     # Test DEFERRED transaction (default)
-    with db.transaction(TransactionBehavior.DEFERRED) as tx:
+    with db.transaction(TransactionBehavior.deferred) as tx:
         tx.execute_batch("INSERT INTO foo VALUES(1)")
         tx.commit()
     
     # Test IMMEDIATE transaction
-    with db.transaction(TransactionBehavior.IMMEDIATE) as tx2:
+    with db.transaction(TransactionBehavior.immediate) as tx2:
         tx2.conn[].execute_batch("INSERT INTO foo VALUES(2)")
         tx2.commit()
     
     # Test EXCLUSIVE transaction
-    with db.transaction(TransactionBehavior.EXCLUSIVE) as tx3:
+    with db.transaction(TransactionBehavior.exclusive) as tx3:
         tx3.conn[].execute_batch("INSERT INTO foo VALUES(3)")
         tx3.commit()
     

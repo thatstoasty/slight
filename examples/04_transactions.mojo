@@ -158,21 +158,21 @@ def example_transaction_behaviors() raises:
 
     # DEFERRED: Locks are acquired lazily (default)
     print("DEFERRED transaction (default - acquires locks lazily):")
-    with db.transaction(TransactionBehavior.DEFERRED) as tx:
+    with db.transaction(TransactionBehavior.deferred) as tx:
         _ = tx.execute("INSERT INTO data VALUES (?1)", [1])
         tx.commit()
     print("  Inserted value 1")
 
     # IMMEDIATE: Acquires a write lock immediately
     print("IMMEDIATE transaction (acquires write lock immediately):")
-    with db.transaction(TransactionBehavior.IMMEDIATE) as tx:
+    with db.transaction(TransactionBehavior.immediate) as tx:
         _ = tx.execute("INSERT INTO data VALUES (?1)", [2])
         tx.commit()
     print("  Inserted value 2")
 
     # EXCLUSIVE: Prevents other connections from reading
     print("EXCLUSIVE transaction (exclusive access):")
-    with db.transaction(TransactionBehavior.EXCLUSIVE) as tx:
+    with db.transaction(TransactionBehavior.exclusive) as tx:
         _ = tx.execute("INSERT INTO data VALUES (?1)", [3])
         tx.commit()
     print("  Inserted value 3")

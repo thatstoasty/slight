@@ -257,27 +257,26 @@ struct Statement[conn: MutOrigin](Movable):
         """
         # TODO: Generally need to handle nulls here, for now we're kind of asserting that
         # data requested via this function is not null.
-        var column_type = self.column_type(col)
-        if DataType.NULL == column_type:
-            return value_ref.Null()
-        elif DataType.INTEGER == column_type:
-            return value_ref.Integer(self.stmt.column_int64(col))
-        elif DataType.FLOAT == column_type:
-            return value_ref.Real(self.stmt.column_double(col))
-        elif DataType.TEXT == column_type:
-            # We should generally be fine and not hit the case where column_text or blob return None.
-            # If the column is nullable, the data type will be NULL.
-            try:
-                return value_ref.Text(self.unsafe_column_text(col))
-            except e:
-                abort(String(e))
-        elif DataType.BLOB == column_type:
-            try:
-                return value_ref.Blob(self.unsafe_column_blob(col))
-            except e:
-                abort(String(e))
-        else:
-            abort(t"[UNREACHABLE] sqlite3_column_type returned an invalid value: {column_type.value}")
+        comptime ValueRefT = ValueRef[origin_of(self)]
+        match self.column_type(col):
+            case .null:
+                return ValueRefT.null
+            case .integer:
+                return ValueRefT.integer(self.stmt.column_int64(col))
+            case .float:
+                return ValueRefT.real(self.stmt.column_double(col))
+            case .text:
+                # We should generally be fine and not hit the case where column_text or blob return None.
+                # If the column is nullable, the data type will be NULL.
+                try:
+                    return ValueRefT.text(self.unsafe_column_text(col))
+                except e:
+                    abort(String(e))
+            case .blob:
+                try:
+                    return ValueRefT.blob(self.unsafe_column_blob(col))
+                except e:
+                    abort(String(e))
 
     def finalize(deinit self) raises -> None:
         """Finalizes the statement and releases its resources.
@@ -425,7 +424,7 @@ struct Statement[conn: MutOrigin](Movable):
             Error: If the bind operation fails.
         """
         # Enforce transient destructor so sqlite copies the data.
-        self.connection[].raise_if_error(self.stmt.bind_text(index, value, DestructorHint.transient_destructor()))
+        self.connection[].raise_if_error(self.stmt.bind_text(index, value, DestructorHint.transient.destructor()))
 
     def bind_blob[origin: ImmOrigin, //](mut self, index: UInt, value: ImmSpan[Byte, origin]) raises -> None:
         """Binds a blob value to the specified parameter.
@@ -438,7 +437,7 @@ struct Statement[conn: MutOrigin](Movable):
             Error: If the bind operation fails.
         """
         # Enforce transient destructor so sqlite copies the data.
-        self.connection[].raise_if_error(self.stmt.bind_blob(index, value, DestructorHint.transient_destructor()))
+        self.connection[].raise_if_error(self.stmt.bind_blob(index, value, DestructorHint.transient.destructor()))
 
     def parameter_index(self, var name: String) -> Optional[UInt]:
         """Returns the index of the parameter with the specified name.
@@ -472,35 +471,31 @@ struct Statement[conn: MutOrigin](Movable):
         if output.isa[value.Value]():
             # The value was computed by `to_sql` and owns its buffers. Binding
             # is transient, so SQLite copies before `owned` is dropped here.
-            ref owned = output[value.Value]
-            if owned.isa[value.Null]():
-                self.bind_null(index)
-            elif owned.isa[value.Text]():
-                self.bind_text(index, owned[value.Text].value)
-            elif owned.isa[value.Integer]():
-                self.bind_int64(index, owned[value.Integer].value)
-            elif owned.isa[value.Real]():
-                self.bind_double(index, owned[value.Real].value)
-            elif owned.isa[value.Blob]():
-                self.bind_blob(index, Span(owned[value.Blob].value))
-            else:
-                raise Error("Unsupported parameter type")
+            match output[value.Value]:
+                case .null:
+                    self.bind_null(index)
+                case .text(value):
+                    self.bind_text(index, value)
+                case .integer(value):
+                    self.bind_int64(index, value)
+                case .real(value):
+                    self.bind_double(index, value)
+                case .blob(value):
+                    self.bind_blob(index, Span(value))
             return
 
         comptime param_origin = origin_of(parameter)
-        ref borrowed = output[ValueRef[param_origin]]
-        if borrowed.isa[value_ref.Null]():
-            self.bind_null(index)
-        elif borrowed.isa[value_ref.Text[param_origin]]():
-            self.bind_text(index, borrowed[value_ref.Text[param_origin]].value)
-        elif borrowed.isa[value_ref.Integer]():
-            self.bind_int64(index, borrowed[value_ref.Integer].value)
-        elif borrowed.isa[value_ref.Real]():
-            self.bind_double(index, borrowed[value_ref.Real].value)
-        elif borrowed.isa[value_ref.Blob[param_origin]]():
-            self.bind_blob(index, borrowed[value_ref.Blob[param_origin]].value)
-        else:
-            raise Error("Unsupported parameter type")
+        match output[ValueRef[param_origin]]:
+            case .null:
+                self.bind_null(index)
+            case .text(value):
+                self.bind_text(index, value)
+            case .integer(value):
+                self.bind_int64(index, value)
+            case .real(value):
+                self.bind_double(index, value)
+            case .blob(value):
+                self.bind_blob(index, value)
 
     def bind_parameter_count(self) -> Int32:
         """Returns the number of parameters in the prepared statement.
